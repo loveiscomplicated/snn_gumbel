@@ -43,7 +43,7 @@ def main():
 
     args = parser.parse_args()
     cfg = load_config(args.config, overrides=args.overrides)
-    train(cfg, config_path=args.config, resume=args.resume)
+    train(cfg, resume=args.resume)
 
 
 if __name__ == "__main__":

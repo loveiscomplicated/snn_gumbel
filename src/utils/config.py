@@ -67,6 +67,7 @@ class Config:
     epochs: int = 100
     batch_size: int = 128
     lr: float = 1e-3
+    lr_min: float = 1e-5   # cosine scheduler의 최솟값
     lambda_sparse: float = 0.005
     lambda_commit: float = 0.08
     edge_threshold: float = 0.5

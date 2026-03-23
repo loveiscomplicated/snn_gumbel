@@ -11,12 +11,12 @@ Responsibilities:
 import json
 import math
 import os
-import shutil
 from datetime import datetime
 from pathlib import Path
 
 import torch
 import torch.optim as optim
+from torch.optim.lr_scheduler import CosineAnnealingLR
 from tqdm import tqdm
 
 from src.data.loaders import get_dataloaders
@@ -41,21 +41,17 @@ def get_tau(epoch: int, cfg: Config) -> float:
     return cfg.tau_end + (cfg.tau_start - cfg.tau_end) * cosine
 
 
-def _make_experiment_dir(cfg: Config, config_path: str | None) -> Path:
+def _make_experiment_dir(cfg: Config) -> Path:
     timestamp = datetime.now().strftime("%y%m%d%H%M")
     exp_dir = Path("experiments") / f"{cfg.experiment_name}_{timestamp}"
     (exp_dir / "checkpoints").mkdir(parents=True, exist_ok=True)
     (exp_dir / "logs").mkdir(exist_ok=True)
     (exp_dir / "figures").mkdir(exist_ok=True)
 
-    # snapshot the config file actually used
-    if config_path and os.path.exists(config_path):
-        shutil.copy(config_path, exp_dir / "config.yaml")
-    else:
-        # write a minimal snapshot from the dataclass
-        import yaml
-        with open(exp_dir / "config.yaml", "w") as f:
-            yaml.dump(_cfg_to_dict(cfg), f, default_flow_style=False)
+    # snapshot: always dump the fully resolved config (after inheritance + CLI overrides)
+    import yaml
+    with open(exp_dir / "config.yaml", "w") as f:
+        yaml.dump(_cfg_to_dict(cfg), f, default_flow_style=False, sort_keys=False)
 
     return exp_dir
 
@@ -95,18 +91,19 @@ def build_model(cfg: Config, device: torch.device) -> SNNModel:
     return model
 
 
-def train(cfg: Config, config_path: str | None = None, resume: bool = False) -> list:
+def train(cfg: Config, resume: bool = False) -> list:
     os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")
     torch.manual_seed(cfg.seed)
     device = get_device()
 
-    exp_dir = _make_experiment_dir(cfg, config_path)
+    exp_dir = _make_experiment_dir(cfg)
     checkpoint_path = exp_dir / "checkpoints" / "best.pt"
     log_path = exp_dir / "logs" / "train.jsonl"
 
     train_loader, test_loader = get_dataloaders(cfg)
     model = build_model(cfg, device)
     optimizer = optim.Adam(model.parameters(), lr=cfg.lr)
+    scheduler = CosineAnnealingLR(optimizer, T_max=cfg.epochs, eta_min=cfg.lr_min)
 
     start_epoch = 0
     best_acc = 0.0
@@ -116,6 +113,7 @@ def train(cfg: Config, config_path: str | None = None, resume: bool = False) -> 
         ckpt = torch.load(checkpoint_path, map_location=device)
         model.load_state_dict(ckpt["model_state"])
         optimizer.load_state_dict(ckpt["optimizer_state"])
+        scheduler.load_state_dict(ckpt["scheduler_state"])
         start_epoch = ckpt["epoch"]
         best_acc = ckpt["best_acc"]
         history = ckpt.get("history", [])
@@ -145,9 +143,13 @@ def train(cfg: Config, config_path: str | None = None, resume: bool = False) -> 
             train_loss = total_l / n
             test_acc = _evaluate(model, test_loader, device, tau)
             sparsities = model.sparsity_info()
+            current_lr = scheduler.get_last_lr()[0]
+
+            scheduler.step()
 
             row = dict(
                 epoch=epoch + 1,
+                lr=current_lr,
                 tau=tau,
                 train_loss=train_loss,
                 train_acc=train_acc,
@@ -162,6 +164,7 @@ def train(cfg: Config, config_path: str | None = None, resume: bool = False) -> 
 
             sp_str = "  ".join(f"sp{i+1}={s:.3f}" for i, s in enumerate(sparsities))
             epoch_bar.set_postfix(
+                lr=f"{current_lr:.2e}",
                 tau=f"{tau:.3f}",
                 loss=f"{train_loss:.4f}",
                 train=f"{train_acc:.4f}",
@@ -169,7 +172,7 @@ def train(cfg: Config, config_path: str | None = None, resume: bool = False) -> 
             )
             tqdm.write(
                 f"[{epoch+1:03d}/{cfg.epochs}] "
-                f"tau={tau:.3f}  loss={train_loss:.4f}  "
+                f"lr={current_lr:.2e}  tau={tau:.3f}  loss={train_loss:.4f}  "
                 f"train={train_acc:.4f}  test={test_acc:.4f}  {sp_str}"
             )
 
@@ -179,6 +182,7 @@ def train(cfg: Config, config_path: str | None = None, resume: bool = False) -> 
                     {
                         "model_state": model.state_dict(),
                         "optimizer_state": optimizer.state_dict(),
+                        "scheduler_state": scheduler.state_dict(),
                         "epoch": epoch + 1,
                         "best_acc": best_acc,
                         "history": history,

@@ -66,7 +66,7 @@ class GumbelLIFLayer(nn.Module):
 
         # theta is always created; for non-learned modes it is frozen or ignored
         self.theta = nn.Parameter(
-            torch.zeros(n_pre, n_post),
+            torch.randn(n_pre, n_post) * 0.01,
             requires_grad=(mode == "learned"),
         )
 

@@ -1,0 +1,7 @@
+base: base.yaml
+
+experiment_name: fashion_mnist_baseline
+dataset: fashion_mnist
+
+architecture:
+  hidden_layers: [1024]
