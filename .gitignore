@@ -209,3 +209,5 @@ data
 text.txt
 checkpoint.pt
 resources
+.claude
+experiments
