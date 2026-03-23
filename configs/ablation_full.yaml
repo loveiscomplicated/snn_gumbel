@@ -1,0 +1,9 @@
+base: base.yaml
+
+experiment_name: ablation_full
+dataset: mnist
+
+topology:
+  mode: full          # mask is always 1; no topology learning
+  target_sparsity: 0.5
+  transfer_from: ""

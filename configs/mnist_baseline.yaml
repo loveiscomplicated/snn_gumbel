@@ -1,0 +1,4 @@
+base: base.yaml
+
+experiment_name: mnist_baseline
+dataset: mnist

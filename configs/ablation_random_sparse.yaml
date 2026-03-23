@@ -1,0 +1,9 @@
+base: base.yaml
+
+experiment_name: ablation_random_sparse
+dataset: mnist
+
+topology:
+  mode: random_sparse   # fixed random binary mask, not learned
+  target_sparsity: 0.38 # fraction of edges kept
+  transfer_from: ""

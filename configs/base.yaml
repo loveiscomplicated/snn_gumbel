@@ -1,0 +1,32 @@
+# Base config — all experiments inherit from this.
+# Override only the keys you need to change.
+
+experiment_name: experiment
+dataset: mnist
+
+n_input: 784
+n_output: 10
+T: 25
+beta: 0.9
+
+architecture:
+  hidden_layers: [512]
+
+topology:
+  mode: learned          # learned | full | random_sparse | transfer
+  target_sparsity: 0.5
+  transfer_from: ""
+
+tau_start: 1.0
+tau_end: 0.05
+tau_anneal_epochs: 25
+
+epochs: 100
+batch_size: 128
+lr: 0.001
+lambda_sparse: 0.005
+lambda_commit: 0.08
+edge_threshold: 0.5
+seed: 42
+
+data_dir: ./data

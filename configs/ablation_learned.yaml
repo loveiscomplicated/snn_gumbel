@@ -1,0 +1,9 @@
+base: base.yaml
+
+experiment_name: ablation_learned
+dataset: mnist
+
+topology:
+  mode: learned
+  target_sparsity: 0.5
+  transfer_from: ""
