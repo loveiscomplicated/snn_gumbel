@@ -10,6 +10,11 @@ Examples:
                                  --figures-dir experiments/mnist_baseline_2603231200/figures
 """
 
+"""
+python scripts/visualize.py --config experiments/mnist_baseline_2603231200/config.yaml \
+                                --checkpoint experiments/mnist_baseline_2603231200/checkpoints/best.pt \
+                                --figures-dir experiments/mnist_baseline_2603231200/figures
+"""
 import os
 
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
