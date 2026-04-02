@@ -1,11 +1,11 @@
 base: base.yaml
 
 experiment_name: ablation_transfer
-dataset: mnist   # change to fashion_mnist for topology-transfer experiments
+dataset: fashion_mnist   # change to fashion_mnist for topology-transfer experiments
 
 topology:
   mode: transfer
   target_sparsity: 0.5
   # Path to the checkpoint whose theta values will be loaded and frozen.
   # Replace with an actual path before running.
-  transfer_from: "experiments/ablation_learned_YYMMDDHHMM/checkpoints/best.pt"
+  transfer_from: "experiments/mnist_snn_2603231917/checkpoints/best.pt"
