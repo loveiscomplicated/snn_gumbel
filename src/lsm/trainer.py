@@ -109,7 +109,7 @@ def train(cfg: Config) -> tuple:
 
     train_loader, test_loader = get_dataloaders(cfg)
     model = build_model(cfg, device)
-    optimizer = optim.Adam(model.parameters(), lr=cfg.lr)
+    optimizer = optim.Adam(model.parameters(), lr=cfg.lr, weight_decay=cfg.weight_decay)
     scheduler = CosineAnnealingLR(optimizer, T_max=cfg.epochs, eta_min=cfg.lr_min)
 
     best_acc = 0.0

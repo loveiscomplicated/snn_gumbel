@@ -91,6 +91,7 @@ class Config:
     lr_min: float = 1e-5   # cosine scheduler의 최솟값
     lambda_sparse: float = 0.005
     lambda_commit: float = 0.08
+    weight_decay: float = 0.0
     edge_threshold: float = 0.5
     seed: int = 42
 
@@ -151,6 +152,11 @@ def _apply_cli_overrides(d: dict, overrides: List[str]) -> dict:
             raise ValueError(f"CLI override must be key=value, got: {item!r}")
         key_path, raw_value = item.split("=", 1)
         value = yaml.safe_load(raw_value)
+        if isinstance(value, str):
+            try:
+                value = float(value)
+            except ValueError:
+                pass
         keys = key_path.split(".")
         target = d
         for k in keys[:-1]:
