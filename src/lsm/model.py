@@ -71,10 +71,10 @@ class LiquidLayer(nn.Module):
         )
         # softplus(w_raw) is the weight magnitude.
         # softplus(0)=0.693 is way too large for recurrent nets.
-        # Target: spectral radius ≈ 0.9 → need softplus ≈ 0.15
-        # softplus(-2.0) ≈ 0.127, softplus(-1.5) ≈ 0.201
+        # With N=200, p=0.2: ~40 inputs/neuron, 80% exc.
+        # softplus(-4.0)≈0.018 → recurrent current ≈ 0.58 (sub-threshold)
         self.w_raw = nn.Parameter(
-            torch.randn(n_liquid, n_liquid) * 0.01 - 2.0,
+            torch.randn(n_liquid, n_liquid) * 0.01 - 4.0,
             requires_grad=weight_trainable,
         )
         self.threshold = nn.Parameter(torch.ones(n_liquid), requires_grad=weight_trainable)
