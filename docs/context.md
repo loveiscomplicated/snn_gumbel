@@ -90,32 +90,34 @@ mᵢⱼ = σ((log ε - log(1-ε) + θᵢⱼ) / τ),  ε ~ U(0,1)
 
 ### 2.2 통합 학습 프레임워크
 
-하나의 프레임워크 안에서 세 가지가 동시에 학습된다:
+하나의 프레임워크 안에서 네 가지가 동시에 학습된다:
 
 | 파라미터 | 의미 | 학습 방법 |
 |---------|------|----------|
 | θᵢⱼ | 연결 존재 여부 | Gumbel-Sigmoid |
 | wᵢⱼ | 시냅스 가중치 | gradient descent |
-| vᵢ | 스파이크 임계값 | gradient descent |
+| vᵢ | 스파이크 임계값 | gradient descent (은닉층만; 출력층은 1.0 고정) |
+| βₗ | 레이어별 막전위 감쇠율 | gradient descent (log_beta → sigmoid) |
 
 ### 2.3 네트워크 구조
 
 ```
 입력 뉴런 (784개, 28×28 픽셀)
     ↓  Gumbel-Sigmoid 엣지 마스크 × 학습 가능 가중치
-중간 뉴런 (256개 또는 512개)
+은닉 뉴런 (hidden_layers: List[int], 기본값 [512]; 복수 은닉층 지원)
     ↓  Gumbel-Sigmoid 엣지 마스크 × 학습 가능 가중치
-효과기 뉴런 (10개, 각각 숫자 0~9 담당)
+효과기 뉴런 (10개, 각각 숫자 0~9 담당; 임계값=1.0 고정, 학습 안 함)
 ```
 
 - 뉴런 모델: LIF (Leaky Integrate-and-Fire)
-- 스파이크 미분 근사: surrogate gradient
+- 스파이크 미분 근사: surrogate gradient (sigmoid 기반: σ(x)·(1−σ(x)))
 - 토폴로지 미분 근사: Gumbel-Sigmoid with temperature annealing
 
 ### 2.4 순전파 과정
 
 ```
-1. MNIST 이미지 → 입력 뉴런에 인코딩
+1. MNIST 이미지 → Poisson rate coding으로 입력 스파이크 생성
+   (픽셀값을 발화 확률로 사용: spike = rand() < pixel_value)
 2. 여러 타임스텝(T=25) 동안 SNN 시뮬레이션:
    a. 각 연결에 대해 엣지 마스크 계산: mᵢⱼ = GumbelSigmoid(θᵢⱼ, τ)
    b. 실제 전달 신호 = mᵢⱼ × wᵢⱼ × 프리시냅틱 스파이크
@@ -133,7 +135,7 @@ L = L_CE + λ_sparse × L_sparse + λ_commit × L_commit
 
 - **L_CE**: 크로스엔트로피 (분류 정확도)
 - **L_sparse**: sigmoid(θᵢⱼ)의 평균 (연결을 스파스하게 유도)
-- **L_commit**: Binary entropy H(p) = -p·log(p) - (1-p)·log(1-p)의 평균 (θ를 0 또는 1로 양극화 유도)
+- **L_commit**: Binary entropy H(p) = -p·log(p) - (1-p)·log(1-p)의 레이어별 가중 평균 (θ를 0 또는 1로 양극화 유도; Layer 1에 가중치 2×, 이후 레이어 1×)
 
 commitment loss가 필요한 이유: L_sparse(0으로 밀기)와 L_CE(연결 유지)가 0.4~0.5에서 균형을 이루면 gradient가 소멸하여 theta가 bimodal 분포를 형성하지 못하는 구조적 문제가 있었다. Binary entropy를 정규화 항으로 추가하면 p=0.5일 때 최대 페널티, 0 또는 1일 때 0이므로 중간값에 패널티를 줘서 양극화를 유도한다.
 
@@ -142,7 +144,8 @@ commitment loss가 필요한 이유: L_sparse(0으로 밀기)와 L_CE(연결 유
 ```
 학습 초기: τ = 1.0  → 부드러운 연속값, 탐색 장려
 학습 후기: τ = 0.05 → 이진에 가까움, 확정적 구조 형성
-어닐링: 25 에폭에 걸쳐 점진적 감소
+어닐링: 25 에폭에 걸쳐 cosine annealing으로 점진적 감소, 이후 τ_end 고정
+  τ(epoch) = τ_end + (τ_start − τ_end) × 0.5 × (1 + cos(π × epoch / tau_anneal_epochs))
 ```
 
 ### 2.7 개발 과정에서 발견한 버그와 해결
