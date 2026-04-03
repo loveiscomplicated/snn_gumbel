@@ -44,9 +44,12 @@ class LiquidConfig:
     recurrent_mode: str = "learned"  # learned | random_sparse | fixed | grad_r
     recurrent_sparsity: float = 0.2  # random_sparse 모드 시 연결 확률
     self_connection: bool = False    # 자기 연결 허용 여부
+    theta_init_mean: float = 0.0     # theta 초기화 평균 (음수→희소 초기 연결, e.g. -2.0→12%)
     theta_init_std: float = 0.01     # theta 초기화 표준편차
     grad_clip_max_norm: float = 1.0  # gradient clipping
     input_weight_scale: float = 0.1  # 입력 가중치 스케일
+    w_raw_max: float = -3.0          # w_raw 상한 clamp (softplus(-3.0)≈0.049, spectral radius < 1 for N≤500)
+    bptt_truncate: int = 0           # truncated BPTT: 마지막 K 타임스텝만 gradient 흘림 (0 = full BPTT)
     beta_min: float = 0.7            # 뉴런별 LIF leak 범위 (하한)
     beta_max: float = 0.95           # 뉴런별 LIF leak 범위 (상한)
     threshold_min: float = 0.8       # 뉴런별 발화 임계값 범위 (하한)
@@ -112,15 +115,6 @@ def _deep_merge(base: dict, override: dict) -> dict:
         else:
             result[k] = v
     return result
-
-
-def _dict_to_config(d: dict) -> Config:
-    arch_d = d.pop("architecture", {})
-    topo_d = d.pop("topology", {})
-    cfg = Config(**d)
-    cfg.architecture = ArchitectureConfig(**arch_d)
-    cfg.topology = TopologyConfig(**topo_d)
-    return cfg
 
 
 def _load_yaml(path: str | Path) -> dict:

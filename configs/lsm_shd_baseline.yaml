@@ -11,9 +11,6 @@ beta: 0.9
 architecture:
   hidden_layers: []
 
-topology:
-  mode: learned
-
 liquid:
   n_liquid: 500
   exc_ratio: 0.8
@@ -21,7 +18,10 @@ liquid:
   recurrent_mode: learned
   recurrent_sparsity: 0.1
   self_connection: false
-  theta_init_std: 0.01
+  theta_init_mean: -2.0
+  theta_init_std: 0.5
+  w_raw_max: -3.0
+  bptt_truncate: 25
   grad_clip_max_norm: 1.0
   input_weight_scale: 0.3
   beta_min: 0.7
@@ -38,6 +38,7 @@ patience: 20
 batch_size: 64
 lr: 0.001
 lr_min: 0.00001
+weight_decay: 0.0001
 lambda_sparse: 0.01
 lambda_commit: 0.08
 seed: 42
