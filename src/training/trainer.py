@@ -50,6 +50,7 @@ def _make_experiment_dir(cfg: Config) -> Path:
 
     # snapshot: always dump the fully resolved config (after inheritance + CLI overrides)
     import yaml
+
     with open(exp_dir / "config.yaml", "w") as f:
         yaml.dump(_cfg_to_dict(cfg), f, default_flow_style=False, sort_keys=False)
 
@@ -58,6 +59,7 @@ def _make_experiment_dir(cfg: Config) -> Path:
 
 def _cfg_to_dict(cfg: Config) -> dict:
     import dataclasses
+
     return dataclasses.asdict(cfg)
 
 
@@ -107,6 +109,7 @@ def train(cfg: Config, resume: bool = False) -> list:
 
     start_epoch = 0
     best_acc = 0.0
+    epochs_no_improve = 0
     history: list[dict] = []
 
     if resume and checkpoint_path.exists():
@@ -178,6 +181,7 @@ def train(cfg: Config, resume: bool = False) -> list:
 
             if test_acc > best_acc:
                 best_acc = test_acc
+                epochs_no_improve = 0
                 torch.save(
                     {
                         "model_state": model.state_dict(),
@@ -189,6 +193,12 @@ def train(cfg: Config, resume: bool = False) -> list:
                     },
                     checkpoint_path,
                 )
+            else:
+                epochs_no_improve += 1
+
+            if cfg.patience > 0 and epochs_no_improve >= cfg.patience:
+                tqdm.write(f"Early stopping: no improvement for {cfg.patience} epochs.")
+                break
 
     print(f"\nBest test accuracy: {best_acc:.4f}")
     print(f"Experiment saved to: {exp_dir}")

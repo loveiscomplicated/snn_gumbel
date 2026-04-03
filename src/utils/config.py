@@ -36,6 +36,19 @@ class TopologyConfig:
     transfer_from: str = ""        # checkpoint path when mode == "transfer"
 
 
+@dataclass
+class LiquidConfig:
+    n_liquid: int = 200              # 리퀴드 뉴런 수
+    exc_ratio: float = 0.8           # 흥분성 뉴런 비율
+    p_input: float = 0.1             # 입력→리퀴드 연결 확률
+    recurrent_mode: str = "learned"  # learned | random_sparse | fixed | grad_r
+    recurrent_sparsity: float = 0.2  # random_sparse 모드 시 연결 확률
+    self_connection: bool = False    # 자기 연결 허용 여부
+    theta_init_std: float = 0.01     # theta 초기화 표준편차
+    grad_clip_max_norm: float = 1.0  # gradient clipping
+    input_weight_scale: float = 0.1  # 입력 가중치 스케일
+
+
 # ---------------------------------------------------------------------------
 # Root config
 # ---------------------------------------------------------------------------
@@ -58,6 +71,9 @@ class Config:
     # topology
     topology: TopologyConfig = field(default_factory=TopologyConfig)
 
+    # liquid (LSM 전용)
+    liquid: LiquidConfig = field(default_factory=LiquidConfig)
+
     # annealing
     tau_start: float = 1.0
     tau_end: float = 0.05
@@ -65,6 +81,7 @@ class Config:
 
     # training
     epochs: int = 100
+    patience: int = 20   # early stopping patience (0 = 비활성화)
     batch_size: int = 128
     lr: float = 1e-3
     lr_min: float = 1e-5   # cosine scheduler의 최솟값
@@ -162,8 +179,10 @@ def load_config(
     # extract nested sections before passing to Config()
     arch_d   = data.pop("architecture", {})
     topo_d   = data.pop("topology", {})
+    liq_d    = data.pop("liquid", {})
 
     cfg = Config(**data)
     cfg.architecture = ArchitectureConfig(**arch_d)
     cfg.topology     = TopologyConfig(**topo_d)
+    cfg.liquid       = LiquidConfig(**liq_d)
     return cfg
