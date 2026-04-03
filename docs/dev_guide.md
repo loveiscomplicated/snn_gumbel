@@ -48,8 +48,8 @@ LSM 구조의 해결:
 
 ```
 SHD 스파이크 입력 (700채널)
-    ↓  랜덤 고정 연결 (p_in=0.1~0.3, 흥분성만)
-리퀴드 (N개 LIF 뉴런, 80% 흥분 + 20% 억제)
+    ↓  랜덤 고정 연결 (p_in=0.1~0.3, randn 양수/음수 혼재)
+리퀴드 (N개 LIF 뉴런, 80% 흥분 + 20% 억제, 이질적 beta/threshold)
     ↻  순환 연결: Gumbel-Sigmoid 마스크 × Dale's Law 가중치
     ↓  스파이크 카운트 수집
 리드아웃 (선형 분류기, 20클래스)
@@ -59,7 +59,7 @@ SHD 스파이크 입력 (700채널)
 
 | 연결 | Shape | 학습 여부 | 구현 |
 |------|-------|---------|------|
-| 입력→리퀴드 | (700, N) | **고정** | 랜덤 초기화, p_in 확률로 희소 연결, 양수 가중치만 |
+| 입력→리퀴드 | (700, N) | **고정** | randn 초기화(양수/음수 혼재), p_in 확률로 희소 연결 |
 | 리퀴드→리퀴드 | (N, N) | **theta + weight 학습** | Gumbel-Sigmoid 마스크 × Dale's Law softplus 가중치 |
 | 리퀴드→리드아웃 | (N, 20) | **weight만 학습** | 선형층 (스파이크 카운트 → logits) |
 
@@ -370,13 +370,39 @@ model = LSMModel(mode="grad_r", weight_trainable=True)
 | 입력 | SHD 700채널 | 표준 벤치마크 |
 | dt | 10ms | T=100, SHD 표준 |
 | E:I 비율 | 80:20 | 뇌 피질 비율 반영, LSM 표준 |
-| 입력 연결 | 흥분성만, 랜덤 고정 | 전통 LSM 표준 |
+| 입력 연결 | **randn(양수/음수 혼재)**, 랜덤 고정 | separation property 확보에 필수 (아래 주의사항 참조) |
 | 리드아웃 | 선형 (스파이크 카운트 평균) | A/B/C 통제 |
 | 자기 연결 | 제외 (대각선 0) | 학습 안정성 |
 | 마스크 타이밍 | 시뮬레이션 전 1회, T 동안 고정 | PGExplainer 설계 |
 | 마스크 배치 | 배치 전체 동일 | variance 최소화 |
 | Gradient clipping | max_norm=1.0 | 순환 BPTT 안정화 |
 | Dale's Law | Softplus (abs 폐기) | gradient 안정성 |
+| beta 초기화 | 뉴런별 이질적 (`linspace(beta_min, beta_max, N)`) | 시간 스케일 다양성 확보 |
+| threshold 초기화 | 뉴런별 이질적 (`linspace(thr_min, thr_max, N)`) | 발화 민감도 다양성 확보 |
+| 막전위 clamp | `clamp(-3.0, 3.0)` | 흥분성 루프 폭주 방지 안전장치 |
+
+### 8.1.1 입력 연결 사양 — 주의사항 (Phase 1에서 확인됨)
+
+**`torch.rand`(양수만)가 아닌 `torch.randn`(양수/음수 혼재)을 사용해야 한다.**
+
+전통 LSM 문헌에서는 입력→리퀴드 연결이 흥분성만(양수만)인 것이 표준이다. 그러나 이는 리퀴드 내부의 억제성 순환 연결이 충분히 강해서 입력의 균일한 흥분을 분산시키는 동역학이 작동할 때의 이야기이다.
+
+현재 구현에서는 순환 연결이 약하기 때문에(`softplus(-4.0) ≈ 0.018`), 입력이 전부 양수면 모든 뉴런이 입력 활성도에 비례하여 같은 방향으로 반응한다. 결과적으로 서로 다른 클래스의 스파이크 벡터 간 코사인 유사도가 0.999에 수렴하여 리퀴드가 입력을 구분하지 못한다.
+
+`randn`으로 바꾸면 각 뉴런이 어떤 입력 채널에는 흥분하고 다른 채널에는 억제되는 **랜덤 프로젝션** 뉴런이 되어, LSM의 separation property가 확보된다.
+
+### 8.1.2 beta 변환 — 주의사항 (Phase 1에서 발견된 버그)
+
+beta를 (0, 1) 구간으로 제약하기 위해 `sigmoid`를 사용할 때, **`log`가 아닌 `logit`을 저장해야 한다.**
+
+```python
+# 잘못된 코드: sigmoid(log(0.9)) = sigmoid(-0.105) = 0.47
+self.log_beta = nn.Parameter(torch.tensor(beta).log())
+
+# 올바른 코드: sigmoid(logit(0.9)) = sigmoid(2.197) = 0.9
+init_logit = torch.log(torch.tensor(beta) / (1.0 - torch.tensor(beta)))
+self.logit_beta = nn.Parameter(init_logit)
+```
 
 ### 8.2 미결정 — Phase 1에서 탐색
 
@@ -392,8 +418,8 @@ model = LSMModel(mode="grad_r", weight_trainable=True)
 | batch size | 32, 64, 128 | 64 | Phase 1 |
 | lambda_sparse | 0.005, 0.01, 0.02 | 0.01 | Phase 1 |
 | lambda_commit | 0.05, 0.08, 0.1 | 0.08 | Phase 1 |
-| beta (LIF leak) | 0.8, 0.9, 0.95 | 0.9 | Phase 1 |
-| threshold 초기값 | 1.0 | 1.0 | — |
+| beta_min / beta_max | (0.7, 0.95), (0.85, 0.95), (0.7, 0.9) | 0.7 / 0.95 | Phase 3 |
+| threshold_min / threshold_max | (0.8, 1.5), (0.8, 2.0), (1.0, 1.5) | 0.8 / 1.5 | Phase 3 |
 | threshold 학습 | 리퀴드만 학습, 리드아웃 고정 | — | FF 실험 교훈 |
 
 ---
@@ -533,6 +559,11 @@ log = {
 - `grad_norm > 100`: gradient 폭발 → max_norm 축소 또는 lr 감소
 - `max_firing_rate > 0.9`: 특정 뉴런 과발화 → 흥분성 루프 폭주 가능
 - `theta_std < 0.01` (epoch 20 이후): theta 정체 → commitment loss 가중치 증가
+
+**필수 진단 (학습 시작 전 1회):**
+- 클래스 간 스파이크 벡터 코사인 유사도 측정 (separation property 검증)
+- 0.999 이상이면 리퀴드가 입력을 구분하지 못하는 상태 → 입력 연결 사양 점검
+- 0.95~0.99면 정상, 학습으로 개선 가능
 
 ---
 

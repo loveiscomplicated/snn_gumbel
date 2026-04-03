@@ -15,15 +15,19 @@ topology:
   mode: learned
 
 liquid:
-  n_liquid: 200
+  n_liquid: 500
   exc_ratio: 0.8
   p_input: 0.1
   recurrent_mode: learned
-  recurrent_sparsity: 0.2
+  recurrent_sparsity: 0.1
   self_connection: false
   theta_init_std: 0.01
   grad_clip_max_norm: 1.0
-  input_weight_scale: 0.1
+  input_weight_scale: 0.3
+  beta_min: 0.7
+  beta_max: 0.95
+  threshold_min: 0.8
+  threshold_max: 1.5
 
 tau_start: 1.0
 tau_end: 0.05

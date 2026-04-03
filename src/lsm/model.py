@@ -23,13 +23,13 @@ from src.models.layers import gumbel_sigmoid, spike_fn
 # ---------------------------------------------------------------------------
 
 class InputProjection(nn.Module):
-    """Fixed random sparse connections from input to liquid. Excitatory only."""
+    """Fixed random sparse connections from input to liquid. Mixed excitatory/inhibitory."""
 
     def __init__(self, n_input: int, n_liquid: int, p_input: float = 0.1,
                  weight_scale: float = 0.1):
         super().__init__()
         mask = (torch.rand(n_input, n_liquid) < p_input).float()
-        weight = torch.rand(n_input, n_liquid) * weight_scale * mask
+        weight = torch.randn(n_input, n_liquid) * weight_scale * mask
         self.register_buffer('weight', weight)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -56,7 +56,10 @@ class LiquidLayer(nn.Module):
         target_sparsity: float = 0.2,
         self_connection: bool = False,
         theta_init_std: float = 0.01,
-        beta: float = 0.9,
+        beta_min: float = 0.7,
+        beta_max: float = 0.95,
+        threshold_min: float = 0.8,
+        threshold_max: float = 1.5,
     ):
         super().__init__()
         self.n_liquid = n_liquid
@@ -77,8 +80,13 @@ class LiquidLayer(nn.Module):
             torch.randn(n_liquid, n_liquid) * 0.01 - 4.0,
             requires_grad=weight_trainable,
         )
-        self.threshold = nn.Parameter(torch.ones(n_liquid), requires_grad=weight_trainable)
-        self.log_beta = nn.Parameter(torch.tensor(beta).log(), requires_grad=weight_trainable)
+        beta_vals = torch.linspace(beta_min, beta_max, n_liquid)
+        self.logit_beta = nn.Parameter(
+            torch.log(beta_vals / (1.0 - beta_vals)), requires_grad=weight_trainable
+        )
+        self.threshold = nn.Parameter(
+            torch.linspace(threshold_min, threshold_max, n_liquid), requires_grad=weight_trainable
+        )
 
         # --- Dale's Law: exc (+1) / inh (-1) sign buffer ---
         n_exc = int(exc_ratio * n_liquid)
@@ -106,7 +114,7 @@ class LiquidLayer(nn.Module):
 
     @property
     def beta(self):
-        return torch.sigmoid(self.log_beta)
+        return torch.sigmoid(self.logit_beta)
 
     def sample_mask(self, tau: float = 1.0, hard: bool = False) -> torch.Tensor:
         """Sample mask once before the simulation timestep loop."""
@@ -160,8 +168,11 @@ class LSMModel(nn.Module):
         n_liquid: int = 200,
         n_output: int = 20,
         T: int = 100,
-        beta: float = 0.9,
         exc_ratio: float = 0.8,
+        beta_min: float = 0.7,
+        beta_max: float = 0.95,
+        threshold_min: float = 0.8,
+        threshold_max: float = 1.5,
         p_input: float = 0.1,
         input_weight_scale: float = 0.1,
         recurrent_mode: str = "learned",
@@ -184,7 +195,10 @@ class LSMModel(nn.Module):
             target_sparsity=recurrent_sparsity,
             self_connection=self_connection,
             theta_init_std=theta_init_std,
-            beta=beta,
+            beta_min=beta_min,
+            beta_max=beta_max,
+            threshold_min=threshold_min,
+            threshold_max=threshold_max,
         )
         self.readout = nn.Linear(n_liquid, n_output)
 
@@ -217,6 +231,7 @@ class LSMModel(nn.Module):
             recurrent_current = self.liquid(liquid_spike)           # (batch, N)
 
             liquid_mem = self.liquid.beta * liquid_mem + input_current + recurrent_current
+            liquid_mem = torch.clamp(liquid_mem, -3.0, 3.0)
             liquid_spike = spike_fn(liquid_mem - self.liquid.threshold.clamp(min=0.01))
             liquid_mem = liquid_mem * (1.0 - liquid_spike)         # reset
 

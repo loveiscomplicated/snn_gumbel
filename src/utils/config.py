@@ -47,6 +47,10 @@ class LiquidConfig:
     theta_init_std: float = 0.01     # theta 초기화 표준편차
     grad_clip_max_norm: float = 1.0  # gradient clipping
     input_weight_scale: float = 0.1  # 입력 가중치 스케일
+    beta_min: float = 0.7            # 뉴런별 LIF leak 범위 (하한)
+    beta_max: float = 0.95           # 뉴런별 LIF leak 범위 (상한)
+    threshold_min: float = 0.8       # 뉴런별 발화 임계값 범위 (하한)
+    threshold_max: float = 1.5       # 뉴런별 발화 임계값 범위 (상한)
 
 
 # ---------------------------------------------------------------------------
