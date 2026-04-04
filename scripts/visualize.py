@@ -11,9 +11,9 @@ Examples:
 """
 
 """
-python scripts/visualize.py --config experiments/mnist_baseline_2603231200/config.yaml \
-                                --checkpoint experiments/mnist_baseline_2603231200/checkpoints/best.pt \
-                                --figures-dir experiments/mnist_baseline_2603231200/figures
+python scripts/visualize.py --config experiments/lsm_shd_2604031954/config.yaml \
+                                --checkpoint experiments/lsm_shd_2604031954/checkpoints/best.pt \
+                                --figures-dir experiments/lsm_shd_2604031954/figures
 """
 import os
 

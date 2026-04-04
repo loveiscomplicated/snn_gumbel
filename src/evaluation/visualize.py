@@ -13,8 +13,10 @@ import numpy as np
 import torch
 import matplotlib.pyplot as plt
 
-from src.models.snn import SNNModel
 
+# ===========================================================================
+# Feedforward SNN plots
+# ===========================================================================
 
 def plot_training_curves(history: list, save_path: str):
     epochs = [h["epoch"] for h in history]
@@ -41,7 +43,7 @@ def plot_training_curves(history: list, save_path: str):
     plt.show()
 
 
-def plot_topology(model: SNNModel, save_path: str):
+def plot_topology(model, save_path: str):
     n = len(model.layers)
     fig, axes = plt.subplots(1, n, figsize=(7 * n, 6))
     if n == 1:
@@ -59,7 +61,7 @@ def plot_topology(model: SNNModel, save_path: str):
     plt.show()
 
 
-def plot_theta_distribution(model: SNNModel, save_path: str):
+def plot_theta_distribution(model, save_path: str):
     n = len(model.layers)
     fig, axes = plt.subplots(1, n, figsize=(6 * n, 4))
     if n == 1:
@@ -78,7 +80,7 @@ def plot_theta_distribution(model: SNNModel, save_path: str):
     plt.show()
 
 
-def plot_threshold_distribution(model: SNNModel, save_path: str):
+def plot_threshold_distribution(model, save_path: str):
     n = len(model.layers)
     fig, axes = plt.subplots(1, n, figsize=(6 * n, 4))
     if n == 1:
@@ -99,7 +101,7 @@ def plot_threshold_distribution(model: SNNModel, save_path: str):
     plt.show()
 
 
-def plot_input_connectivity(model: SNNModel, save_path: str):
+def plot_input_connectivity(model, save_path: str):
     """Visualise first layer's input→hidden connectivity as a 28×28 heatmap."""
     with torch.no_grad():
         mask1 = model.layers[0].get_binary_mask().cpu().numpy()
@@ -115,9 +117,128 @@ def plot_input_connectivity(model: SNNModel, save_path: str):
     plt.show()
 
 
+# ===========================================================================
+# LSM-specific plots
+# ===========================================================================
+
+def lsm_plot_training_curves(history: list, save_path: str):
+    epochs = [h["epoch"] for h in history]
+    fig, axes = plt.subplots(2, 3, figsize=(18, 9))
+
+    # Row 1: accuracy, loss+tau, sparsity
+    axes[0, 0].plot(epochs, [h["train_acc"] for h in history], label="Train")
+    axes[0, 0].plot(epochs, [h["test_acc"]  for h in history], label="Test")
+    axes[0, 0].set_title("Accuracy"); axes[0, 0].legend(); axes[0, 0].grid(True)
+
+    axes[0, 1].plot(epochs, [h["train_loss"] for h in history], color="red")
+    ax_tau = axes[0, 1].twinx()
+    ax_tau.plot(epochs, [h["tau"] for h in history], color="gray", linestyle="--", label="tau")
+    axes[0, 1].set_title("Loss & Temperature"); axes[0, 1].grid(True)
+
+    axes[0, 2].plot(epochs, [h["sparsity"] * 100 for h in history], color="teal")
+    axes[0, 2].set_title("Liquid Sparsity (%)"); axes[0, 2].grid(True)
+
+    # Row 2: grad_norm, firing rates, theta stats
+    axes[1, 0].plot(epochs, [h.get("grad_norm", 0) for h in history], color="purple")
+    axes[1, 0].set_title("Grad Norm"); axes[1, 0].set_yscale("symlog"); axes[1, 0].grid(True)
+
+    axes[1, 1].plot(epochs, [h.get("mean_firing_rate", 0) for h in history], label="Mean")
+    axes[1, 1].plot(epochs, [h.get("max_firing_rate", 0) for h in history], label="Max")
+    axes[1, 1].set_title("Firing Rates"); axes[1, 1].legend(); axes[1, 1].grid(True)
+
+    axes[1, 2].plot(epochs, [h.get("theta_mean", 0) for h in history], label="mean")
+    axes[1, 2].fill_between(
+        epochs,
+        [h.get("theta_mean", 0) - h.get("theta_std", 0) for h in history],
+        [h.get("theta_mean", 0) + h.get("theta_std", 0) for h in history],
+        alpha=0.3,
+    )
+    axes[1, 2].set_title("Theta (mean +/- std)"); axes[1, 2].grid(True)
+
+    plt.tight_layout()
+    plt.savefig(save_path, dpi=150)
+    plt.show()
+
+
+def lsm_plot_topology(model, save_path: str):
+    """Visualise liquid recurrent connectivity mask."""
+    with torch.no_grad():
+        mask = model.liquid.get_binary_mask().cpu().numpy()
+
+    fig, axes = plt.subplots(1, 2, figsize=(14, 6))
+
+    axes[0].imshow(mask, aspect="auto", cmap="Blues")
+    axes[0].set_title(f"Liquid Mask ({mask.shape[0]}x{mask.shape[1]})")
+    axes[0].set_xlabel("Post-synaptic"); axes[0].set_ylabel("Pre-synaptic")
+
+    # degree distributions
+    in_degree = mask.sum(axis=0)
+    out_degree = mask.sum(axis=1)
+    axes[1].hist(in_degree, bins=30, alpha=0.6, label=f"In-degree (mean={in_degree.mean():.1f})")
+    axes[1].hist(out_degree, bins=30, alpha=0.6, label=f"Out-degree (mean={out_degree.mean():.1f})")
+    axes[1].set_title("Degree Distribution"); axes[1].legend(); axes[1].grid(True)
+
+    plt.tight_layout()
+    plt.savefig(save_path, dpi=150)
+    plt.show()
+
+
+def lsm_plot_theta_distribution(model, save_path: str):
+    """Visualise sigma(theta) distribution for the liquid layer."""
+    with torch.no_grad():
+        probs = torch.sigmoid(model.liquid.theta).cpu().numpy().ravel()
+
+    fig, ax = plt.subplots(figsize=(8, 4))
+    ax.hist(probs, bins=80, color="steelblue", edgecolor="white", linewidth=0.3)
+    ax.axvline(0.5, color="red", linestyle="--", label="threshold=0.5")
+    ax.set_title(f"Liquid σ(θ) distribution (N={len(probs)})")
+    ax.set_xlabel("σ(θ)"); ax.legend(); ax.grid(True)
+
+    plt.tight_layout()
+    plt.savefig(save_path, dpi=150)
+    plt.show()
+
+
+def lsm_plot_threshold_distribution(model, save_path: str):
+    """Visualise learned neuron thresholds and beta (membrane decay)."""
+    with torch.no_grad():
+        thr = model.liquid.threshold.cpu().numpy()
+        beta = model.liquid.beta.cpu().numpy().ravel()
+
+    fig, axes = plt.subplots(1, 2, figsize=(12, 4))
+    axes[0].hist(thr, bins=30, color="mediumseagreen", edgecolor="white")
+    axes[0].set_title(f"Threshold (mean={thr.mean():.3f})"); axes[0].grid(True)
+
+    axes[1].hist(beta, bins=30, color="coral", edgecolor="white")
+    axes[1].set_title(f"Beta / membrane decay (mean={beta.mean():.3f})"); axes[1].grid(True)
+
+    plt.tight_layout()
+    plt.savefig(save_path, dpi=150)
+    plt.show()
+
+
+def lsm_plot_weight_distribution(model, save_path: str):
+    """Visualise effective weight magnitude distribution."""
+    import torch.nn.functional as F
+    with torch.no_grad():
+        w_mag = F.softplus(model.liquid.w_raw).cpu().numpy().ravel()
+
+    fig, ax = plt.subplots(figsize=(8, 4))
+    ax.hist(w_mag, bins=80, color="darkorange", edgecolor="white", linewidth=0.3)
+    ax.set_title(f"softplus(w_raw) distribution (mean={w_mag.mean():.4f})")
+    ax.set_xlabel("Weight magnitude"); ax.grid(True)
+
+    plt.tight_layout()
+    plt.savefig(save_path, dpi=150)
+    plt.show()
+
+
+# ===========================================================================
+# Dispatcher
+# ===========================================================================
+
 def run_all(checkpoint_path: str, cfg, figures_dir: str | None = None):
-    from src.evaluation.evaluate import load_model
-    from src.training.trainer import get_device
+    from src.evaluation.evaluate import load_model, get_device
 
     device = get_device()
     model, history = load_model(checkpoint_path, cfg, device)
@@ -126,9 +247,19 @@ def run_all(checkpoint_path: str, cfg, figures_dir: str | None = None):
     save_dir = Path(figures_dir) if figures_dir else Path("figures")
     save_dir.mkdir(parents=True, exist_ok=True)
 
-    if history:
-        plot_training_curves(history, str(save_dir / "training_curves.png"))
-    plot_topology(model,              str(save_dir / "topology.png"))
-    plot_theta_distribution(model,    str(save_dir / "theta_distribution.png"))
-    plot_threshold_distribution(model, str(save_dir / "threshold_distribution.png"))
-    plot_input_connectivity(model,    str(save_dir / "input_receptive_field.png"))
+    is_lsm = hasattr(model, 'liquid')
+
+    if is_lsm:
+        if history:
+            lsm_plot_training_curves(history, str(save_dir / "training_curves.png"))
+        lsm_plot_topology(model,              str(save_dir / "topology.png"))
+        lsm_plot_theta_distribution(model,    str(save_dir / "theta_distribution.png"))
+        lsm_plot_threshold_distribution(model, str(save_dir / "threshold_distribution.png"))
+        lsm_plot_weight_distribution(model,   str(save_dir / "weight_distribution.png"))
+    else:
+        if history:
+            plot_training_curves(history, str(save_dir / "training_curves.png"))
+        plot_topology(model,              str(save_dir / "topology.png"))
+        plot_theta_distribution(model,    str(save_dir / "theta_distribution.png"))
+        plot_threshold_distribution(model, str(save_dir / "threshold_distribution.png"))
+        plot_input_connectivity(model,    str(save_dir / "input_receptive_field.png"))

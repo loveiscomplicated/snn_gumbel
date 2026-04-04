@@ -6,15 +6,30 @@ import torch
 from torch.utils.data import DataLoader
 from torchvision import datasets, transforms
 
-from src.models.snn import SNNModel
 from src.utils.config import Config
-from src.training.trainer import build_model, get_device
+
+
+def _is_lsm(cfg: Config) -> bool:
+    """Detect if config describes an LSM model."""
+    return cfg.liquid.n_liquid > 0 and not cfg.architecture.hidden_layers
+
+
+def get_device() -> torch.device:
+    if torch.backends.mps.is_available():
+        return torch.device("mps")
+    if torch.cuda.is_available():
+        return torch.device("cuda")
+    return torch.device("cpu")
 
 
 def load_model(checkpoint_path: str, cfg: Config, device: torch.device):
+    if _is_lsm(cfg):
+        from src.lsm.trainer import build_model
+    else:
+        from src.training.trainer import build_model
     model = build_model(cfg, device)
     ckpt = torch.load(checkpoint_path, map_location=device)
-    model.load_state_dict(ckpt["model_state"])
+    model.load_state_dict(ckpt["model_state"], strict=False)
     return model, ckpt.get("history", [])
 
 
