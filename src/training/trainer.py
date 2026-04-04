@@ -42,7 +42,7 @@ def get_tau(epoch: int, cfg: Config) -> float:
 
 
 def _make_experiment_dir(cfg: Config) -> Path:
-    timestamp = datetime.now().strftime("%y%m%d%H%M")
+    timestamp = datetime.now().strftime("%y%m%d%H%M%S")
     exp_dir = Path("experiments") / f"{cfg.experiment_name}_{timestamp}"
     (exp_dir / "checkpoints").mkdir(parents=True, exist_ok=True)
     (exp_dir / "logs").mkdir(exist_ok=True)

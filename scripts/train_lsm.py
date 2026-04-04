@@ -11,7 +11,6 @@ from src.lsm.trainer import train
 
 
 def main():
-    print("asdf")
     config_path = sys.argv[1] if len(sys.argv) > 1 else "configs/lsm_shd_baseline.yaml"
     overrides = sys.argv[2:] if len(sys.argv) > 2 else []
     cfg = load_config(config_path, overrides)
