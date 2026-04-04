@@ -46,7 +46,8 @@ class LiquidConfig:
     self_connection: bool = False    # 자기 연결 허용 여부
     theta_init_mean: float = 0.0     # theta 초기화 평균 (음수→희소 초기 연결, e.g. -2.0→12%)
     theta_init_std: float = 0.01     # theta 초기화 표준편차
-    grad_clip_max_norm: float = 1.0  # gradient clipping
+    grad_clip_max_norm_w: float = 100.0   # w_raw/readout gradient clipping (순환 BPTT: param 44k × T steps → norm 수백~수천이 정상)
+    grad_clip_max_norm_theta: float = 10.0 # theta gradient clipping (w보다 작게 유지해 시간 스케일 분리 보장)
     input_weight_scale: float = 0.1  # 입력 가중치 스케일
     w_raw_max: float = -3.0          # w_raw 상한 clamp (softplus(-3.0)≈0.049, spectral radius < 1 for N≤500)
     bptt_truncate: int = 0           # truncated BPTT: 마지막 K 타임스텝만 gradient 흘림 (0 = full BPTT)
@@ -54,6 +55,10 @@ class LiquidConfig:
     beta_max: float = 0.95           # 뉴런별 LIF leak 범위 (상한)
     threshold_min: float = 0.8       # 뉴런별 발화 임계값 범위 (하한)
     threshold_max: float = 1.5       # 뉴런별 발화 임계값 범위 (상한)
+    theta_warmup_epochs: int = 0     # Phase 1 길이: theta 고정, w_raw/readout만 학습 (0=비활성화)
+    theta_lr_scale: float = 0.1      # theta LR = base_lr × theta_lr_scale
+    noise_scale: float = 0.1         # 에폭 단위 Gumbel noise 크기 (0=결정적, 1=표준 Gumbel std≈1.81)
+                                     # 작은 값 → 경계(theta≈0) 엣지만 뒤집힘, 확실한 ON/OFF는 유지
 
 
 # ---------------------------------------------------------------------------
@@ -85,6 +90,7 @@ class Config:
     tau_start: float = 1.0
     tau_end: float = 0.05
     tau_anneal_epochs: int = 25
+    tau_hold_epochs: int = 0         # Phase 2 시작 후 tau=tau_start를 유지하는 epoch 수 (이후 annealing 시작)
 
     # training
     epochs: int = 100

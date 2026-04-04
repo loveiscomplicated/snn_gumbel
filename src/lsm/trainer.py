@@ -36,15 +36,21 @@ def get_device() -> torch.device:
 
 
 def get_tau(epoch: int, cfg: Config) -> float:
-    if epoch >= cfg.tau_anneal_epochs:
+    # Tau annealing starts from Phase 2 (after warmup), with an optional hold period.
+    # During Phase 1, tau is computed but unused (hard mask ignores it).
+    warmup = cfg.liquid.theta_warmup_epochs
+    hold = cfg.tau_hold_epochs
+    phase2_epoch = max(epoch - warmup, 0)       # epochs elapsed since Phase 2 start
+    anneal_epoch = max(phase2_epoch - hold, 0)  # epochs elapsed since annealing start
+    if anneal_epoch >= cfg.tau_anneal_epochs:
         return cfg.tau_end
-    progress = epoch / cfg.tau_anneal_epochs
+    progress = anneal_epoch / cfg.tau_anneal_epochs
     cosine = 0.5 * (1 + math.cos(math.pi * progress))
     return cfg.tau_end + (cfg.tau_start - cfg.tau_end) * cosine
 
 
 def _make_experiment_dir(cfg: Config) -> Path:
-    timestamp = datetime.now().strftime("%y%m%d%H%M")
+    timestamp = datetime.now().strftime("%y%m%d%H%M%S")
     exp_dir = Path("experiments") / f"{cfg.experiment_name}_{timestamp}"
     (exp_dir / "checkpoints").mkdir(parents=True, exist_ok=True)
     (exp_dir / "logs").mkdir(exist_ok=True)
@@ -74,7 +80,11 @@ def build_model(cfg: Config, device: torch.device) -> LSMModel:
         recurrent_mode=liq.recurrent_mode,
         recurrent_sparsity=liq.recurrent_sparsity,
         self_connection=liq.self_connection,
+        theta_init_mean=liq.theta_init_mean,
         theta_init_std=liq.theta_init_std,
+        w_raw_max=liq.w_raw_max,
+        bptt_truncate=liq.bptt_truncate,
+        noise_scale=liq.noise_scale,
     ).to(device)
 
 
@@ -109,23 +119,64 @@ def train(cfg: Config) -> tuple:
 
     train_loader, test_loader = get_dataloaders(cfg)
     model = build_model(cfg, device)
-    optimizer = optim.Adam(model.parameters(), lr=cfg.lr, weight_decay=cfg.weight_decay)
+
+    # Phase 1 warmup: freeze theta so w_raw/readout learn on stable random topology.
+    # Phase 2: unfreeze theta to learn topology via Gumbel-STE.
+    warmup = cfg.liquid.theta_warmup_epochs
+    is_learned = cfg.liquid.recurrent_mode == "learned"
+    if is_learned and warmup > 0:
+        model.liquid.theta.requires_grad_(False)
+        tqdm.write(f"  Phase 1 warmup: theta frozen for {warmup} epochs")
+
+    # Separate optimizer groups so theta gradient cannot suppress w_raw updates.
+    # Independent per-group clipping is applied before optimizer.step().
+    if is_learned:
+        theta_params = [model.liquid.theta]
+        other_params = [p for n, p in model.named_parameters() if n != "liquid.theta"]
+        param_groups = [
+            {"params": other_params, "lr": cfg.lr, "weight_decay": cfg.weight_decay},
+            {"params": theta_params,  "lr": cfg.lr * cfg.liquid.theta_lr_scale, "weight_decay": 0.0},
+        ]
+    else:
+        other_params = list(model.parameters())
+        theta_params = []
+        param_groups = [{"params": other_params, "lr": cfg.lr, "weight_decay": cfg.weight_decay}]
+    optimizer = optim.Adam(param_groups)
     scheduler = CosineAnnealingLR(optimizer, T_max=cfg.epochs, eta_min=cfg.lr_min)
 
     best_acc = 0.0
     epochs_no_improve = 0
     history: list[dict] = []
-    clip_max_norm = cfg.liquid.grad_clip_max_norm
+    clip_norm_w = cfg.liquid.grad_clip_max_norm_w
+    clip_norm_theta = cfg.liquid.grad_clip_max_norm_theta
 
     epoch_bar = tqdm(range(cfg.epochs), desc="Epochs", unit="ep")
 
     with open(log_path, "a") as log_f:
         for epoch in epoch_bar:
+            # Phase transition: unfreeze theta at warmup boundary
+            if is_learned and warmup > 0 and epoch == warmup:
+                model.liquid.theta.requires_grad_(True)
+                tqdm.write(f"  Phase 2: theta unfrozen at epoch {epoch+1}, topology learning begins")
+
             tau = get_tau(epoch, cfg)
+            phase_label = "P1" if (is_learned and epoch < warmup) else "P2"
             model.train()
+
+            # Phase 2: sample Gumbel noise ONCE per epoch, lock mask for all batches.
+            # This keeps topology stable within an epoch (BPTT safe) while allowing
+            # exploration across epochs (OFF edges get a chance to be ON → w_raw learns).
+            if is_learned and epoch >= warmup:
+                eps = torch.rand_like(model.liquid.theta).clamp(1e-6, 1 - 1e-6)
+                epoch_noise = (torch.log(eps) - torch.log(1.0 - eps)).to(device)
+                model.liquid.sample_epoch_mask(tau=tau, epoch_noise=epoch_noise)
+
             total_l = correct = n = 0
             epoch_grad_norm = 0.0
             n_batches = 0
+
+            epoch_theta_grad_norm = 0.0
+            epoch_w_raw_grad_norm = 0.0
 
             batch_bar = tqdm(train_loader, desc="  Train", leave=False, unit="batch")
             for x, y in batch_bar:
@@ -133,17 +184,32 @@ def train(cfg: Config) -> tuple:
                 optimizer.zero_grad()
                 rates = model(x, tau=tau)
                 loss = _compute_loss(rates, y, model, cfg)
-                loss.backward()
-
                 # NaN detection
                 if torch.isnan(loss):
                     tqdm.write(f"  ✖ NaN loss detected at epoch {epoch+1}, batch {n_batches+1}. Stopping.")
                     return history, exp_dir
 
-                # gradient clipping
-                grad_norm = torch.nn.utils.clip_grad_norm_(
-                    model.parameters(), max_norm=clip_max_norm
-                )
+                loss.backward()
+
+                # per-component grad norms (before clipping)
+                theta_g = model.liquid.theta.grad
+                w_raw_g = model.liquid.w_raw.grad
+                if theta_g is not None:
+                    epoch_theta_grad_norm += theta_g.norm().item()
+                if w_raw_g is not None:
+                    epoch_w_raw_grad_norm += w_raw_g.norm().item()
+
+                # Independent per-group clipping:
+                #   theta: clip_norm_theta (moderate — prevents runaway while allowing
+                #          Adam to normalize; smaller than clip_norm_w to enforce time-
+                #          scale separation: topology changes slowly, weights adapt fast)
+                #   other: clip_norm_w (large enough for recurrent BPTT norms ~10^2–10^4)
+                if is_learned and theta_params:
+                    torch.nn.utils.clip_grad_norm_(theta_params, max_norm=clip_norm_theta)
+                    other_norm = torch.nn.utils.clip_grad_norm_(other_params, max_norm=clip_norm_w)
+                    grad_norm = other_norm
+                else:
+                    grad_norm = torch.nn.utils.clip_grad_norm_(other_params, max_norm=clip_norm_w)
                 optimizer.step()
 
                 total_l += loss.item() * y.size(0)
@@ -157,6 +223,11 @@ def train(cfg: Config) -> tuple:
             train_acc = correct / n
             train_loss = total_l / n
             avg_grad_norm = epoch_grad_norm / max(n_batches, 1)
+            avg_theta_grad = epoch_theta_grad_norm / max(n_batches, 1)
+            avg_w_raw_grad = epoch_w_raw_grad_norm / max(n_batches, 1)
+
+            # Unlock epoch mask before eval so eval uses fresh deterministic mask
+            model.liquid.unlock_epoch_mask()
             test_acc = _evaluate(model, test_loader, device, tau)
             sparsity = model.sparsity_info()
             fr_info = model.firing_rate_info()
@@ -172,6 +243,7 @@ def train(cfg: Config) -> tuple:
 
             row = dict(
                 epoch=epoch + 1,
+                phase=phase_label,
                 lr=current_lr,
                 tau=tau,
                 train_loss=train_loss,
@@ -181,6 +253,8 @@ def train(cfg: Config) -> tuple:
                 theta_mean=theta_mean,
                 theta_std=theta_std,
                 grad_norm=avg_grad_norm,
+                theta_grad_norm=avg_theta_grad,
+                w_raw_grad_norm=avg_w_raw_grad,
                 mean_firing_rate=fr_info["mean"],
                 max_firing_rate=fr_info["max"],
             )
@@ -195,18 +269,27 @@ def train(cfg: Config) -> tuple:
                 test=f"{test_acc:.4f}",
                 sp=f"{sparsity:.3f}",
             )
+            grad_detail = (
+                f"  θ_grad={avg_theta_grad:.2e}  w_grad={avg_w_raw_grad:.2e}"
+                if is_learned else ""
+            )
             tqdm.write(
-                f"[{epoch+1:03d}/{cfg.epochs}] "
+                f"[{epoch+1:03d}/{cfg.epochs}|{phase_label}] "
                 f"lr={current_lr:.2e}  tau={tau:.3f}  loss={train_loss:.4f}  "
                 f"train={train_acc:.4f}  test={test_acc:.4f}  "
                 f"sp={sparsity:.3f}  grad={avg_grad_norm:.1f}  "
                 f"fr={fr_info['mean']:.3f}/{fr_info['max']:.3f}  "
                 f"θ={theta_mean:.3f}±{theta_std:.3f}"
+                + grad_detail
             )
 
             # early warnings
             if avg_grad_norm > 100:
                 tqdm.write(f"  ⚠ grad_norm={avg_grad_norm:.1f} — consider reducing lr or clip_max_norm")
+            if is_learned and avg_theta_grad > 50:
+                tqdm.write(f"  ⚠ theta_grad={avg_theta_grad:.1f} — topology gradient exploding (tau={tau:.3f})")
+            if is_learned and avg_w_raw_grad > 50:
+                tqdm.write(f"  ⚠ w_raw_grad={avg_w_raw_grad:.1f} — weight gradient exploding")
             if fr_info["max"] > 0.9:
                 tqdm.write(f"  ⚠ max_firing_rate={fr_info['max']:.3f} — possible excitatory loop runaway")
             if epoch > 20 and theta_std < 0.01:

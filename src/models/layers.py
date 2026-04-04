@@ -38,6 +38,53 @@ def gumbel_sigmoid(logits, tau=1.0, hard=False):
     return torch.sigmoid((logits + gumbel_noise) / tau)
 
 
+def sigmoid_ste(logits):
+    """
+    Deterministic Straight-Through Estimator for binary mask.
+
+    Forward : hard binary threshold  (sigmoid(logits) >= 0.5)
+    Backward: gradient of sigmoid(logits)
+
+    Unlike gumbel_sigmoid_ste, no stochastic noise is added.
+    This is critical for recurrent networks where per-batch topology
+    fluctuation causes gradient explosion via BPTT.
+    """
+    soft = torch.sigmoid(logits)
+    hard = (soft >= 0.5).float()
+    return hard - soft.detach() + soft
+
+
+def gumbel_sigmoid_ste(logits, tau=1.0):
+    """
+    Gumbel-Sigmoid with Straight-Through Estimator.
+
+    Solves train/eval discrepancy while preserving Gumbel stochastic exploration:
+
+      Forward : Gumbel noise → hard binary threshold  (train/eval see same binary mask)
+      Backward: gradient of sigmoid(noisy_logits/tau)  (differentiable path to theta)
+
+    Without Gumbel noise this collapses to Grad R (theta > 0 threshold), which is
+    Baseline D. The noise is essential to maintain the paper's core differentiation.
+
+    Temperature annealing recovers its meaning:
+      high tau → noise dominates, wide exploration of edge uncertainty
+      low tau  → noise shrinks, decisions converge to theta sign
+    """
+    eps = torch.rand_like(logits).clamp(1e-6, 1 - 1e-6)
+    gumbel_noise = torch.log(eps) - torch.log(1.0 - eps)
+    # Apply tau only to theta, not to noise.
+    # (theta + noise) / tau gives P(connection) = sigmoid(theta), independent of tau —
+    # temperature annealing has zero effect on stochasticity.
+    # theta/tau + noise gives P(connection) = sigmoid(theta/tau), which properly
+    # anneals: high tau → wide exploration; low tau → noise negligible, sign(theta) decides.
+    noisy_logits = logits / tau + gumbel_noise
+
+    soft = torch.sigmoid(noisy_logits)
+    hard = (soft >= 0.5).float()
+    # STE: forward value = hard binary, gradient = d(soft)/d(logits)
+    return hard - soft.detach() + soft
+
+
 class GumbelLIFLayer(nn.Module):
     """
     Single LIF layer with topology controlled by `mode`.
