@@ -2,6 +2,27 @@
 
 ---
 
+## 0. 현재 코드베이스 상태
+
+현재 저장소는 두 축으로 구성되어 있다.
+
+| 축 | 구현 위치 | 상태 |
+|----|-----------|------|
+| Feedforward Gumbel-SNN | `src/models/`, `src/training/`, `scripts/train.py` | MNIST/Fashion-MNIST/NMNIST/DVS 계열 실험 인프라 구현 |
+| LSM 확장 | `src/lsm/`, `src/data/loaders.py`, `scripts/train_lsm.py` | SHD용 recurrent liquid 모델과 학습 루프 구현 |
+
+Feedforward 쪽은 기존 실험 결과를 만든 검증된 코드이며, LSM 쪽은 SHD에서 Gumbel 기반 리퀴드 구조 학습을 검증하기 위한 현재 개발 대상이다. LSM 구현은 `InputProjection -> LiquidLayer -> Linear Readout` 구조이고, 리퀴드 내부 연결만 theta로 학습한다.
+
+현재 LSM의 핵심 설계:
+
+- SHD 입력: `tonic.datasets.SHD`, 10ms binning, `(T=100, 700)` spike tensor
+- 입력→리퀴드: fixed sparse `randn` projection
+- 리퀴드 내부: Dale's Law + `softplus(w_raw)` + learned/fixed/random/grad_r mask
+- 학습: warmup 동안 theta freeze, 이후 epoch-level Gumbel noise + STE로 topology 학습
+- 안정화: truncated BPTT, membrane clamp, threshold clamp, theta/weight gradient clipping 분리
+
+---
+
 ## 1. 문제 의식
 
 ### 1.1 출발점: 뇌와 인공 신경망의 구조적 괴리
@@ -270,17 +291,20 @@ commitment loss가 필요한 이유: L_sparse(0으로 밀기)와 L_CE(연결 유
 
 ---
 
-## 6. 다음 단계: 5단계 DVS 뉴로모픽
+## 6. 다음 단계: LSM 기반 recurrent 검증
 
 ### 6.1 의미
 
-1~4단계는 전부 정적 이미지. SNN을 썼지만 시간 축의 역할이 크지 않았음 (입력이 고정된 이미지의 rate coding). DVS에서는 입력 자체가 시간에 걸쳐 변하는 스파이크 스트림이라, SNN의 시간적 동역학이 처음으로 진짜 의미를 갖는다. 토폴로지 학습이 "공간적 연결"뿐만 아니라 "시간적으로 중요한 경로"도 발견하는지를 탐색.
+1~4단계는 정적 이미지 기반이었다. 이후 NMNIST/DVS Gesture로 이벤트 데이터까지 확장하면서, fully-connected feedforward 구조의 한계가 드러났다. 입력 차원이 커지면 `input × hidden` theta 수가 급증하고, 데이터가 충분하지 않은 경우 topology가 bimodal하게 정착하지 못한다.
+
+현재 다음 단계는 단순히 DVS feedforward 실험을 늘리는 것이 아니라, **LSM으로 전환하여 recurrent liquid 내부의 구조를 학습하는 것**이다. 입력→리퀴드는 고정하고, 리퀴드 내부의 `N²` 연결만 학습하면 입력 차원 증가에 따른 theta 폭발을 피할 수 있다.
 
 ### 6.2 후보 데이터셋
 
-- **NMNIST** (Neuromorphic MNIST): MNIST를 DVS 카메라 앞에서 움직여서 만든 데이터. 기존 코드와의 갭이 작아 중간 단계로 적합.
-- **DVS128 Gesture**: 손동작 11가지 분류. 시간에 걸쳐 들어오는 스파이크 패턴을 처리해야 하며, SNN의 시간적 처리 능력을 본격적으로 시험.
+- **SHD (현재 LSM 기준 데이터셋)**: 700채널 음성 spike stream, 20클래스. `src/data/loaders.py`와 `configs/lsm_shd_baseline.yaml`에 구현되어 있다.
+- **SSC (확장 후보)**: SHD보다 큰 speech command spike dataset. SHD에서 방법론이 안정화된 뒤 확장 후보.
+- **NMNIST / DVS128 Gesture**: feedforward 이벤트 데이터 실험 인프라는 존재하지만, LSM 논문 방향에서는 보조 비교 또는 확장 실험 후보.
 
 ### 6.3 장기 비전
 
-현재 단계(단방향 feedforward)에서 토폴로지 학습의 유효성이 충분히 검증되면, 사방 연결(recurrent) SNN으로의 확장을 고려한다. 이를 위해서는 unroll 비용을 해결하는 새로운 학습 알고리즘(뉴로모듈레이션 기반 로컬 학습 규칙 등)이 필요하며, 이는 별도의 연구 과제가 된다.
+현재 코드베이스는 recurrent SNN으로의 1차 확장을 이미 시작했다. 다만 학습은 아직 BPTT 기반이므로, 더 긴 시퀀스와 더 큰 네트워크로 확장하려면 e-prop/RTRL 계열 online learning 또는 gradient checkpointing이 필요할 수 있다. 장기적으로는 LSM의 입력/리퀴드/리드아웃 분리를 약화시키고, 효과기 뉴런이 네트워크에 통합된 interconnected SNN으로 확장하는 것이 목표다.

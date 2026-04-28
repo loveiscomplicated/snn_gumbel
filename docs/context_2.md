@@ -640,7 +640,35 @@ Gumbel-Softmax LSM (학습된 희소 구조):
 
 ---
 
-## 8. 구현 계획
+## 8. 구현 상태와 계획
+
+### 현재 코드베이스 반영 사항
+
+LSM 확장은 현재 별도 모듈로 구현되어 있다.
+
+| 구성 | 현재 파일 | 구현 상태 |
+|------|-----------|----------|
+| 데이터 로더 | `src/data/loaders.py` | MNIST, Fashion-MNIST, NMNIST, DVS Gesture, SHD 지원 |
+| Feedforward SNN | `src/models/layers.py`, `src/models/snn.py` | 기존 Gumbel topology 실험 유지 |
+| LSM 모델 | `src/lsm/model.py` | `InputProjection`, `LiquidLayer`, `LSMModel` 구현 |
+| LSM 학습 | `src/lsm/trainer.py` | warmup + epoch-level Gumbel/STE + BPTT 구현 |
+| LSM 설정 | `configs/lsm_shd_baseline.yaml` | SHD baseline 설정 |
+| 실행 | `scripts/train_lsm.py`, `scripts/diagnose_liquid.py` | 학습/진단 CLI 구현 |
+
+현재 LSM 구현은 초기 구상과 몇 가지 점이 다르다.
+
+- 입력→리퀴드는 흥분성만 쓰지 않고 fixed sparse `randn` projection을 쓴다.
+- 리퀴드 내부 mask는 타임스텝마다 샘플링하지 않고, forward 시작 시 한 번 정한다.
+- learned mode의 Phase 2에서는 epoch-level Gumbel noise를 고정하고 batch마다 STE graph를 새로 계산한다.
+- beta는 `logit_beta`로 저장해 `sigmoid(logit_beta)`가 의도한 초기 beta 범위가 되도록 했다.
+- SHD baseline은 `N=500`, `bptt_truncate=25`, `theta_warmup_epochs=10`을 사용한다.
+- gradient clipping은 weight/readout 계열과 theta 계열을 분리한다.
+
+남은 주요 코드 정리 항목:
+
+- `scripts/evaluate.py` 경로에서 LSM forward signature(`hard` 인자 없음)를 처리하도록 수정 필요
+- SHD 직접 HDF5 fallback은 현재 미구현
+- learned topology 분석(E/I degree, loop, clustering 등) 코드는 아직 추가 필요
 
 ### 기존 코드베이스 (순수 PyTorch, 이미 구현 완료)
 
@@ -671,7 +699,7 @@ for t in range(T):
 - surrogate gradient 역전파 → 가중치·threshold·theta 동시 학습
 - 마스크는 배치 전체에 동일하게 적용 (theta가 `(n_pre, n_post)` shape, 배치 차원 없음)
 
-**LSM 확장 시 수정 필요 사항 — 마스크 샘플링 타이밍:**
+**LSM 확장에서 반영된 핵심 수정 — 마스크 샘플링 타이밍:**
 
 기존 feedforward 코드에서는 `layer.forward()`가 타임스텝 루프 안에서 매번 호출되며, 그때마다 `gumbel_sigmoid`가 새로운 Gumbel 노이즈를 샘플링한다. 즉 **마스크가 매 타임스텝마다 달라지는 구조**이다. Feedforward에서는 레이어를 순차 통과하므로 큰 문제가 아니었지만, LSM에서는 문서 섹션 4.4의 BPTT 전략에서 설계한 대로 **시뮬레이션 시작 전에 마스크를 한 번 생성하고 T 타임스텝 동안 고정**해야 한다.
 
@@ -687,17 +715,17 @@ for t in range(T):
     current = (mask * eff_w) @ spike ← 고정된 마스크 사용
 ```
 
-구현 시 마스크 생성 로직을 타임스텝 루프 바깥으로 빼면 됨. `GumbelLIFLayer`에 `sample_mask(tau)` 메서드를 추가하고, forward에서는 저장된 마스크를 사용하는 방식.
+현재 LSM 코드는 `GumbelLIFLayer`를 직접 개조하지 않고, `src/lsm/model.py`의 `LiquidLayer.sample_mask(tau)`와 `current_mask`로 이 요구사항을 구현한다.
 
-### LSM으로의 확장: 최소 변경 사항
+### LSM으로의 확장: 현재 구현
 
-기존 `GumbelLIFLayer`는 그대로 재활용 가능. `SNNModel`만 LSM 구조로 교체하면 된다.
+초기 구상은 기존 `GumbelLIFLayer`를 최대한 재활용하는 것이었지만, 현재 코드는 recurrent 안정화와 Dale's Law를 명확히 분리하기 위해 `src/lsm/model.py`에 LSM 전용 레이어를 둔다.
 
-**핵심 변경 3가지:**
+**핵심 구성 3가지:**
 
-1. **입력→리퀴드 연결**: `GumbelLIFLayer(700, N_liquid, mode="full")` — theta 학습 안 함, 랜덤 고정
-2. **리퀴드 내부 순환 연결**: `GumbelLIFLayer(N_liquid, N_liquid, mode="learned")` — 핵심 학습 대상
-3. **타임스텝 루프**: 입력 전류 + 순환 전류를 합산하여 막전위 업데이트
+1. **입력→리퀴드 연결**: `InputProjection(700, N_liquid)` — fixed sparse mixed-sign random projection
+2. **리퀴드 내부 순환 연결**: `LiquidLayer(N_liquid, mode=learned/random_sparse/fixed/grad_r)` — 핵심 학습 대상
+3. **리드아웃**: `nn.Linear(N_liquid, 20)` — 타임스텝별 liquid spike를 누적한 뒤 평균
 
 **LSM forward 루프 (수도코드):**
 
@@ -711,9 +739,9 @@ recurrent_mask = recurrent_layer.sample_mask(tau)  # Gumbel-Sigmoid, (N, N)
 
 for t in range(T):
     input_spike = shd_spikes[t]                           # SHD 스파이크 (이미 스파이크 형태)
-    input_current = input_layer(input_spike)               # 700 → N, 고정
-    recurrent_current = recurrent_layer(liquid_spike, mask=recurrent_mask)  # N → N, 고정 마스크
-    # recurrent_layer 내부: eff_w = recurrent_mask * (dale_sign * F.softplus(w_raw))
+    input_current = input_proj(input_spike)                # 700 → N, 고정
+    recurrent_current = liquid_layer(liquid_spike)          # N → N, current_mask 사용
+    # liquid_layer 내부: eff_w = current_mask * self_conn_mask * (dale_sign * F.softplus(clamped_w_raw))
 
     liquid_mem = beta * liquid_mem + input_current + recurrent_current
     liquid_spike = spike_fn(liquid_mem - threshold)
@@ -733,24 +761,23 @@ output = readout_mem / T
 - `dale_sign`은 `(N_pre, 1)` 형태의 buffer, 흥분성 +1 / 억제성 -1
 - softplus로 gradient 안정성 확보 (abs() 방식의 0 근처 불연속 회피)
 
-**기존 코드에서 그대로 재활용되는 부분:**
-- `GumbelLIFLayer` 전체 (mask 생성, weight 관리, mode 전환)
-- `SurrogateSpike` (surrogate gradient)
-- `gumbel_sigmoid` 함수
-- `sparsity_loss`, `commitment_loss` 로직
-- `load_topology_from_checkpoint` (topology transfer 실험용)
+**기존 코드에서 재활용되는 부분:**
+- `SurrogateSpike` / `spike_fn`
+- Gumbel/Sigmoid STE 아이디어
+- sparsity/commitment loss 구조
+- config inheritance와 CLI override 방식
 
 ### 확정 사항
 
 | 구성 요소 | 설정 |
 | --- | --- |
 | 프레임워크 | **순수 PyTorch** (기존 코드 재활용, 프레임워크 종속성 없음) |
-| 입력 | SHD 700채널 스파이크 (Tonic 또는 snnTorch spikedata로 로딩) |
-| 입력→리퀴드 연결 | `GumbelLIFLayer(700, N, mode="full")` — 랜덤 고정 |
-| 리퀴드 내부 연결 | `GumbelLIFLayer(N, N, mode="learned")` — Gumbel-Softmax 학습 |
-| 리퀴드→리드아웃 | `GumbelLIFLayer(N, 20, mode="full")` 또는 학습 가능한 선형층 |
+| 입력 | SHD 700채널 스파이크 (`tonic.datasets.SHD`) |
+| 입력→리퀴드 연결 | `InputProjection`: fixed sparse `randn` projection |
+| 리퀴드 내부 연결 | `LiquidLayer`: Gumbel/STE 또는 baseline mask |
+| 리퀴드→리드아웃 | `nn.Linear(N, 20)` |
 | 리퀴드 뉴런 | LIF (기존 `SurrogateSpike` 재활용), 80% 흥분 + 20% 억제 (Dale’s Law) |
-| 역전파 방법 | **BPTT + 마스크 고정** (기존 forward 구조와 동일, 순환 연결만 추가) |
+| 역전파 방법 | **BPTT + 마스크 고정**, SHD baseline은 truncated BPTT |
 | 시간 binning | **dt=10ms, T=100 타임스텝** |
 | 데이터셋 | SHD (개발) → SSC (확장) |
 
@@ -764,37 +791,36 @@ output = readout_mem / T
 | 계산량 대응 | 필요 시 뉴런 수 축소 / 공간 제약 / gradient checkpointing |
 | BPTT 메모리 대응 | Truncated BPTT / gradient checkpointing (필요 시) |
 
-### 구현 Phase 계획
+### 구현 Phase 계획 업데이트
 
-### Phase 1: 핵심 검증 — Go/No-Go 결정 (1~2주)
+### Phase 1: 핵심 검증 — 진행 중
 
 **목표**: B vs C에서 유의미한 차이가 나는지 확인. 이것이 프로젝트 전체의 존폐를 결정.
 
-**기존 코드가 있어 Phase 1이 가속됨**: GumbelLIFLayer, SurrogateSpike, gumbel_sigmoid, sparsity/commitment loss가 모두 검증 완료 상태. LSM 모델 클래스만 새로 작성하면 됨.
+LSM 모델, SHD 로더, 학습 루프는 구현되어 있으므로 현재 Phase 1의 중심은 실행 안정화와 baseline 비교다.
 
 ```
-Step 1: LSM 모델 클래스 작성 + SHD 데이터 로딩
-  → GumbelLIFLayer 3개 조합: input_layer(700→N) + recurrent_layer(N→N) + readout_layer(N→20)
-  → SHD 데이터: Tonic 또는 snnTorch spikedata로 로딩, dt=10ms binning
-  → Dale's Law: 흥분/억제 뉴런 인덱스 지정, dale_sign buffer 등록, softplus 적용
-  → 마스크 타이밍 수정: sample_mask()를 타임스텝 루프 바깥에서 1회 호출, 루프 내에서 고정 사용
+Step 1: 구현 sanity check
+  → SHD loader shape: (batch, 100, 700)
+  → LiquidLayer의 dale_sign/self_conn_mask/mode별 requires_grad 확인
+  → train_lsm.py 1 epoch smoke test
 
-Step 1.5: Wall-clock 시간 측정 (Phase 1 첫날에 수행)
+Step 1.5: Wall-clock 시간 측정
   → N=200, batch_size=64로 1에폭 시간 측정
   → 1분 이내 → 문제 없음, 그대로 진행
   → 5~10분 → 감당 가능, 하이퍼파라미터 탐색 범위 축소 고려
   → 30분 이상 → 뉴런 수 축소 또는 truncated BPTT 즉시 적용
   → 이 측정으로 N=500 사용 가능 여부가 결정됨
 
-Step 2: B (mode="random_sparse") 먼저 학습
-  → recurrent_layer의 mode="random_sparse", p=0.2
+Step 2: B (mode="random_sparse") 학습
+  → liquid.recurrent_mode="random_sparse", p sweep
   → BPTT + surrogate gradient 파이프라인이 순환 구조에서 작동하는지 검증
   → SHD에서 합리적인 정확도가 나오는지 확인
 
-Step 3: C (mode="learned") 전환
-  → recurrent_layer의 mode만 "learned"로 변경 (나머지 동일)
-  → temperature annealing, commitment loss 적용 (기존 코드 그대로)
-  → 마스크가 타임스텝 동안 고정되는지 확인 (Step 1에서 구현한 대로)
+Step 3: C (mode="learned") 학습
+  → warmup 이후 theta unfreeze 확인
+  → epoch-level noise + STE가 안정적으로 동작하는지 확인
+  → theta 분산, sparsity, firing rate 추적
 
 Step 4: B vs C 비교
   → 유의미한 차이 있음 → Phase 2로 진행 ✓
