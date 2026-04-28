@@ -18,14 +18,14 @@ liquid:
   recurrent_mode: learned
   recurrent_sparsity: 0.1
   self_connection: false
-  theta_init_mean: -0.5
+  theta_init_mean: -2.2
   theta_init_std: 0.5
   w_raw_max: -3.0
   bptt_truncate: 25
   grad_clip_max_norm_w: 100.0
   grad_clip_max_norm_theta: 10.0
   theta_warmup_epochs: 10
-  theta_lr_scale: 0.1
+  theta_lr_scale: 0.3
   noise_scale: 0.1
   input_weight_scale: 0.3
   beta_min: 0.7
@@ -44,6 +44,6 @@ batch_size: 64
 lr: 0.001
 lr_min: 0.00001
 weight_decay: 0.0001
-lambda_sparse: 0.001
+lambda_sparse: 0.1
 lambda_commit: 0.01
 seed: 42
