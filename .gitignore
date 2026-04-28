@@ -211,3 +211,4 @@ checkpoint.pt
 resources
 .claude
 experiments
+agent-data/
