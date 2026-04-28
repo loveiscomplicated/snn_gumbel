@@ -3,8 +3,6 @@ Evaluation utilities.
 """
 
 import torch
-from torch.utils.data import DataLoader
-from torchvision import datasets, transforms
 
 from src.utils.config import Config
 
@@ -37,6 +35,7 @@ def run_evaluation(checkpoint_path: str, cfg: Config) -> tuple:
     device = get_device()
     model, history = load_model(checkpoint_path, cfg, device)
     model.eval()
+    is_lsm = _is_lsm(cfg)
 
     from src.data.loaders import get_dataloaders
 
@@ -46,7 +45,10 @@ def run_evaluation(checkpoint_path: str, cfg: Config) -> tuple:
     with torch.no_grad():
         for x, y in test_loader:
             x, y = x.to(device), y.to(device)
-            rates = model(x, tau=cfg.tau_end, hard=True)
+            if is_lsm:
+                rates = model(x, tau=cfg.tau_end)
+            else:
+                rates = model(x, tau=cfg.tau_end, hard=True)
             pred = rates.argmax(dim=1)
             correct += (pred == y).sum().item()
             total += y.size(0)
@@ -55,7 +57,11 @@ def run_evaluation(checkpoint_path: str, cfg: Config) -> tuple:
     sparsities = model.sparsity_info()
 
     print(f"Test accuracy: {acc:.4f}")
-    print(
-        "  " + "  ".join(f"sparsity_l{i+1}={s:.3f}" for i, s in enumerate(sparsities))
-    )
+    if is_lsm:
+        print(f"  sparsity={sparsities:.3f}")
+    else:
+        print(
+            "  "
+            + "  ".join(f"sparsity_l{i+1}={s:.3f}" for i, s in enumerate(sparsities))
+        )
     return acc, model, history
