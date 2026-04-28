@@ -1,0 +1,24 @@
+conda activate snn_gumbel
+python scripts/train_lsm.py configs/lsm_shd_baseline.yaml liquid.recurrent_mode=random_sparse liquid.recurrent_sparsity=0.1 experiment_name=lsm_shd_B_p01                                                                         
+
+python scripts/train_lsm.py configs/lsm_shd_baseline.yaml liquid.recurrent_mode=random_sparse liquid.recurrent_sparsity=0.2 experiment_name=lsm_shd_B_p02                                                                         
+
+python scripts/train_lsm.py configs/lsm_shd_baseline.yaml liquid.recurrent_mode=random_sparse liquid.recurrent_sparsity=0.3 experiment_name=lsm_shd_B_p03                                                                         
+
+python scripts/train_lsm.py configs/lsm_shd_baseline.yaml liquid.recurrent_mode=random_sparse liquid.recurrent_sparsity=0.5 experiment_name=lsm_shd_B_p05                                                                         
+
+
+python scripts/train_lsm.py configs/lsm_shd_baseline.yaml \                                             
+liquid.recurrent_mode=random_sparse \
+liquid.recurrent_sparsity=0.2 \                                                                       
+experiment_name=lsm_shd_B_p02                                                                         
+                                                                                                        
+python scripts/train_lsm.py configs/lsm_shd_baseline.yaml \                                             
+liquid.recurrent_mode=random_sparse \                                                                 
+liquid.recurrent_sparsity=0.3 \                                                                       
+experiment_name=lsm_shd_B_p03                                                                         
+                                                                                                        
+python scripts/train_lsm.py configs/lsm_shd_baseline.yaml \                                             
+liquid.recurrent_mode=random_sparse \                                                                 
+liquid.recurrent_sparsity=0.5 \                                                                       
+experiment_name=lsm_shd_B_p05    
