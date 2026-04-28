@@ -22,15 +22,21 @@ from src.models.layers import gumbel_sigmoid, gumbel_sigmoid_ste, sigmoid_ste, s
 # InputProjection: fixed random excitatory input → liquid
 # ---------------------------------------------------------------------------
 
+
 class InputProjection(nn.Module):
     """Fixed random sparse connections from input to liquid. Mixed excitatory/inhibitory."""
 
-    def __init__(self, n_input: int, n_liquid: int, p_input: float = 0.1,
-                 weight_scale: float = 0.1):
+    def __init__(
+        self,
+        n_input: int,
+        n_liquid: int,
+        p_input: float = 0.1,
+        weight_scale: float = 0.1,
+    ):
         super().__init__()
         mask = (torch.rand(n_input, n_liquid) < p_input).float()
         weight = torch.randn(n_input, n_liquid) * weight_scale * mask
-        self.register_buffer('weight', weight)
+        self.register_buffer("weight", weight)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return x @ self.weight
@@ -39,6 +45,7 @@ class InputProjection(nn.Module):
 # ---------------------------------------------------------------------------
 # LiquidLayer: recurrent connections with Gumbel mask + Dale's Law
 # ---------------------------------------------------------------------------
+
 
 class LiquidLayer(nn.Module):
     """
@@ -99,22 +106,24 @@ class LiquidLayer(nn.Module):
         n_exc = int(exc_ratio * n_liquid)
         dale_sign = torch.ones(n_liquid, 1)
         dale_sign[n_exc:] = -1.0
-        self.register_buffer('dale_sign', dale_sign)
+        self.register_buffer("dale_sign", dale_sign)
 
         # --- self-connection mask: diagonal = 0 ---
         if self_connection:
             self_conn_mask = torch.ones(n_liquid, n_liquid)
         else:
             self_conn_mask = 1.0 - torch.eye(n_liquid)
-        self.register_buffer('self_conn_mask', self_conn_mask)
+        self.register_buffer("self_conn_mask", self_conn_mask)
 
         # --- fixed mask for random_sparse / fixed modes ---
         if mode in ("random_sparse", "fixed"):
             mask = (torch.rand(n_liquid, n_liquid) < target_sparsity).float()
-            mask = mask * self_conn_mask  # respect self-connection setting
-            self.register_buffer('fixed_mask', mask)
+            mask = (
+                mask * self_conn_mask
+            )  # respect self-connection setting / torch tensor * means element wise mul.
+            self.register_buffer("fixed_mask", mask)
         else:
-            self.register_buffer('fixed_mask', None)
+            self.register_buffer("fixed_mask", None)
 
         # cached mask for current simulation
         self.current_mask: torch.Tensor | None = None
@@ -159,7 +168,9 @@ class LiquidLayer(nn.Module):
                 # noise_scale controls exploration radius:
                 #   0.1 → only edges with |theta| < 0.18 can flip (~0.3% of all edges)
                 #   1.0 → standard Gumbel, ~33% flip regardless of theta magnitude
-                noisy_logits = self.theta / self._epoch_tau + self.noise_scale * self._epoch_noise
+                noisy_logits = (
+                    self.theta / self._epoch_tau + self.noise_scale * self._epoch_noise
+                )
                 soft = torch.sigmoid(noisy_logits)
                 hard_mask = (soft >= 0.5).float()
                 self.current_mask = hard_mask - soft.detach() + soft
@@ -180,7 +191,7 @@ class LiquidLayer(nn.Module):
     def get_effective_weight(self) -> torch.Tensor:
         """Compute effective weight: mask * self_conn * (dale_sign * softplus(w_raw))."""
         w_clamped = torch.clamp(self.w_raw, max=self.w_raw_max)
-        signed_w = self.dale_sign * F.softplus(w_clamped)    # (N, N)
+        signed_w = self.dale_sign * F.softplus(w_clamped)  # (N, N)
         return self.current_mask * self.self_conn_mask * signed_w
 
     def forward(self, spike: torch.Tensor) -> torch.Tensor:
@@ -211,6 +222,7 @@ class LiquidLayer(nn.Module):
 # LSMModel: full model combining input, liquid, readout
 # ---------------------------------------------------------------------------
 
+
 class LSMModel(nn.Module):
     def __init__(
         self,
@@ -235,13 +247,16 @@ class LSMModel(nn.Module):
         noise_scale: float = 0.1,
     ):
         super().__init__()
-        self.T = T
+        self.T = T  # time stamp
         self.bptt_truncate = bptt_truncate
         self.n_liquid = n_liquid
         self.n_output = n_output
 
         self.input_proj = InputProjection(
-            n_input, n_liquid, p_input=p_input, weight_scale=input_weight_scale,
+            n_input,
+            n_liquid,
+            p_input=p_input,
+            weight_scale=input_weight_scale,
         )
         self.liquid = LiquidLayer(
             n_liquid,
@@ -294,13 +309,15 @@ class LSMModel(nn.Module):
                 liquid_mem = liquid_mem.detach()
                 liquid_spike = liquid_spike.detach()
 
-            input_current = self.input_proj(spikes[:, t])          # (batch, N)
-            recurrent_current = self.liquid(liquid_spike)           # (batch, N)
+            input_current = self.input_proj(spikes[:, t])  # (batch, N)
+            recurrent_current = self.liquid(liquid_spike)  # (batch, N)
 
-            liquid_mem = self.liquid.beta * liquid_mem + input_current + recurrent_current
+            liquid_mem = (
+                self.liquid.beta * liquid_mem + input_current + recurrent_current
+            )
             liquid_mem = torch.clamp(liquid_mem, -3.0, 3.0)
             liquid_spike = spike_fn(liquid_mem - self.liquid.threshold.clamp(min=0.01))
-            liquid_mem = liquid_mem * (1.0 - liquid_spike)         # reset
+            liquid_mem = liquid_mem * (1.0 - liquid_spike)  # reset
 
             readout_mem = readout_mem + self.readout(liquid_spike)
             spike_sum = spike_sum + liquid_spike
@@ -315,11 +332,14 @@ class LSMModel(nn.Module):
     # ------------------------------------------------------------------
 
     def sparsity_loss(self) -> torch.Tensor:
+        # sparsity_loss는 theta 값을 조정하여 시그모이드 함수를 통과한
+        # 결과가 0에 더 가깝게 하여 분포가 희소하게 만드는 역할을 함.
         if self.liquid.mode != "learned":
             return torch.tensor(0.0, device=self.liquid.theta.device)
         return torch.sigmoid(self.liquid.theta).mean()
 
     def commitment_loss(self) -> torch.Tensor:
+        # theta를 시그모이드를 통과한 것의 분포가 0 또는 1에 몰리게 하는 결과를 내도록 함
         if self.liquid.mode != "learned":
             return torch.tensor(0.0, device=self.liquid.theta.device)
         eps = 1e-6
@@ -332,7 +352,7 @@ class LSMModel(nn.Module):
 
     def firing_rate_info(self) -> dict:
         """Return firing rate stats from last forward pass."""
-        if not hasattr(self, '_last_spike_rates'):
+        if not hasattr(self, "_last_spike_rates"):
             return {"mean": 0.0, "max": 0.0}
         rates = self._last_spike_rates
         return {

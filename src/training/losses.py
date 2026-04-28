@@ -9,7 +9,9 @@ import torch.nn as nn
 ce_loss = nn.CrossEntropyLoss()
 
 
-def total_loss(rates, labels, model, lambda_sparse: float, lambda_commit: float) -> torch.Tensor:
+def total_loss(
+    rates, labels, model, lambda_sparse: float, lambda_commit: float
+) -> torch.Tensor:
     loss = ce_loss(rates, labels)
     sp_loss = model.sparsity_loss()
     cm_loss = model.commitment_loss()
