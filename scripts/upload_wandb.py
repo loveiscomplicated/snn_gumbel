@@ -95,15 +95,18 @@ def upload(exp_dir: Path, project: str, entity: str | None):
 def main():
     parser = argparse.ArgumentParser(description="Upload experiment results to wandb")
     parser.add_argument(
-        "--exp", required=True,
+        "--exp",
+        required=True,
         help="Experiment directory name or path (e.g. ablation_full_2603231840 or experiments/ablation_full_2603231840)",
     )
     parser.add_argument(
-        "--project", default="snn_gumbel",
+        "--project",
+        default="snn_gumbel",
         help="wandb project name (default: snn_gumbel)",
     )
     parser.add_argument(
-        "--entity", default=None,
+        "--entity",
+        default=None,
         help="wandb entity (team/user). Omit to use default.",
     )
     args = parser.parse_args()

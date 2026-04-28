@@ -40,9 +40,13 @@ def main():
 
     print("=" * 60)
     print("[1] Parameter heterogeneity")
-    print(f"  beta      : min={beta.min():.4f}  max={beta.max():.4f}  std={beta.std():.4f}")
+    print(
+        f"  beta      : min={beta.min():.4f}  max={beta.max():.4f}  std={beta.std():.4f}"
+    )
     print(f"              first 5: {beta[:5].tolist()}")
-    print(f"  threshold : min={threshold.min():.4f}  max={threshold.max():.4f}  std={threshold.std():.4f}")
+    print(
+        f"  threshold : min={threshold.min():.4f}  max={threshold.max():.4f}  std={threshold.std():.4f}"
+    )
     print(f"              first 5: {threshold[:5].tolist()}")
     print(f"  beta shape: {beta.shape}  (should be ({cfg.liquid.n_liquid},))")
 
@@ -62,7 +66,11 @@ def main():
                     samples_by_class[label] = []
                 if len(samples_by_class[label]) < 8:
                     samples_by_class[label].append(xi)
-            if all(len(v) >= 8 for v in samples_by_class.values() if len(samples_by_class) >= 5):
+            if all(
+                len(v) >= 8
+                for v in samples_by_class.values()
+                if len(samples_by_class) >= 5
+            ):
                 break
 
     # pick 5 classes with enough samples
@@ -83,6 +91,7 @@ def main():
             spike_sum = torch.zeros(len(batch), n_liquid, device=device)
 
             from src.models.layers import spike_fn
+
             for t in range(T):
                 inp = model.input_proj(batch[:, t])
                 rec = model.liquid(liq_spk)
@@ -100,8 +109,10 @@ def main():
     print(f"  Mean firing rate per class (mean over neurons):")
     for cls in chosen:
         v = class_vecs[cls]
-        print(f"    class {cls:2d}: mean={v.mean():.4f}  std={v.std():.4f}  "
-              f"active_neurons(>0.05)={( v > 0.05).sum().item()}")
+        print(
+            f"    class {cls:2d}: mean={v.mean():.4f}  std={v.std():.4f}  "
+            f"active_neurons(>0.05)={( v > 0.05).sum().item()}"
+        )
 
     print(f"\n  Pairwise cosine similarity between class mean-rate vectors:")
     keys = list(class_vecs.keys())
@@ -121,14 +132,18 @@ def main():
         v0 = class_vecs[chosen[0]]
         v1 = class_vecs[chosen[1]]
         diff = (v0 - v1).abs()
-        print(f"  |rate_diff| per neuron: mean={diff.mean():.4f}  max={diff.max():.4f}  "
-              f"neurons_with_diff>0.1: {(diff > 0.1).sum().item()}")
+        print(
+            f"  |rate_diff| per neuron: mean={diff.mean():.4f}  max={diff.max():.4f}  "
+            f"neurons_with_diff>0.1: {(diff > 0.1).sum().item()}"
+        )
         # top 5 most discriminative neurons
         top5 = diff.topk(5)
         print(f"  Top-5 discriminative neuron indices & |diff|:")
         for idx, val in zip(top5.indices.tolist(), top5.values.tolist()):
-            print(f"    neuron {idx:4d}: |diff|={val:.4f}  "
-                  f"class{chosen[0]}={v0[idx]:.4f}  class{chosen[1]}={v1[idx]:.4f}")
+            print(
+                f"    neuron {idx:4d}: |diff|={val:.4f}  "
+                f"class{chosen[0]}={v0[idx]:.4f}  class{chosen[1]}={v1[idx]:.4f}"
+            )
 
     print("=" * 60)
 

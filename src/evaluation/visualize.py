@@ -5,6 +5,7 @@ run_all() saves figures into the experiment figures/ directory.
 """
 
 import os
+
 os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")
 
 from pathlib import Path
@@ -18,25 +19,31 @@ import matplotlib.pyplot as plt
 # Feedforward SNN plots
 # ===========================================================================
 
+
 def plot_training_curves(history: list, save_path: str):
     epochs = [h["epoch"] for h in history]
     fig, axes = plt.subplots(1, 3, figsize=(15, 4))
 
     axes[0].plot(epochs, [h["train_acc"] for h in history], label="Train")
-    axes[0].plot(epochs, [h["test_acc"]  for h in history], label="Test")
-    axes[0].set_title("Accuracy"); axes[0].legend(); axes[0].grid(True)
+    axes[0].plot(epochs, [h["test_acc"] for h in history], label="Test")
+    axes[0].set_title("Accuracy")
+    axes[0].legend()
+    axes[0].grid(True)
 
     axes[1].plot(epochs, [h["train_loss"] for h in history], color="red")
     ax2 = axes[1].twinx()
     ax2.plot(epochs, [h["tau"] for h in history], color="gray", linestyle="--")
-    axes[1].set_title("Loss & Temperature"); axes[1].grid(True)
+    axes[1].set_title("Loss & Temperature")
+    axes[1].grid(True)
 
     # collect all sparsity keys in order
     sp_keys = sorted(k for k in history[0] if k.startswith("sparsity_l"))
     for key in sp_keys:
         label = key.replace("sparsity_", "Layer ")
         axes[2].plot(epochs, [h[key] * 100 for h in history], label=label)
-    axes[2].set_title("Edge Sparsity (%)"); axes[2].legend(); axes[2].grid(True)
+    axes[2].set_title("Edge Sparsity (%)")
+    axes[2].legend()
+    axes[2].grid(True)
 
     plt.tight_layout()
     plt.savefig(save_path, dpi=150)
@@ -121,30 +128,43 @@ def plot_input_connectivity(model, save_path: str):
 # LSM-specific plots
 # ===========================================================================
 
+
 def lsm_plot_training_curves(history: list, save_path: str):
     epochs = [h["epoch"] for h in history]
     fig, axes = plt.subplots(2, 3, figsize=(18, 9))
 
     # Row 1: accuracy, loss+tau, sparsity
     axes[0, 0].plot(epochs, [h["train_acc"] for h in history], label="Train")
-    axes[0, 0].plot(epochs, [h["test_acc"]  for h in history], label="Test")
-    axes[0, 0].set_title("Accuracy"); axes[0, 0].legend(); axes[0, 0].grid(True)
+    axes[0, 0].plot(epochs, [h["test_acc"] for h in history], label="Test")
+    axes[0, 0].set_title("Accuracy")
+    axes[0, 0].legend()
+    axes[0, 0].grid(True)
 
     axes[0, 1].plot(epochs, [h["train_loss"] for h in history], color="red")
     ax_tau = axes[0, 1].twinx()
-    ax_tau.plot(epochs, [h["tau"] for h in history], color="gray", linestyle="--", label="tau")
-    axes[0, 1].set_title("Loss & Temperature"); axes[0, 1].grid(True)
+    ax_tau.plot(
+        epochs, [h["tau"] for h in history], color="gray", linestyle="--", label="tau"
+    )
+    axes[0, 1].set_title("Loss & Temperature")
+    axes[0, 1].grid(True)
 
     axes[0, 2].plot(epochs, [h["sparsity"] * 100 for h in history], color="teal")
-    axes[0, 2].set_title("Liquid Sparsity (%)"); axes[0, 2].grid(True)
+    axes[0, 2].set_title("Liquid Sparsity (%)")
+    axes[0, 2].grid(True)
 
     # Row 2: grad_norm, firing rates, theta stats
     axes[1, 0].plot(epochs, [h.get("grad_norm", 0) for h in history], color="purple")
-    axes[1, 0].set_title("Grad Norm"); axes[1, 0].set_yscale("symlog"); axes[1, 0].grid(True)
+    axes[1, 0].set_title("Grad Norm")
+    axes[1, 0].set_yscale("symlog")
+    axes[1, 0].grid(True)
 
-    axes[1, 1].plot(epochs, [h.get("mean_firing_rate", 0) for h in history], label="Mean")
+    axes[1, 1].plot(
+        epochs, [h.get("mean_firing_rate", 0) for h in history], label="Mean"
+    )
     axes[1, 1].plot(epochs, [h.get("max_firing_rate", 0) for h in history], label="Max")
-    axes[1, 1].set_title("Firing Rates"); axes[1, 1].legend(); axes[1, 1].grid(True)
+    axes[1, 1].set_title("Firing Rates")
+    axes[1, 1].legend()
+    axes[1, 1].grid(True)
 
     axes[1, 2].plot(epochs, [h.get("theta_mean", 0) for h in history], label="mean")
     axes[1, 2].fill_between(
@@ -153,7 +173,8 @@ def lsm_plot_training_curves(history: list, save_path: str):
         [h.get("theta_mean", 0) + h.get("theta_std", 0) for h in history],
         alpha=0.3,
     )
-    axes[1, 2].set_title("Theta (mean +/- std)"); axes[1, 2].grid(True)
+    axes[1, 2].set_title("Theta (mean +/- std)")
+    axes[1, 2].grid(True)
 
     plt.tight_layout()
     plt.savefig(save_path, dpi=150)
@@ -169,14 +190,24 @@ def lsm_plot_topology(model, save_path: str):
 
     axes[0].imshow(mask, aspect="auto", cmap="Blues")
     axes[0].set_title(f"Liquid Mask ({mask.shape[0]}x{mask.shape[1]})")
-    axes[0].set_xlabel("Post-synaptic"); axes[0].set_ylabel("Pre-synaptic")
+    axes[0].set_xlabel("Post-synaptic")
+    axes[0].set_ylabel("Pre-synaptic")
 
     # degree distributions
     in_degree = mask.sum(axis=0)
     out_degree = mask.sum(axis=1)
-    axes[1].hist(in_degree, bins=30, alpha=0.6, label=f"In-degree (mean={in_degree.mean():.1f})")
-    axes[1].hist(out_degree, bins=30, alpha=0.6, label=f"Out-degree (mean={out_degree.mean():.1f})")
-    axes[1].set_title("Degree Distribution"); axes[1].legend(); axes[1].grid(True)
+    axes[1].hist(
+        in_degree, bins=30, alpha=0.6, label=f"In-degree (mean={in_degree.mean():.1f})"
+    )
+    axes[1].hist(
+        out_degree,
+        bins=30,
+        alpha=0.6,
+        label=f"Out-degree (mean={out_degree.mean():.1f})",
+    )
+    axes[1].set_title("Degree Distribution")
+    axes[1].legend()
+    axes[1].grid(True)
 
     plt.tight_layout()
     plt.savefig(save_path, dpi=150)
@@ -192,7 +223,9 @@ def lsm_plot_theta_distribution(model, save_path: str):
     ax.hist(probs, bins=80, color="steelblue", edgecolor="white", linewidth=0.3)
     ax.axvline(0.5, color="red", linestyle="--", label="threshold=0.5")
     ax.set_title(f"Liquid σ(θ) distribution (N={len(probs)})")
-    ax.set_xlabel("σ(θ)"); ax.legend(); ax.grid(True)
+    ax.set_xlabel("σ(θ)")
+    ax.legend()
+    ax.grid(True)
 
     plt.tight_layout()
     plt.savefig(save_path, dpi=150)
@@ -207,10 +240,12 @@ def lsm_plot_threshold_distribution(model, save_path: str):
 
     fig, axes = plt.subplots(1, 2, figsize=(12, 4))
     axes[0].hist(thr, bins=30, color="mediumseagreen", edgecolor="white")
-    axes[0].set_title(f"Threshold (mean={thr.mean():.3f})"); axes[0].grid(True)
+    axes[0].set_title(f"Threshold (mean={thr.mean():.3f})")
+    axes[0].grid(True)
 
     axes[1].hist(beta, bins=30, color="coral", edgecolor="white")
-    axes[1].set_title(f"Beta / membrane decay (mean={beta.mean():.3f})"); axes[1].grid(True)
+    axes[1].set_title(f"Beta / membrane decay (mean={beta.mean():.3f})")
+    axes[1].grid(True)
 
     plt.tight_layout()
     plt.savefig(save_path, dpi=150)
@@ -220,13 +255,15 @@ def lsm_plot_threshold_distribution(model, save_path: str):
 def lsm_plot_weight_distribution(model, save_path: str):
     """Visualise effective weight magnitude distribution."""
     import torch.nn.functional as F
+
     with torch.no_grad():
         w_mag = F.softplus(model.liquid.w_raw).cpu().numpy().ravel()
 
     fig, ax = plt.subplots(figsize=(8, 4))
     ax.hist(w_mag, bins=80, color="darkorange", edgecolor="white", linewidth=0.3)
     ax.set_title(f"softplus(w_raw) distribution (mean={w_mag.mean():.4f})")
-    ax.set_xlabel("Weight magnitude"); ax.grid(True)
+    ax.set_xlabel("Weight magnitude")
+    ax.grid(True)
 
     plt.tight_layout()
     plt.savefig(save_path, dpi=150)
@@ -236,6 +273,7 @@ def lsm_plot_weight_distribution(model, save_path: str):
 # ===========================================================================
 # Dispatcher
 # ===========================================================================
+
 
 def run_all(checkpoint_path: str, cfg, figures_dir: str | None = None):
     from src.evaluation.evaluate import load_model, get_device
@@ -247,19 +285,21 @@ def run_all(checkpoint_path: str, cfg, figures_dir: str | None = None):
     save_dir = Path(figures_dir) if figures_dir else Path("figures")
     save_dir.mkdir(parents=True, exist_ok=True)
 
-    is_lsm = hasattr(model, 'liquid')
+    is_lsm = hasattr(model, "liquid")
 
     if is_lsm:
         if history:
             lsm_plot_training_curves(history, str(save_dir / "training_curves.png"))
-        lsm_plot_topology(model,              str(save_dir / "topology.png"))
-        lsm_plot_theta_distribution(model,    str(save_dir / "theta_distribution.png"))
-        lsm_plot_threshold_distribution(model, str(save_dir / "threshold_distribution.png"))
-        lsm_plot_weight_distribution(model,   str(save_dir / "weight_distribution.png"))
+        lsm_plot_topology(model, str(save_dir / "topology.png"))
+        lsm_plot_theta_distribution(model, str(save_dir / "theta_distribution.png"))
+        lsm_plot_threshold_distribution(
+            model, str(save_dir / "threshold_distribution.png")
+        )
+        lsm_plot_weight_distribution(model, str(save_dir / "weight_distribution.png"))
     else:
         if history:
             plot_training_curves(history, str(save_dir / "training_curves.png"))
-        plot_topology(model,              str(save_dir / "topology.png"))
-        plot_theta_distribution(model,    str(save_dir / "theta_distribution.png"))
+        plot_topology(model, str(save_dir / "topology.png"))
+        plot_theta_distribution(model, str(save_dir / "theta_distribution.png"))
         plot_threshold_distribution(model, str(save_dir / "threshold_distribution.png"))
-        plot_input_connectivity(model,    str(save_dir / "input_receptive_field.png"))
+        plot_input_connectivity(model, str(save_dir / "input_receptive_field.png"))

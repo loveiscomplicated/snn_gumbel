@@ -302,6 +302,7 @@ class LSMModel(nn.Module):
 
         # 3. timestep loop
         # truncated BPTT: detach hidden state before the gradient window
+        # self.bptt_truncate: window
         grad_start = (self.T - self.bptt_truncate) if self.bptt_truncate > 0 else 0
 
         for t in range(self.T):

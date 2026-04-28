@@ -57,8 +57,7 @@ class SNNModel(nn.Module):
 
         # initialise membrane potentials
         mems = [
-            torch.zeros(batch, layer.n_post, device=device)
-            for layer in self.layers
+            torch.zeros(batch, layer.n_post, device=device) for layer in self.layers
         ]
         spike_sum = torch.zeros(batch, self.n_output, device=device)
 

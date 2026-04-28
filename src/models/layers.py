@@ -120,9 +120,7 @@ class GumbelLIFLayer(nn.Module):
         self.weight = nn.Parameter(torch.empty(n_pre, n_post))
         nn.init.kaiming_uniform_(self.weight, a=0.1)
 
-        self.threshold = nn.Parameter(
-            torch.ones(n_post), requires_grad=learn_threshold
-        )
+        self.threshold = nn.Parameter(torch.ones(n_post), requires_grad=learn_threshold)
         self.log_beta = nn.Parameter(torch.tensor(beta).log())
 
         # fixed mask for random_sparse

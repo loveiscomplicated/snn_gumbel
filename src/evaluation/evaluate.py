@@ -39,6 +39,7 @@ def run_evaluation(checkpoint_path: str, cfg: Config) -> tuple:
     model.eval()
 
     from src.data.loaders import get_dataloaders
+
     _, test_loader = get_dataloaders(cfg)
 
     correct = total = 0
@@ -54,5 +55,7 @@ def run_evaluation(checkpoint_path: str, cfg: Config) -> tuple:
     sparsities = model.sparsity_info()
 
     print(f"Test accuracy: {acc:.4f}")
-    print("  " + "  ".join(f"sparsity_l{i+1}={s:.3f}" for i, s in enumerate(sparsities)))
+    print(
+        "  " + "  ".join(f"sparsity_l{i+1}={s:.3f}" for i, s in enumerate(sparsities))
+    )
     return acc, model, history

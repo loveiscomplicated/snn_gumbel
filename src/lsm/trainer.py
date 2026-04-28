@@ -40,7 +40,7 @@ def get_tau(epoch: int, cfg: Config) -> float:
     # During Phase 1, tau is computed but unused (hard mask ignores it).
     warmup = cfg.liquid.theta_warmup_epochs
     hold = cfg.tau_hold_epochs
-    phase2_epoch = max(epoch - warmup, 0)       # epochs elapsed since Phase 2 start
+    phase2_epoch = max(epoch - warmup, 0)  # epochs elapsed since Phase 2 start
     anneal_epoch = max(phase2_epoch - hold, 0)  # epochs elapsed since annealing start
     if anneal_epoch >= cfg.tau_anneal_epochs:
         return cfg.tau_end
@@ -57,6 +57,7 @@ def _make_experiment_dir(cfg: Config) -> Path:
     (exp_dir / "figures").mkdir(exist_ok=True)
 
     import yaml, dataclasses
+
     with open(exp_dir / "config.yaml", "w") as f:
         yaml.dump(dataclasses.asdict(cfg), f, default_flow_style=False, sort_keys=False)
 
@@ -135,12 +136,18 @@ def train(cfg: Config) -> tuple:
         other_params = [p for n, p in model.named_parameters() if n != "liquid.theta"]
         param_groups = [
             {"params": other_params, "lr": cfg.lr, "weight_decay": cfg.weight_decay},
-            {"params": theta_params,  "lr": cfg.lr * cfg.liquid.theta_lr_scale, "weight_decay": 0.0},
+            {
+                "params": theta_params,
+                "lr": cfg.lr * cfg.liquid.theta_lr_scale,
+                "weight_decay": 0.0,
+            },
         ]
     else:
         other_params = list(model.parameters())
         theta_params = []
-        param_groups = [{"params": other_params, "lr": cfg.lr, "weight_decay": cfg.weight_decay}]
+        param_groups = [
+            {"params": other_params, "lr": cfg.lr, "weight_decay": cfg.weight_decay}
+        ]
     optimizer = optim.Adam(param_groups)
     scheduler = CosineAnnealingLR(optimizer, T_max=cfg.epochs, eta_min=cfg.lr_min)
 
@@ -157,7 +164,9 @@ def train(cfg: Config) -> tuple:
             # Phase transition: unfreeze theta at warmup boundary
             if is_learned and warmup > 0 and epoch == warmup:
                 model.liquid.theta.requires_grad_(True)
-                tqdm.write(f"  Phase 2: theta unfrozen at epoch {epoch+1}, topology learning begins")
+                tqdm.write(
+                    f"  Phase 2: theta unfrozen at epoch {epoch+1}, topology learning begins"
+                )
 
             tau = get_tau(epoch, cfg)
             phase_label = "P1" if (is_learned and epoch < warmup) else "P2"
@@ -186,7 +195,9 @@ def train(cfg: Config) -> tuple:
                 loss = _compute_loss(rates, y, model, cfg)
                 # NaN detection
                 if torch.isnan(loss):
-                    tqdm.write(f"  ✖ NaN loss detected at epoch {epoch+1}, batch {n_batches+1}. Stopping.")
+                    tqdm.write(
+                        f"  ✖ NaN loss detected at epoch {epoch+1}, batch {n_batches+1}. Stopping."
+                    )
                     return history, exp_dir
 
                 loss.backward()
@@ -205,11 +216,17 @@ def train(cfg: Config) -> tuple:
                 #          scale separation: topology changes slowly, weights adapt fast)
                 #   other: clip_norm_w (large enough for recurrent BPTT norms ~10^2–10^4)
                 if is_learned and theta_params:
-                    torch.nn.utils.clip_grad_norm_(theta_params, max_norm=clip_norm_theta)
-                    other_norm = torch.nn.utils.clip_grad_norm_(other_params, max_norm=clip_norm_w)
+                    torch.nn.utils.clip_grad_norm_(
+                        theta_params, max_norm=clip_norm_theta
+                    )
+                    other_norm = torch.nn.utils.clip_grad_norm_(
+                        other_params, max_norm=clip_norm_w
+                    )
                     grad_norm = other_norm
                 else:
-                    grad_norm = torch.nn.utils.clip_grad_norm_(other_params, max_norm=clip_norm_w)
+                    grad_norm = torch.nn.utils.clip_grad_norm_(
+                        other_params, max_norm=clip_norm_w
+                    )
                 optimizer.step()
 
                 total_l += loss.item() * y.size(0)
@@ -271,7 +288,8 @@ def train(cfg: Config) -> tuple:
             )
             grad_detail = (
                 f"  θ_grad={avg_theta_grad:.2e}  w_grad={avg_w_raw_grad:.2e}"
-                if is_learned else ""
+                if is_learned
+                else ""
             )
             tqdm.write(
                 f"[{epoch+1:03d}/{cfg.epochs}|{phase_label}] "
@@ -279,21 +297,30 @@ def train(cfg: Config) -> tuple:
                 f"train={train_acc:.4f}  test={test_acc:.4f}  "
                 f"sp={sparsity:.3f}  grad={avg_grad_norm:.1f}  "
                 f"fr={fr_info['mean']:.3f}/{fr_info['max']:.3f}  "
-                f"θ={theta_mean:.3f}±{theta_std:.3f}"
-                + grad_detail
+                f"θ={theta_mean:.3f}±{theta_std:.3f}" + grad_detail
             )
 
             # early warnings
             if avg_grad_norm > 100:
-                tqdm.write(f"  ⚠ grad_norm={avg_grad_norm:.1f} — consider reducing lr or clip_max_norm")
+                tqdm.write(
+                    f"  ⚠ grad_norm={avg_grad_norm:.1f} — consider reducing lr or clip_max_norm"
+                )
             if is_learned and avg_theta_grad > 50:
-                tqdm.write(f"  ⚠ theta_grad={avg_theta_grad:.1f} — topology gradient exploding (tau={tau:.3f})")
+                tqdm.write(
+                    f"  ⚠ theta_grad={avg_theta_grad:.1f} — topology gradient exploding (tau={tau:.3f})"
+                )
             if is_learned and avg_w_raw_grad > 50:
-                tqdm.write(f"  ⚠ w_raw_grad={avg_w_raw_grad:.1f} — weight gradient exploding")
+                tqdm.write(
+                    f"  ⚠ w_raw_grad={avg_w_raw_grad:.1f} — weight gradient exploding"
+                )
             if fr_info["max"] > 0.9:
-                tqdm.write(f"  ⚠ max_firing_rate={fr_info['max']:.3f} — possible excitatory loop runaway")
+                tqdm.write(
+                    f"  ⚠ max_firing_rate={fr_info['max']:.3f} — possible excitatory loop runaway"
+                )
             if epoch > 20 and theta_std < 0.01:
-                tqdm.write(f"  ⚠ theta_std={theta_std:.4f} — theta stagnating, consider increasing lambda_commit")
+                tqdm.write(
+                    f"  ⚠ theta_std={theta_std:.4f} — theta stagnating, consider increasing lambda_commit"
+                )
 
             # checkpoint best
             if test_acc > best_acc:
