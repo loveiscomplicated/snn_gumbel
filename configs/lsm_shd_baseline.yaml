@@ -20,6 +20,8 @@ liquid:
   self_connection: false
   theta_init_mean: -2.2
   theta_init_std: 0.5
+  w_raw_init_mean: -4.0
+  w_raw_init_std: 0.01
   w_raw_max: -3.0
   bptt_truncate: 25
   grad_clip_max_norm_w: 100.0

@@ -83,6 +83,8 @@ def build_model(cfg: Config, device: torch.device) -> LSMModel:
         self_connection=liq.self_connection,
         theta_init_mean=liq.theta_init_mean,
         theta_init_std=liq.theta_init_std,
+        w_raw_init_mean=liq.w_raw_init_mean,
+        w_raw_init_std=liq.w_raw_init_std,
         w_raw_max=liq.w_raw_max,
         bptt_truncate=liq.bptt_truncate,
         noise_scale=liq.noise_scale,

@@ -56,6 +56,8 @@ class LiquidConfig:
         10.0  # theta gradient clipping (w보다 작게 유지해 시간 스케일 분리 보장)
     )
     input_weight_scale: float = 0.1  # 입력 가중치 스케일
+    w_raw_init_mean: float = -4.0  # recurrent raw weight 초기 평균; softplus(-4.0)≈0.018
+    w_raw_init_std: float = 0.01  # recurrent raw weight 초기 표준편차
     w_raw_max: float = (
         -3.0
     )  # w_raw 상한 clamp (softplus(-3.0)≈0.049, spectral radius < 1 for N≤500)
