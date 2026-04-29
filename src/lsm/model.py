@@ -66,6 +66,7 @@ class LiquidLayer(nn.Module):
         theta_init_std: float = 0.01,
         w_raw_init_mean: float = -4.0,
         w_raw_init_std: float = 0.01,
+        train_w_raw: bool = True,
         w_raw_max: float = -1.0,
         beta_min: float = 0.7,
         beta_max: float = 0.95,
@@ -92,7 +93,7 @@ class LiquidLayer(nn.Module):
         # softplus(-4.0)≈0.018 → recurrent current ≈ 0.58 (sub-threshold)
         self.w_raw = nn.Parameter(
             torch.randn(n_liquid, n_liquid) * w_raw_init_std + w_raw_init_mean,
-            requires_grad=weight_trainable,
+            requires_grad=(weight_trainable and train_w_raw),
         )
         # shuffle so beta/threshold are not correlated with E/I neuron ordering
         beta_vals = torch.linspace(beta_min, beta_max, n_liquid)
@@ -246,6 +247,7 @@ class LSMModel(nn.Module):
         theta_init_std: float = 0.01,
         w_raw_init_mean: float = -4.0,
         w_raw_init_std: float = 0.01,
+        train_w_raw: bool = True,
         w_raw_max: float = -1.0,
         bptt_truncate: int = 0,
         noise_scale: float = 0.1,
@@ -272,6 +274,7 @@ class LSMModel(nn.Module):
             theta_init_std=theta_init_std,
             w_raw_init_mean=w_raw_init_mean,
             w_raw_init_std=w_raw_init_std,
+            train_w_raw=train_w_raw,
             w_raw_max=w_raw_max,
             beta_min=beta_min,
             beta_max=beta_max,
