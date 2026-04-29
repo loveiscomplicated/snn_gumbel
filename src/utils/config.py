@@ -58,6 +58,7 @@ class LiquidConfig:
     input_weight_scale: float = 0.1  # 입력 가중치 스케일
     w_raw_init_mean: float = -4.0  # recurrent raw weight 초기 평균; softplus(-4.0)≈0.018
     w_raw_init_std: float = 0.01  # recurrent raw weight 초기 표준편차
+    train_w_raw: bool = True  # recurrent raw weight 학습 여부
     w_raw_max: float = (
         -3.0
     )  # w_raw 상한 clamp (softplus(-3.0)≈0.049, spectral radius < 1 for N≤500)
@@ -71,6 +72,13 @@ class LiquidConfig:
     theta_warmup_epochs: int = (
         0  # Phase 1 길이: theta 고정, w_raw/readout만 학습 (0=비활성화)
     )
+    theta_warmup_dynamic: bool = False  # P1 metric plateau 시 P2로 조기 전환
+    theta_warmup_strategy: str = "slope"  # slope | best
+    theta_warmup_window: int = 3  # slope 전략에서 볼 최근 P1 epoch 수
+    theta_warmup_min_epochs: int = 5  # dynamic warmup에서 최소 P1 epoch 수
+    theta_warmup_patience: int = 3  # dynamic warmup plateau 허용 epoch 수
+    theta_warmup_min_delta: float = 0.002  # P1 metric 개선으로 인정할 최소 변화량
+    theta_warmup_metric: str = "test_acc"  # test_acc | train_acc | train_loss
     theta_lr_scale: float = 0.1  # theta LR = base_lr × theta_lr_scale
     noise_scale: float = (
         0.1  # 에폭 단위 Gumbel noise 크기 (0=결정적, 1=표준 Gumbel std≈1.81)

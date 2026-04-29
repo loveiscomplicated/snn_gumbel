@@ -22,11 +22,19 @@ liquid:
   theta_init_std: 0.5
   w_raw_init_mean: -4.0
   w_raw_init_std: 0.01
+  train_w_raw: true
   w_raw_max: -3.0
   bptt_truncate: 25
   grad_clip_max_norm_w: 100.0
   grad_clip_max_norm_theta: 10.0
   theta_warmup_epochs: 10
+  theta_warmup_dynamic: false
+  theta_warmup_strategy: slope
+  theta_warmup_window: 3
+  theta_warmup_min_epochs: 5
+  theta_warmup_patience: 3
+  theta_warmup_min_delta: 0.002
+  theta_warmup_metric: test_acc
   theta_lr_scale: 0.3
   noise_scale: 0.1
   input_weight_scale: 0.3
