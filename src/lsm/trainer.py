@@ -35,10 +35,10 @@ def get_device() -> torch.device:
     return torch.device("cpu")
 
 
-def get_tau(epoch: int, cfg: Config) -> float:
+def get_tau(epoch: int, cfg: Config, warmup_epochs: int | None = None) -> float:
     # Tau annealing starts from Phase 2 (after warmup), with an optional hold period.
     # During Phase 1, tau is computed but unused (hard mask ignores it).
-    warmup = cfg.liquid.theta_warmup_epochs
+    warmup = cfg.liquid.theta_warmup_epochs if warmup_epochs is None else warmup_epochs
     hold = cfg.tau_hold_epochs
     phase2_epoch = max(epoch - warmup, 0)  # epochs elapsed since Phase 2 start
     anneal_epoch = max(phase2_epoch - hold, 0)  # epochs elapsed since annealing start
@@ -85,6 +85,7 @@ def build_model(cfg: Config, device: torch.device) -> LSMModel:
         theta_init_std=liq.theta_init_std,
         w_raw_init_mean=liq.w_raw_init_mean,
         w_raw_init_std=liq.w_raw_init_std,
+        train_w_raw=liq.train_w_raw,
         w_raw_max=liq.w_raw_max,
         bptt_truncate=liq.bptt_truncate,
         noise_scale=liq.noise_scale,
@@ -111,6 +112,36 @@ def _evaluate(model: LSMModel, loader, device: torch.device, tau: float) -> floa
     return correct / total
 
 
+def _metric_improved(
+    metric_name: str, value: float, best_value: float | None, min_delta: float
+) -> bool:
+    if best_value is None:
+        return True
+    if metric_name == "train_loss":
+        return value < best_value - min_delta
+    return value > best_value + min_delta
+
+
+def _select_warmup_metric(metric_name: str, row: dict) -> float:
+    if metric_name not in {"test_acc", "train_acc", "train_loss"}:
+        raise ValueError(
+            "liquid.theta_warmup_metric must be one of: "
+            "test_acc, train_acc, train_loss"
+        )
+    return row[metric_name]
+
+
+def _warmup_score(metric_name: str, value: float) -> float:
+    return -value if metric_name == "train_loss" else value
+
+
+def _warmup_slope(scores: list[float], window: int) -> float | None:
+    if len(scores) < window:
+        return None
+    recent = scores[-window:]
+    return (recent[-1] - recent[0]) / max(window - 1, 1)
+
+
 def train(cfg: Config) -> tuple:
     os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")
     torch.manual_seed(cfg.seed)
@@ -127,9 +158,29 @@ def train(cfg: Config) -> tuple:
     # Phase 2: unfreeze theta to learn topology via Gumbel-STE.
     warmup = cfg.liquid.theta_warmup_epochs
     is_learned = cfg.liquid.recurrent_mode == "learned"
+    dynamic_warmup = is_learned and cfg.liquid.theta_warmup_dynamic and warmup > 0
+    warmup_min_epochs = min(max(cfg.liquid.theta_warmup_min_epochs, 1), warmup)
+    warmup_patience = max(cfg.liquid.theta_warmup_patience, 1)
+    warmup_min_delta = max(cfg.liquid.theta_warmup_min_delta, 0.0)
+    warmup_metric = cfg.liquid.theta_warmup_metric
+    warmup_strategy = cfg.liquid.theta_warmup_strategy
+    warmup_window = max(cfg.liquid.theta_warmup_window, 2)
+    warmup_metric_best: float | None = None
+    warmup_slow_count = 0
+    warmup_scores: list[float] = []
+    if warmup_strategy not in {"slope", "best"}:
+        raise ValueError("liquid.theta_warmup_strategy must be one of: slope, best")
     if is_learned and warmup > 0:
         model.liquid.theta.requires_grad_(False)
         tqdm.write(f"  Phase 1 warmup: theta frozen for {warmup} epochs")
+        if dynamic_warmup:
+            tqdm.write(
+                "  Dynamic warmup enabled: "
+                f"min={warmup_min_epochs}, max={warmup}, "
+                f"strategy={warmup_strategy}, window={warmup_window}, "
+                f"patience={warmup_patience}, metric={warmup_metric}, "
+                f"min_delta={warmup_min_delta:g}"
+            )
 
     # Separate optimizer groups so theta gradient cannot suppress w_raw updates.
     # Independent per-group clipping is applied before optimizer.step().
@@ -170,7 +221,7 @@ def train(cfg: Config) -> tuple:
                     f"  Phase 2: theta unfrozen at epoch {epoch+1}, topology learning begins"
                 )
 
-            tau = get_tau(epoch, cfg)
+            tau = get_tau(epoch, cfg, warmup_epochs=warmup)
             phase_label = "P1" if (is_learned and epoch < warmup) else "P2"
             model.train()
 
@@ -276,10 +327,13 @@ def train(cfg: Config) -> tuple:
                 w_raw_grad_norm=avg_w_raw_grad,
                 mean_firing_rate=fr_info["mean"],
                 max_firing_rate=fr_info["max"],
+                warmup_epoch=warmup if is_learned else 0,
+                warmup_dynamic=dynamic_warmup,
+                warmup_strategy=warmup_strategy if dynamic_warmup else "",
+                warmup_metric_value=None,
+                warmup_slope=None,
+                warmup_slow_count=0,
             )
-            history.append(row)
-            log_f.write(json.dumps(row) + "\n")
-            log_f.flush()
 
             epoch_bar.set_postfix(
                 tau=f"{tau:.3f}",
@@ -323,6 +377,51 @@ def train(cfg: Config) -> tuple:
                 tqdm.write(
                     f"  ⚠ theta_std={theta_std:.4f} — theta stagnating, consider increasing lambda_commit"
                 )
+
+            if dynamic_warmup and phase_label == "P1":
+                metric_value = _select_warmup_metric(warmup_metric, row)
+                warmup_scores.append(_warmup_score(warmup_metric, metric_value))
+                warmup_slope = _warmup_slope(warmup_scores, warmup_window)
+
+                if warmup_strategy == "best":
+                    if _metric_improved(
+                        warmup_metric,
+                        metric_value,
+                        warmup_metric_best,
+                        warmup_min_delta,
+                    ):
+                        warmup_metric_best = metric_value
+                        warmup_slow_count = 0
+                    else:
+                        warmup_slow_count += 1
+                else:
+                    if warmup_slope is None or warmup_slope >= warmup_min_delta:
+                        warmup_slow_count = 0
+                    else:
+                        warmup_slow_count += 1
+
+                row["warmup_metric_value"] = metric_value
+                row["warmup_slope"] = warmup_slope
+                row["warmup_slow_count"] = warmup_slow_count
+
+                p1_epochs_done = epoch + 1
+                can_switch = (
+                    p1_epochs_done >= warmup_min_epochs
+                    and warmup_slow_count >= warmup_patience
+                    and p1_epochs_done < warmup
+                )
+                if can_switch:
+                    warmup = p1_epochs_done
+                    row["warmup_epoch"] = warmup
+                    tqdm.write(
+                        "  Dynamic warmup: "
+                        f"{warmup_metric} slowed for {warmup_patience} checks; "
+                        f"switching to P2 at epoch {warmup + 1}"
+                    )
+
+            history.append(row)
+            log_f.write(json.dumps(row) + "\n")
+            log_f.flush()
 
             # checkpoint best
             if test_acc > best_acc:
