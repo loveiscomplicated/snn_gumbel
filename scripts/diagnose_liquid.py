@@ -98,12 +98,9 @@ def parse_args():
         default=4,
         help="Number of test batches for input/current/firing diagnostics",
     )
-    parser.add_argument(
-        "overrides",
-        nargs="*",
-        help="Config overrides in key=value form",
-    )
-    return parser.parse_args()
+    args, overrides = parser.parse_known_args()
+    args.overrides = [item for item in overrides if item != "--"]
+    return args
 
 
 def load_checkpoint_if_requested(model, checkpoint_path: str | None, device) -> None:
@@ -144,6 +141,7 @@ def print_config_summary(cfg, model, checkpoint_path: str | None) -> None:
     print(
         f"  w_raw init    : mean={cfg.liquid.w_raw_init_mean} std={cfg.liquid.w_raw_init_std}"
     )
+    print(f"  train w_raw   : {cfg.liquid.train_w_raw}")
     print(f"  w_raw_max     : {cfg.liquid.w_raw_max}")
     print(f"  seed          : {cfg.seed}")
     print(f"  checkpoint    : {checkpoint_path or '(none; initialized model)'}")
@@ -218,8 +216,20 @@ def print_recurrent_weight_stats(model, binary_mask: torch.Tensor) -> None:
         w_mag = F.softplus(w_raw)
         w_clamped_mag = F.softplus(w_clamped)
         active = (binary_mask * model.liquid.self_conn_mask.detach().cpu()).bool()
+        dale = model.liquid.dale_sign.detach().cpu().reshape(-1)
+        exc_pre = dale > 0
+        inh_pre = dale < 0
+        exc_active = active & exc_pre[:, None]
+        inh_active = active & inh_pre[:, None]
         active_mag = w_clamped_mag[active]
+        exc_mag = w_clamped_mag[exc_active]
+        inh_mag = w_clamped_mag[inh_active]
         clamped_fraction = (w_raw > model.liquid.w_raw_max).float().mean().item()
+        exc_edges = int(exc_active.sum().item())
+        inh_edges = int(inh_active.sum().item())
+        active_edges = max(exc_edges + inh_edges, 1)
+        exc_in_degree = exc_active.float().sum(dim=0)
+        inh_in_degree = inh_active.float().sum(dim=0)
 
     print(f"  w_raw                    : {tensor_summary(w_raw)}")
     print(f"  w_raw_clamped            : {tensor_summary(w_clamped)}")
@@ -227,6 +237,16 @@ def print_recurrent_weight_stats(model, binary_mask: torch.Tensor) -> None:
     print(f"  softplus(w_raw_clamped)  : {tensor_summary(w_clamped_mag)}")
     print(f"  effective nonzero |w|    : {tensor_summary(active_mag)}")
     print(f"  clamped fraction         : {clamped_fraction:.4f}")
+
+    print("\n  recurrent E/I balance:")
+    print(
+        f"  active E/I edges         : exc={exc_edges} ({exc_edges / active_edges:.3f})  "
+        f"inh={inh_edges} ({inh_edges / active_edges:.3f})"
+    )
+    print(f"  exc |w| on active edges  : {tensor_summary(exc_mag)}")
+    print(f"  inh |w| on active edges  : {tensor_summary(inh_mag)}")
+    print(f"  incoming exc degree/post : {tensor_summary(exc_in_degree)}")
+    print(f"  incoming inh degree/post : {tensor_summary(inh_in_degree)}")
 
 
 def collect_batches(loader, n_batches: int) -> list[tuple[torch.Tensor, torch.Tensor]]:
@@ -269,10 +289,17 @@ def print_input_spike_stats(batches: list[tuple[torch.Tensor, torch.Tensor]]) ->
 def run_liquid_diagnostics(model, batches, device, tau: float) -> dict:
     input_stats = RunningStats()
     recurrent_stats = RunningStats()
+    exc_recurrent_stats = RunningStats()
+    inh_recurrent_stats = RunningStats()
     spike_rates = []
 
     model.liquid.sample_mask(tau=tau)
     with torch.no_grad():
+        w_eff = model.liquid.get_effective_weight()
+        dale = model.liquid.dale_sign.reshape(-1)
+        exc_w_eff = w_eff * (dale > 0).float().view(-1, 1)
+        inh_w_eff = w_eff * (dale < 0).float().view(-1, 1)
+
         for x, _ in batches:
             x = x.to(device)
             batch_size = x.shape[0]
@@ -282,9 +309,13 @@ def run_liquid_diagnostics(model, batches, device, tau: float) -> dict:
 
             for t in range(model.T):
                 input_current = model.input_proj(x[:, t])
-                recurrent_current = model.liquid(liquid_spike)
+                exc_recurrent_current = liquid_spike @ exc_w_eff
+                inh_recurrent_current = liquid_spike @ inh_w_eff
+                recurrent_current = exc_recurrent_current + inh_recurrent_current
                 input_stats.update(input_current)
                 recurrent_stats.update(recurrent_current)
+                exc_recurrent_stats.update(exc_recurrent_current)
+                inh_recurrent_stats.update(inh_recurrent_current)
 
                 liquid_mem = (
                     model.liquid.beta * liquid_mem + input_current + recurrent_current
@@ -302,6 +333,8 @@ def run_liquid_diagnostics(model, batches, device, tau: float) -> dict:
     return {
         "input_current": input_stats.as_dict(),
         "recurrent_current": recurrent_stats.as_dict(),
+        "exc_recurrent_current": exc_recurrent_stats.as_dict(),
+        "inh_recurrent_current": inh_recurrent_stats.as_dict(),
         "rates": rates,
     }
 
@@ -310,10 +343,18 @@ def print_current_and_firing_stats(diag: dict) -> None:
     print_header("4. Current scale")
     input_stats = diag["input_current"]
     recurrent_stats = diag["recurrent_current"]
+    exc_recurrent_stats = diag["exc_recurrent_current"]
+    inh_recurrent_stats = diag["inh_recurrent_current"]
     ratio = recurrent_stats["abs_mean"] / max(input_stats["abs_mean"], 1e-12)
+    exc_ratio = exc_recurrent_stats["abs_mean"] / max(input_stats["abs_mean"], 1e-12)
+    inh_ratio = inh_recurrent_stats["abs_mean"] / max(input_stats["abs_mean"], 1e-12)
     print(f"  input_current    : {fmt_stats(input_stats)}")
     print(f"  recurrent_current: {fmt_stats(recurrent_stats)}")
     print(f"  |recurrent| / |input|: {ratio:.4f}")
+    print(f"  exc_recurrent_current: {fmt_stats(exc_recurrent_stats)}")
+    print(f"  inh_recurrent_current: {fmt_stats(inh_recurrent_stats)}")
+    print(f"  |exc recurrent| / |input|: {exc_ratio:.4f}")
+    print(f"  |inh recurrent| / |input|: {inh_ratio:.4f}")
 
     print_header("5. Firing rate")
     rates = diag["rates"]
