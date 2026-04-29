@@ -51,6 +51,7 @@ python scripts/train.py --config configs/ablation_random_sparse.yaml topology.ta
 ```bash
 python scripts/train_lsm.py configs/lsm_shd_baseline.yaml
 python scripts/train_lsm.py configs/lsm_shd_baseline.yaml liquid.recurrent_mode=random_sparse liquid.recurrent_sparsity=0.2
+python scripts/train_lsm.py configs/lsm_shd_baseline.yaml liquid.recurrent_mode=random_sparse liquid.recurrent_sparsity=0.02 liquid.w_raw_init_mean=-2.25 liquid.w_raw_max=-2.0
 python scripts/train_lsm.py configs/lsm_shd_baseline.yaml liquid.n_liquid=200 epochs=1
 ```
 
@@ -66,7 +67,15 @@ python scripts/train_lsm.py configs/lsm_shd_baseline.yaml liquid.n_liquid=200 ep
 진단:
 
 ```bash
-python scripts/diagnose_liquid.py configs/lsm_shd_baseline.yaml liquid.recurrent_mode=fixed
+python scripts/diagnose_liquid.py configs/lsm_shd_baseline.yaml \
+  liquid.recurrent_mode=random_sparse \
+  liquid.recurrent_sparsity=0.02 \
+  liquid.w_raw_init_mean=-2.25 \
+  liquid.w_raw_max=-2.0 \
+  batch_size=8 \
+  --batches 1 \
+  --classes 5 \
+  --samples-per-class 8
 ```
 
 시각화:
@@ -122,6 +131,8 @@ python scripts/train_lsm.py configs/lsm_shd_baseline.yaml \
 | input projection | `p_input=0.1`, `input_weight_scale=0.3`, fixed `randn` |
 | recurrent mode | `learned` |
 | initial recurrent density bias | `theta_init_mean=-2.2`, `theta_init_std=0.5` |
+| recurrent raw weight init | `w_raw_init_mean=-4.0`, `w_raw_init_std=0.01` |
+| recurrent raw weight training | `train_w_raw=true` |
 | recurrent weight cap | `w_raw_max=-3.0` |
 | BPTT | `bptt_truncate=25` |
 | warmup | `theta_warmup_epochs=10` |
@@ -201,6 +212,8 @@ w_eff = self.current_mask * self.self_conn_mask * signed_w
 
 행(row)이 presynaptic 뉴런이다. `dale_sign`을 `(1, N)`으로 만들면 postsynaptic 기준 부호가 되어 Dale's Law가 깨진다.
 
+`w_raw`는 `Normal(w_raw_init_mean, w_raw_init_std)`로 초기화된다. `w_raw_max`는 상한 clamp라서 작은 초기값을 키우지 않는다. recurrent strength를 키우려면 `w_raw_init_mean`을 덜 음수로 조정해야 한다. `liquid.train_w_raw=false`를 주면 `random_sparse`에서 `w_raw`만 freeze하고 `beta`, `threshold`, `readout`은 계속 학습할 수 있다.
+
 ### 5.3 Mask 샘플링
 
 LSM에서는 mask를 타임스텝마다 바꾸지 않는다. `LSMModel.forward()` 시작 시 `self.liquid.sample_mask(tau)`를 한 번 호출하고, 모든 `T` 동안 같은 `current_mask`를 사용한다.
@@ -277,10 +290,12 @@ LSM도 동일한 형태지만 sparsity/commitment는 liquid theta에만 적용�
 LSM 학습 안정화 장치:
 
 - `theta_warmup_epochs`: topology 고정 후 weight/readout 선학습
+- `theta_warmup_dynamic`: P1 성능 정체 시 P2로 조기 전환하는 learned topology 실험 옵션
 - theta와 나머지 파라미터 optimizer group 분리
 - theta LR scale 적용
 - weights/readout과 theta에 서로 다른 `clip_grad_norm_`
 - `w_raw_max`로 recurrent magnitude 상한
+- `w_raw_init_mean/std`로 recurrent magnitude 초기 scale 조정
 - membrane clamp `[-3, 3]`
 - threshold clamp `min=0.01`
 - `bptt_truncate`로 마지막 K step에만 gradient 흐름
@@ -298,6 +313,20 @@ LSM 학습 안정화 장치:
 | `theta_grad_norm`, `w_raw_grad_norm` | component별 grad norm |
 | `mean_firing_rate`, `max_firing_rate` | 마지막 forward 기준 발화율 |
 
+Dynamic warmup 옵션:
+
+| 키 | 의미 |
+|----|------|
+| `liquid.theta_warmup_dynamic` | `true`이면 learned mode P1 중 plateau 감지 후 P2로 조기 전환 |
+| `liquid.theta_warmup_strategy` | `slope` 또는 `best`; 기본은 최근 window 기울기를 보는 `slope` |
+| `liquid.theta_warmup_window` | `slope` 전략에서 사용할 최근 P1 epoch 수 |
+| `liquid.theta_warmup_min_epochs` | dynamic 전환 전 반드시 유지할 최소 P1 epoch |
+| `liquid.theta_warmup_patience` | 둔화 또는 best 미갱신을 허용할 연속 check 수 |
+| `liquid.theta_warmup_min_delta` | 개선 또는 평균 기울기로 인정할 최소 변화량 |
+| `liquid.theta_warmup_metric` | `test_acc`, `train_acc`, `train_loss` 중 하나 |
+
+기본값은 `theta_warmup_dynamic=false`다. 기존 실험 재현성은 고정 `theta_warmup_epochs`를 기준으로 유지하고, dynamic warmup은 learned topology C의 별도 ablation으로 비교한다. `slope` 전략은 metric을 score로 변환한 뒤 최근 window의 평균 epoch당 개선폭이 `theta_warmup_min_delta`보다 작은 상태가 `theta_warmup_patience`번 이어지면 P2로 넘어간다. `train_loss`는 작을수록 좋으므로 내부 score는 `-train_loss`를 사용한다.
+
 경고 기준:
 
 - `grad_norm > 100`
@@ -308,7 +337,53 @@ LSM 학습 안정화 장치:
 
 ---
 
-## 8. 실험 결과 해석 체크리스트
+## 8. 현재 SHD LSM 결론과 다음 순서
+
+현재 기준 결과:
+
+| run | best test acc | 판단 |
+|-----|--------------:|------|
+| `p=0.0` no recurrence | 0.5490 | baseline |
+| `p=0.02`, `w_raw_init_mean=-2.25` | 0.5455 | reject |
+| `p=0.03`, `w_raw_init_mean=-2.5` | 0.5269 | reject |
+| `p=0.02`, `w_raw_init_mean=-2.25`, `train_w_raw=false` | 0.5499 | best random recurrent so far |
+| `p=0.03`, `w_raw_init_mean=-2.5`, `train_w_raw=false` | 0.5367 | reject |
+| `p=0.05`, `w_raw_init_mean=-3.5`, `w_raw_max=-3.0` | 0.5477 | near baseline |
+
+Trained checkpoint 진단 결과, recurrent current는 증가했지만 active neuron 수와 class separation은 악화됐다. `w_raw`를 학습하면 대부분 `w_raw_max=-2.0`에 포화되어 active recurrent edge가 near-uniform magnitude로 동작한다. `train_w_raw=false`는 이 포화를 제거하고 `p=0.02`에서 baseline 수준 성능을 회복했지만, density를 `p=0.03`으로 올리면 inhibitory recurrent current가 커지고 active neuron 수가 더 줄어 성능이 하락했다.
+
+다음 순서:
+
+1. learned C는 `liquid.train_w_raw=false`로 먼저 돌린다.
+2. 자유로운 `w_raw` 학습은 clamp saturation 문제 때문에 보류한다.
+3. random recurrence는 약하고 sparse한 보조 dynamics로만 취급한다.
+
+원인 분리용 `w_raw` freeze 예:
+
+```bash
+python scripts/train_lsm.py configs/lsm_shd_baseline.yaml \
+  liquid.recurrent_mode=random_sparse \
+  liquid.recurrent_sparsity=0.02 \
+  liquid.w_raw_init_mean=-2.25 \
+  liquid.w_raw_max=-2.0 \
+  liquid.train_w_raw=false \
+  experiment_name=lsm_shd_rs_p002_w225_freeze_w
+```
+
+다음 learned C 후보:
+
+```bash
+python scripts/train_lsm.py configs/lsm_shd_baseline.yaml \
+  liquid.recurrent_mode=learned \
+  liquid.train_w_raw=false \
+  experiment_name=lsm_shd_C_freeze_w
+```
+
+`scripts/diagnose_liquid.py`는 E/I edge balance, incoming E/I degree, excitatory/inhibitory recurrent current scale을 함께 출력한다. Named args와 config override는 어느 순서로 섞어도 처리되지만, config path는 명시하는 편이 안전하다.
+
+---
+
+## 9. 실험 결과 해석 체크리스트
 
 Feedforward:
 
@@ -327,11 +402,13 @@ LSM:
 
 ---
 
-## 9. 주의할 점
+## 10. 주의할 점
 
-- `src/lsm/model.py`는 현재 작업 트리에 수정된 상태다. 문서 갱신 외 작업을 할 때 사용자의 변경을 덮어쓰지 않는다.
+- 작업 트리가 dirty일 수 있으므로, 문서/실험 작업 중 사용자의 변경을 덮어쓰지 않는다.
 - LSM의 `InputProjection` docstring은 “Mixed excitatory/inhibitory”가 실제 동작과 맞다. 예전 문서의 “흥분성만” 설명은 더 이상 맞지 않는다.
 - `grad_clip_max_norm` 단일 필드는 현재 사용하지 않는다. LSM에서는 `grad_clip_max_norm_w`, `grad_clip_max_norm_theta`를 쓴다.
+- `w_raw_max`는 recurrent weight의 상한이다. 초기 recurrent scale은 `w_raw_init_mean/std`가 결정한다.
+- `liquid.train_w_raw=false`는 `w_raw`만 freeze한다. `fixed` mode처럼 `beta/threshold`까지 freeze하지 않는다.
 - `weight_decay`는 `Config`에는 있으나 `configs/base.yaml`에는 명시되어 있지 않아 기본값 0.0이 적용된다. LSM YAML은 0.0001로 override한다.
 - `scripts/train_lsm.py`는 argparse가 아니라 `sys.argv` 기반이다. 첫 인자는 config path, 이후는 `key=value` override다.
 - LSM eval은 모델 내부에서 eval 모드일 때 deterministic mask를 사용한다. `LSMModel.forward()`는 `hard` 인자를 받지 않는다.
