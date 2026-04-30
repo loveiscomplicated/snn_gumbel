@@ -36,6 +36,7 @@ liquid:
   theta_warmup_min_delta: 0.002
   theta_warmup_metric: test_acc
   theta_lr_scale: 0.3
+  theta_freeze_epoch: 0
   noise_scale: 0.1
   input_weight_scale: 0.3
   beta_min: 0.7
