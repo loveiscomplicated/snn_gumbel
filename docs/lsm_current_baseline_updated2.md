@@ -57,6 +57,7 @@ Related recent fix:
 | optimizer | Adam, lr `0.001`, lr_min `0.00001`, weight_decay `0.0001` |
 | regularization | lambda_sparse `0.1`, lambda_commit `0.01` |
 | seed | `42` |
+| adaptive theta freeze | default off; `theta_adaptive_freeze=false`, `theta_freeze_grad_threshold=30.0`, `theta_freeze_patience=2` |
 
 ## Model Behavior
 
@@ -117,6 +118,14 @@ Gradient handling:
 - Non-theta gradient clipping: `grad_clip_max_norm_w`.
 - Theta gradient clipping: `grad_clip_max_norm_theta`.
 - Non-learned modes train all trainable parameters in one optimizer group.
+
+Adaptive theta freeze:
+
+- Applies to trainable-topology modes (`learned`, `grad_r`) when `liquid.theta_adaptive_freeze=true`.
+- Trigger condition: after `theta_freeze_min_epoch`, freeze theta once `theta_grad_norm > theta_freeze_grad_threshold` for `theta_freeze_patience` consecutive epochs.
+- Current Grad R-STE setting: `theta_freeze_min_epoch=20`, `theta_freeze_grad_threshold=30.0`, `theta_freeze_patience=2`.
+- If both fixed `theta_freeze_epoch` and adaptive freeze are enabled, theta should freeze when either condition triggers first.
+- Freeze operation must set `theta.requires_grad_(False)`, clear learned-mode epoch noise if present, and lock a deterministic hard mask.
 
 Logged metrics:
 
@@ -687,6 +696,80 @@ Seed 44 freeze64 diagnostic:
 
 Next check: do not assume freeze64 solves seed instability. Either run seed 45 with freeze64 to complete the seed check, or analyze learned edge placement in seed 44 against seeds 42/43 before trying another broad hyperparameter sweep.
 
+## Grad R-STE Adaptive Freeze Result
+
+After fixed freeze experiments showed that `theta_freeze_epoch=64` and even earlier fixed epochs can be too late for Grad R-STE, adaptive theta freezing was added.
+
+Current adaptive setting:
+
+```bash
+liquid.theta_adaptive_freeze=true
+liquid.theta_freeze_min_epoch=20
+liquid.theta_freeze_grad_threshold=30.0
+liquid.theta_freeze_patience=2
+```
+
+Full command template:
+
+```bash
+python scripts/train_lsm.py configs/lsm_shd_baseline.yaml \
+  liquid.recurrent_mode=grad_r \
+  liquid.train_w_raw=false \
+  liquid.w_raw_init_mean=-2.25 \
+  liquid.w_raw_max=-2.0 \
+  liquid.theta_init_mean=-1.0 \
+  liquid.theta_init_std=0.5 \
+  liquid.theta_adaptive_freeze=true \
+  liquid.theta_freeze_min_epoch=20 \
+  liquid.theta_freeze_grad_threshold=30.0 \
+  liquid.theta_freeze_patience=2 \
+  seed=<seed> \
+  experiment_name=lsm_shd_grad_r_STE_theta100_w225_gfreeze30p2_s<seed>
+```
+
+Results:
+
+| Run | Seed | Adaptive freeze epoch | Best test accuracy | Delta vs no recurrence | Decision |
+|-----|-----:|-----------------------:|-------------------:|-----------------------:|----------|
+| Grad R-STE + adaptive freeze | 42 | 39 | 0.6051 | +0.0561 | current best |
+| Grad R-STE + adaptive freeze | 43 | 33 | 0.5808 | +0.0318 | strong success |
+| Grad R-STE + adaptive freeze | 44 | 50 | 0.5866 | +0.0376 | rescues seed 44 |
+| Grad R-STE + adaptive freeze | 45 | not triggered | 0.5486 | -0.0004 | near baseline; bad-or-stable topology |
+
+Summary statistics over seeds 42/43/44/45:
+
+| Metric | Value |
+|--------|------:|
+| mean best test accuracy | 0.5803 |
+| median best test accuracy | 0.5837 |
+| worst seed | 0.5486 |
+| best seed | 0.6051 |
+
+Comparison against earlier topology learners:
+
+| Method | Seeds included | Mean | Median | Worst | Best |
+|--------|----------------|-----:|-------:|------:|-----:|
+| learned C, original tau=0.05 | 42/43/44/45 | 0.5590 | 0.5638 | 0.5331 | 0.5751 |
+| Grad R-STE, non-freeze | 42/43/44/45 | 0.5706 | 0.5649 | 0.5486 | 0.6038 |
+| Grad R-STE + adaptive freeze | 42/43/44/45 | 0.5803 | 0.5837 | 0.5486 | 0.6051 |
+
+Interpretation:
+
+- Grad R-STE + adaptive freeze is the current strongest LSM topology-learning recipe.
+- The adaptive trigger improved seed 42 from `0.6038` to `0.6051`, seed 43 from `0.5711` to `0.5808`, and seed 44 from `0.5587` to `0.5866`.
+- The seed-44 rescue is especially important: the same seed failed under Gumbel learned C (`0.5331`) and remained below baseline under learned C freeze64 (`0.5477`), but Grad R-STE + adaptive freeze reached `0.5866`.
+- The result weakens the claim that Gumbel-Sigmoid is empirically superior to hard-threshold topology learning.
+- The stronger claim is now: gradient-based recurrent topology learning matters, and timely topology stabilization is critical.
+- Seed 45 did not trigger adaptive freeze and remained near baseline. This suggests a different failure mode: not gradient explosion, but possibly bad-but-stable topology formation.
+
+Updated next step:
+
+- Treat **Grad R-STE + adaptive freeze** as the current strongest baseline.
+- Move to **Grad R-STE + adaptive freeze + prediction auxiliary loss**.
+- First target seed 45, because it is the remaining bad-or-stable case that gradient-triggered freeze did not catch.
+- Then confirm that prediction auxiliary loss does not degrade strong seeds 42/43/44.
+
+
 ## Recent Diagnostic Summary
 
 For `n_liquid=500`, the current useful random-sparse diagnostic window is:
@@ -708,3 +791,18 @@ Training health check:
 - A healthy first epoch should have mean firing roughly in the diagnostic range, not near `0.9`.
 - If `max_firing_rate > 0.9` from epoch 1, stop the run and lower recurrent strength.
 - Prefer sequential full runs. Parallel full runs make runaway detection slower and can overload GPU/MPS memory.
+
+
+Initial prediction auxiliary loss test:
+Grad R-STE + adaptive freeze + trace prediction with lambda_pred=0.003 degraded performance.
+
+seed 44:
+  baseline Grad R-STE + adaptive freeze: 0.5866
+  + pred aux: 0.5353
+
+seed 45:
+  baseline Grad R-STE + adaptive freeze: 0.5486
+  + pred aux: 0.5464
+
+Interpretation:
+  The naive trace-prediction auxiliary objective likely conflicts with the supervised classification objective and can disrupt useful topology formation. Prediction auxiliary loss should not be treated as an automatic stabilizer. Next tests should either lower lambda_pred substantially or restrict the auxiliary gradient path.

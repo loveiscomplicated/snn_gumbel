@@ -62,7 +62,7 @@ python scripts/train_lsm.py configs/lsm_shd_baseline.yaml liquid.n_liquid=200 ep
 | `learned` | theta 기반 학습 mask | 학습 |
 | `random_sparse` | fixed random sparse mask | 학습 |
 | `fixed` | fixed random sparse mask | freeze |
-| `grad_r` | `(theta > 0)` hard threshold | 학습 |
+| `grad_r` | hard threshold forward + sigmoid-STE backward | 학습 |
 
 진단:
 
@@ -137,7 +137,7 @@ python scripts/train_lsm.py configs/lsm_shd_baseline.yaml \
 | BPTT | `bptt_truncate=25` |
 | warmup | `theta_warmup_epochs=10` |
 | theta LR | `lr * theta_lr_scale`, 현재 `0.3` |
-| theta freeze | `theta_freeze_epoch=0` disables scheduled freeze |
+| theta freeze | `theta_freeze_epoch=0` disables scheduled freeze; adaptive freeze is available with `theta_adaptive_freeze` |
 | Gumbel exploration | `noise_scale=0.1` |
 | gradient clipping | weights/readout `100.0`, theta `10.0` |
 | tau schedule | start 1.0, hold 15 epochs, anneal 40 epochs, end 0.05 |
@@ -190,7 +190,7 @@ SHD spikes (batch, T, 700)
 
 | 이름 | shape | 조건 |
 |------|-------|------|
-| `theta` | `(N, N)` | `mode == "learned"`일 때 학습 |
+| `theta` | `(N, N)` | `mode in ("learned", "grad_r")`일 때 학습 |
 | `w_raw` | `(N, N)` | `mode != "fixed"`일 때 학습 |
 | `logit_beta` | `(N,)` | `mode != "fixed"`일 때 학습 |
 | `threshold` | `(N,)` | `mode != "fixed"`일 때 학습 |
@@ -227,6 +227,54 @@ LSM에서는 mask를 타임스텝마다 바꾸지 않는다. `LSMModel.forward()
 4. epoch 평가 전 `unlock_epoch_mask()`를 호출해 deterministic mask로 평가
 
 이 설계의 목적은 recurrent BPTT에서 batch마다 topology가 크게 흔들리는 것을 막으면서, epoch 간에는 OFF edge가 ON으로 탐색될 기회를 주는 것이다.
+
+### 5.3.1 Grad R-STE
+
+`grad_r`는 Gumbel noise를 쓰지 않는다. Forward에서는 deterministic hard threshold를 사용하고, backward에서는 sigmoid gradient를 통과시키는 STE를 쓴다.
+
+```python
+soft = torch.sigmoid(theta)
+hard = (theta > 0).float()
+mask = hard.detach() - soft.detach() + soft
+```
+
+주의:
+
+- `grad_r`에서도 `theta.requires_grad=True`여야 한다.
+- `grad_r`도 theta 전용 optimizer group, theta clipping, theta-grad logging 대상이다.
+- `grad_r`에는 Gumbel epoch noise를 넣지 않는다.
+- 예전 non-STE hard threshold 구현은 theta가 학습되지 않아 fixed initial mask처럼 동작했다. 그 run은 Grad R baseline으로 사용하지 않는다.
+
+### 5.3.2 Adaptive Theta Freeze
+
+Grad R-STE는 topology를 빠르게 열지만 seed에 따라 theta gradient가 fixed freeze epoch보다 빨리 폭주할 수 있다. 현재 안정화 기준은 gradient-triggered adaptive freeze다.
+
+Config fields:
+
+```yaml
+liquid:
+  theta_adaptive_freeze: false
+  theta_freeze_min_epoch: 20
+  theta_freeze_grad_threshold: 30.0
+  theta_freeze_patience: 2
+```
+
+동작:
+
+- `theta_adaptive_freeze=true`이고 trainable-topology mode(`learned`, `grad_r`)일 때 사용한다.
+- `theta_freeze_min_epoch` 이후 `theta_grad_norm > theta_freeze_grad_threshold`가 `theta_freeze_patience` epoch 연속 발생하면 theta를 freeze한다.
+- freeze 후 `theta.requires_grad_(False)`, deterministic hard mask 고정, learned-mode epoch noise clear가 필요하다.
+- 고정 `theta_freeze_epoch`와 adaptive freeze가 동시에 켜져 있으면 먼저 도달한 조건으로 freeze한다.
+
+현재 Grad R-STE 기준:
+
+```bash
+liquid.theta_adaptive_freeze=true
+liquid.theta_freeze_min_epoch=20
+liquid.theta_freeze_grad_threshold=30.0
+liquid.theta_freeze_patience=2
+```
+
 
 ### 5.4 LSM Forward
 
@@ -345,109 +393,71 @@ Dynamic warmup 옵션:
 | run | best test acc | 판단 |
 |-----|--------------:|------|
 | `p=0.0` no recurrence | 0.5490 | baseline |
-| `p=0.02`, `w_raw_init_mean=-2.25` | 0.5455 | reject |
-| `p=0.03`, `w_raw_init_mean=-2.5` | 0.5269 | reject |
-| `p=0.02`, `w_raw_init_mean=-2.25`, `train_w_raw=false` | 0.5499 | best random recurrent so far |
-| `p=0.03`, `w_raw_init_mean=-2.5`, `train_w_raw=false` | 0.5367 | reject |
-| `p=0.05`, `w_raw_init_mean=-3.5`, `w_raw_max=-3.0` | 0.5477 | near baseline |
-| learned C, `theta_init_mean=-2.2`, `train_w_raw=false` | 0.5433 | too sparse, reject |
-| learned C, `theta=-1.0,std=0.5,w=-2.25,freeze_w`, seed 42 | 0.5689 | success |
-| learned C, same setting, seed 43 | 0.5751 | best tau=0.05 run |
-| learned C, same setting, seed 44 | 0.5331 | seed-sensitive failure |
-| learned C, same setting, seed 45 | 0.5587 | success, late theta-grad instability |
-| learned C, same setting, `tau_end=0.2`, seed 42 | 0.5782 | tau-stabilized |
-| learned C, same setting, `tau_end=0.2`, seed 43 | 0.5795 | current best, late theta-grad still spikes |
-| learned C, same setting, `tau_end=0.2`, `theta_lr_scale=0.05`, seed 43 | 0.5530 | stable but topology under-opens |
-| learned C, same setting, `tau_end=0.2`, `theta_lr_scale=0.3`, `theta_freeze_epoch=64`, seed 42 | 0.5764 | peak mostly preserved |
-| learned C, same setting, `tau_end=0.2`, `theta_lr_scale=0.3`, `theta_freeze_epoch=64`, seed 43 | 0.5795 | current stable candidate |
-| learned C, `theta=-1.2,std=0.5,w=-2.25,freeze_w` | 0.5442 | reject |
-| learned C, `theta=-0.8,std=0.3,w=-2.25,freeze_w` | 0.5389 | reject; not density-preserving |
-| random sparse, `p=0.041,w=-2.25,freeze_w` | 0.5216 | same-density random control failed |
+| best `random_sparse` recurrent | 0.5499 | baseline 수준 |
+| same-density random, `p=0.041,w=-2.25,freeze_w` | 0.5216 | density-only 설명 reject |
+| learned C, `theta=-1.0,std=0.5,w=-2.25,freeze_w`, seed 42/43/44/45 | 0.5689 / 0.5751 / 0.5331 / 0.5587 | 가능성 있음, seed-sensitive |
+| learned C, `tau_end=0.2,theta_freeze_epoch=64`, seed 42/43/44 | 0.5764 / 0.5795 / 0.5477 | 안정화 일부 성공, seed 44 미해결 |
+| Grad R-STE non-freeze, seed 42/43/44/45 | 0.6038 / 0.5711 / 0.5587 / 0.5486 | 강한 baseline, late instability |
+| **Grad R-STE + adaptive freeze**, seed 42/43/44/45 | **0.6051 / 0.5808 / 0.5866 / 0.5486** | current strongest recipe |
 
-Random-sparse trained checkpoint 진단 결과, recurrent current는 증가했지만 active neuron 수와 class separation은 악화됐다. `w_raw`를 학습하면 대부분 `w_raw_max=-2.0`에 포화되어 active recurrent edge가 near-uniform magnitude로 동작한다. `train_w_raw=false`는 이 포화를 제거하고 `p=0.02`에서 baseline 수준 성능을 회복했지만, density를 `p=0.03`으로 올리면 inhibitory recurrent current가 커지고 active neuron 수가 더 줄어 성능이 하락했다.
+현재 핵심 해석:
 
-Learned C는 hard density와 topology placement가 모두 중요하다. 기본 `theta_init_mean=-2.2`는 best checkpoint에서도 density가 `0.0006`, `|rec|/|input|=0.0005`라 사실상 no-recurrence였다. `theta_init_mean=-1.0,std=0.5`, `w_raw_init_mean=-2.25`, `train_w_raw=false`는 seed 42/43/45에서 각각 best test `0.5689`, `0.5751`, `0.5587`을 기록했다. 그러나 seed 44는 `0.5331`로 실패해 아직 seed-sensitive하다. `tau_end=0.2`는 seed 42/43을 각각 `0.5782`, `0.5795`로 올렸다. `theta_freeze_epoch=64`는 seed 42/43에서 peak 성능을 거의 유지하면서, seed 43의 후반 test collapse를 줄였다.
+- random recurrence와 same-density random recurrence는 구조 학습 효과를 설명하지 못한다.
+- Gumbel learned C는 topology learning 가능성을 보였지만, seed 44에서 실패했다.
+- 수정된 Grad R-STE는 hard-threshold topology learning도 유효하다는 것을 보였다.
+- Adaptive theta freeze는 Grad R-STE의 gradient explosion을 seed별로 다른 시점에 잡아 성능을 보존하거나 개선했다.
+- seed 44는 Gumbel learned C에서는 실패했지만 Grad R-STE + adaptive freeze에서 `0.5866`을 기록했다. 따라서 seed 44 실패는 데이터 seed 자체가 아니라 topology formation mechanism 차이로 보는 것이 타당하다.
+- seed 45는 adaptive freeze가 발동하지 않고 `0.5486`에 머물렀다. 이는 gradient explosion이 아니라 bad-but-stable topology formation 가능성을 시사한다.
 
-주의: `theta=-1.0,std=0.5`의 초기 hard density는 `0.05~0.06`이 아니라 약 `P(N(-1.0,0.5)>0)=0.023`이다. 성공 checkpoint에서 학습 후 hard density가 `0.04~0.06` 범위로 올라간다.
-
-Learned C seed comparison:
-
-| seed | best test acc | density | `\|rec\|/\|input\|` | firing mean/max | active `>0.05` | cosine mean/min |
-|------|--------------:|--------:|--------------------:|----------------:|---------------:|----------------:|
-| 42 | 0.5689 | 0.0578 | 0.3261 | 0.0804 / 0.7800 | 257 / 500 | 0.9556 / 0.9142 |
-| 43 | 0.5751 | 0.0409 | 0.1788 | 0.0625 / 0.6800 | 194 / 500 | 0.9724 / 0.9430 |
-| 44 | 0.5331 | 0.0581 | 0.2756 | 0.0712 / 0.8400 | 214 / 500 | 0.9707 / 0.9421 |
-| 45 | 0.5587 | n/a | n/a | 0.091 / 0.563 late | n/a | n/a |
-| 42, `tau_end=0.2` | 0.5782 | 0.0610 late | n/a | 0.083 / 0.678 final | n/a | n/a |
-| 43, `tau_end=0.2` | 0.5795 | 0.0620 final | n/a | 0.100 / 0.660 final | n/a | n/a |
-| 42, `tau_end=0.2`, `theta_freeze_epoch=64` | 0.5764 | 0.0579 | 0.3315 | 0.0815 / 0.7800 | 255 / 500 | 0.9594 / 0.9179 |
-| 43, `tau_end=0.2`, `theta_freeze_epoch=64` | 0.5795 | 0.0597 | 0.3177 | 0.0776 / 0.8000 | 254 / 500 | 0.9573 / 0.9214 |
-
-해석:
-
-- Learned C는 random-sparse보다 높은 성능 가능성을 보였다.
-- 실패한 seed 44는 recurrent가 약한 것이 아니라 오히려 더 dense하고 더 강하다.
-- Seed 42-45 best accuracy의 중앙값은 `0.5638`이며, no-recurrence baseline `0.5490`보다 높다.
-- 따라서 다음 병목은 edge count 증가가 아니라 edge placement, recurrent current scale, tau annealing 후반의 topology gradient 안정화다.
-- `p ~= 0.041` same-density random_sparse control은 best test `0.5216`으로 실패했으므로 learned C의 이득은 density만으로 설명되지 않는다.
-- `tau_end=0.2`는 seed 42/43 모두에서 best test를 개선했으므로 현재 기본 후보로 승격한다.
-- seed 43에서는 `tau=0.2`에서도 후반 `theta_grad_norm > 50` spike가 반복됐으므로, 다음 병목은 tau 하한보다 theta update scale일 가능성이 높다.
-- `theta_lr_scale=0.05`는 theta-gradient spike를 제거했지만 sparsity가 `~0.023`에 머물러 learned topology가 거의 열리지 않았고 best test도 `0.5530`으로 하락했다. `theta_lr_scale=0.075`도 초반/중반 sparsity가 `~0.024`에 머물렀으므로, 단순 LR 축소는 1차 해법이 아니다.
-- `theta_lr_scale=0.1` 역시 `theta_freeze_epoch=60`과 함께 쓰면 sparsity가 `~0.025`에 머물러 under-opened 상태가 된다. 성공한 freeze 실험은 `theta_lr_scale=0.3`을 유지하고 epoch 64부터 topology를 고정한 설정이다.
-- `theta_freeze_epoch=64`는 seed 43에서 best `0.5795`를 유지하고 final test를 기존 `0.5252`에서 `0.5663`으로 끌어올렸다. Freeze 이후 `theta_grad=0`, sparsity `~0.060`, test `~0.56~0.57` 범위를 유지했다.
-- Seed 42/43의 freeze64 checkpoint는 density `~0.058~0.060`, `|rec|/|input| ~0.32`, firing mean `~0.08`, active neurons `>0.05` `~255/500`, cosine mean/min `~0.96/~0.92`로 유사한 regime에 수렴했다.
-- Mean-rate cosine diagnostic은 유용하지만 충분하지 않다. seed 43/44의 cosine summary는 비슷한데 accuracy는 크게 다르다.
-
-다음 순서:
-
-1. 자유로운 `w_raw` 학습은 clamp saturation 문제 때문에 보류한다.
-2. 현재 learned C 안정화 기준은 `tau_end=0.2`, `theta_lr_scale=0.3`, `liquid.theta_freeze_epoch=64`다.
-3. `std=0.3` 계열을 다시 볼 경우 `theta=-0.8`이 아니라 `theta=-0.6` 또는 `theta=-0.5`를 사용한다.
-4. 다음 확인은 seed 44에 freeze64를 적용해 seed-sensitive failure를 완화하는지 보는 것이다.
-
-원인 분리용 `w_raw` freeze 예:
+Grad R-STE adaptive freeze 명령:
 
 ```bash
 python scripts/train_lsm.py configs/lsm_shd_baseline.yaml \
-  liquid.recurrent_mode=random_sparse \
-  liquid.recurrent_sparsity=0.02 \
-  liquid.w_raw_init_mean=-2.25 \
-  liquid.w_raw_max=-2.0 \
-  liquid.train_w_raw=false \
-  experiment_name=lsm_shd_rs_p002_w225_freeze_w
-```
-
-현재 learned C 기준 후보:
-
-```bash
-python scripts/train_lsm.py configs/lsm_shd_baseline.yaml \
-  liquid.recurrent_mode=learned \
+  liquid.recurrent_mode=grad_r \
   liquid.train_w_raw=false \
   liquid.w_raw_init_mean=-2.25 \
   liquid.w_raw_max=-2.0 \
   liquid.theta_init_mean=-1.0 \
   liquid.theta_init_std=0.5 \
-  tau_end=0.2 \
-  liquid.theta_lr_scale=0.3 \
-  liquid.theta_freeze_epoch=64 \
-  experiment_name=lsm_shd_C_freeze_w_theta100_w225_tau020_tlr030_freeze64
+  liquid.theta_adaptive_freeze=true \
+  liquid.theta_freeze_min_epoch=20 \
+  liquid.theta_freeze_grad_threshold=30.0 \
+  liquid.theta_freeze_patience=2 \
+  seed=42 \
+  experiment_name=lsm_shd_grad_r_STE_theta100_w225_gfreeze30p2_s42
 ```
 
-Same-density random control, already failed:
+현재 method-level claim:
 
-```bash
-python scripts/train_lsm.py configs/lsm_shd_baseline.yaml \
-  liquid.recurrent_mode=random_sparse \
-  liquid.recurrent_sparsity=0.041 \
-  liquid.w_raw_init_mean=-2.25 \
-  liquid.w_raw_max=-2.0 \
-  liquid.train_w_raw=false \
-  experiment_name=lsm_shd_rs_p0041_w225_freeze_w
-```
+- 가장 안전한 주장은 “Gumbel-Sigmoid가 Grad R보다 항상 우월하다”가 아니다.
+- 현재 가장 강한 주장은 **gradient-based recurrent topology learning matters**이다.
+- 현재 strongest baseline은 **Grad R-STE + adaptive theta freeze**이다.
 
-`scripts/diagnose_liquid.py`는 E/I edge balance, incoming E/I degree, excitatory/inhibitory recurrent current scale을 함께 출력한다. 가장 안전한 호출 형태는 named args를 먼저 쓰고, config path를 둔 뒤, config override를 마지막에 두는 것이다.
+다음 순서:
 
----
+1. Grad R-STE + adaptive freeze를 기준 baseline으로 고정한다.
+2. 여기에 small local prediction auxiliary loss를 추가한다.
+3. seed 45를 먼저 본다. seed 45가 개선되면 prediction loss는 bad-but-stable topology quality를 개선하는 신호로 해석할 수 있다.
+4. 이후 seed 44, 42, 43으로 확장해 강한 seed의 성능 보존 여부를 확인한다.
+
+Prediction auxiliary loss 1차 설계:
+
+| 항목 | 선택 |
+|------|------|
+| base method | Grad R-STE + adaptive freeze |
+| predictor | small external `nn.Linear(n_liquid, n_liquid)` |
+| target | filtered liquid spike trace 또는 next liquid spike/state |
+| first loss | MSE on filtered trace 권장 |
+| initial weight | `prediction_aux.weight=0.001` 전후 |
+| first seed | 45 |
+
+주의:
+
+- target은 detach한다.
+- predictor를 너무 강하게 만들지 않는다. 목적은 예측기 성능이 아니라 liquid topology에 local temporal signal을 주는 것이다.
+- adaptive freeze는 유지하되, prediction loss가 theta gradient scale을 바꾸므로 freeze epoch 변화를 반드시 기록한다.
+
+
 
 ## 9. 실험 결과 해석 체크리스트
 

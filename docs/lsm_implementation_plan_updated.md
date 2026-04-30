@@ -4,7 +4,7 @@
 
 기존 feedforward Gumbel-SNN 위에 LSM(Liquid State Machine) 전용 코드가 추가되어 있다. 초기 계획서의 핵심 항목인 config 확장, SHD 로더, LSM 모델, 학습 CLI, gradient clipping, 모니터링은 현재 코드베이스에 구현되어 있다.
 
-현재 목표는 SHD에서 다음 비교를 안정적으로 수행하는 것이다.
+현재 목표는 SHD에서 gradient-based recurrent topology learning의 효과를 안정적으로 검증하고, current strongest baseline인 Grad R-STE + adaptive freeze 위에 prediction auxiliary loss를 추가하는 것이다.
 
 | 조건 | 코드 mode | 의미 |
 |------|-----------|------|
@@ -56,6 +56,10 @@ theta_warmup_epochs: int = 0
 theta_lr_scale: float = 0.1
 theta_freeze_epoch: int = 0
 noise_scale: float = 0.1
+theta_adaptive_freeze: bool = False
+theta_freeze_min_epoch: int = 20
+theta_freeze_grad_threshold: float = 30.0
+theta_freeze_patience: int = 2
 ```
 
 현재 baseline YAML: `configs/lsm_shd_baseline.yaml`
@@ -160,6 +164,8 @@ Forward:
 - theta/other parameter optimizer group 분리
 - CosineAnnealingLR
 - independent gradient clipping
+- corrected Grad R-STE hard-threshold topology learning
+- gradient-triggered adaptive theta freeze
 - NaN loss 감지
 - JSONL logging
 - best checkpoint 저장
@@ -307,10 +313,10 @@ python scripts/diagnose_liquid.py configs/lsm_shd_baseline.yaml liquid.n_liquid=
 | 6. 원인 분리 | 완료 | `w_raw` 학습 포화가 주요 실패 모드, density 증가 시 inhibitory suppression 악화 |
 | 7. 최소 세팅 탐색 | 완료 | `p=0.02,w=-2.25,train_w_raw=false`가 best random recurrent지만 baseline 수준 |
 | 8. learned topology C 재시도 | 진행 중 | `theta_init_mean=-1.0`, `w_raw_init_mean=-2.25`, `train_w_raw=false`; seed 42/43 성공, seed 44 실패 |
-| 9. analysis 도구 추가 | 진행 중 | learned topology 구조 분석 및 checkpoint selection |
-| 10. predictive coding loss 검토 | 다음 단계 | learned topology seed sensitivity 완화용 local auxiliary signal |
+| 9. analysis 도구 추가 | 미완료 | learned topology 구조 분석 |
+| 10. predictive coding loss 검토 | 미완료 | LSM baseline 이후 검토 |
 
-현재는 learned C 성공 설정의 seed 민감도 원인 분리와 동일 density random baseline 비교가 우선이며, seed 44 freeze64 결과까지 반영하면 다음 질문은 "좋은 topology를 언제 고정할 것인가"와 "topology 형성을 돕는 local signal이 필요한가"로 이동한다.
+현재는 learned C 성공 설정의 seed 민감도 원인 분리와 동일 density random baseline 비교가 우선이다.
 
 ### Step 1: No-recurrence baseline 재현
 
@@ -609,17 +615,6 @@ Seed 진단 해석:
 - `theta_lr_scale=0.3`을 유지하고 `theta_freeze_epoch=64`를 적용하면 topology가 `~0.060`까지 열린 뒤 deterministic하게 고정된다. Seed 43은 best `0.5795`를 유지하고 final test가 non-freeze `0.5252`에서 `0.5663`으로 개선됐다. Seed 42도 best `0.5764`로 non-freeze peak `0.5782`를 거의 보존했다.
 - Seed 42/43 freeze64는 density `~0.058~0.060`, `|rec|/|input| ~0.32`, firing mean `~0.08`, active neurons `>0.05` `~255/500`, cosine mean/min `~0.96/~0.92`로 비슷한 topology regime을 재현했다.
 
-Seed 44 freeze64 check:
-
-| Seed | Best test acc | Density | `\|rec\|/\|input\|` | Firing mean/max | Active neurons `>0.05` | Cosine mean/min | 판단 |
-|------|--------------:|--------:|--------------------:|----------------:|------------------------:|----------------:|------|
-| 44, freeze64 | 0.5477 | 0.0587 | 0.2809 | 0.0719 / 0.8200 | 220 / 500 | 0.9706 / 0.9426 | freeze stabilizes but does not beat baseline |
-
-- Freeze64 improves seed 44 relative to the earlier 0.5331 run, so late instability mattered.
-- Freeze64 still does not cross the 0.5490 no-recurrence baseline, so the remaining problem is not only late collapse.
-- The failure is more consistent with unfavorable topology formation or edge placement than with density shortage.
-- At this point, the main open question is whether topology selection or a local auxiliary objective can recover the remaining gap.
-
 고정 warmup + `tau_end=0.2` C의 현재 안정화 기준은 `theta_lr_scale=0.3`, `theta_freeze_epoch=64`다.
 
 ```bash
@@ -694,36 +689,51 @@ python scripts/train_lsm.py configs/lsm_shd_baseline.yaml liquid.recurrent_mode=
 - A -> B: recurrent weight 학습의 효과
 - D -> C: hard threshold 대비 Gumbel/STE + annealing의 효과
 
-### Step 8: Topology selection and local auxiliary signal
+### Step 8: Prediction auxiliary loss
 
-The seed-44 freeze64 result shifts the next step away from broad tuning.
+The next experiment is no longer broad hyperparameter tuning. The current strongest baseline is Grad R-STE + adaptive freeze, and the next question is whether a local temporal prediction signal can improve topology quality, especially for bad-but-stable cases like seed 45.
 
 Priority:
 
-1. compare multiple candidate freeze epochs or checkpointed topologies,
-2. fine-tune only the non-topology parameters on those candidates,
-3. if the gap remains seed-sensitive, add a small local next-state prediction auxiliary loss.
-
-Why this matters:
-
-- The learned topology already beats the baseline on some seeds.
-- The remaining problem is not recurrence in general, but unstable topology formation.
-- A local prediction objective is a cleaner next experiment than a larger hyperparameter sweep.
+1. implement a small auxiliary predictor on liquid activity,
+2. keep Grad R-STE + adaptive freeze unchanged as the base method,
+3. test seed 45 first,
+4. then test seed 44 and finally seed 42/43 for preservation of strong-seed performance.
 
 Minimal auxiliary-loss sketch:
 
 ```text
-liquid state at t -> small predictor -> t+1 liquid state / filtered spike / membrane-like target
+liquid spike/trace at t -> small predictor -> liquid spike/trace at t+1
 ```
+
+Recommended first implementation:
+
+| Component | Choice |
+|-----------|--------|
+| predictor | `nn.Linear(n_liquid, n_liquid)` |
+| target | filtered liquid spike trace |
+| loss | MSE |
+| target gradient | detached |
+| initial weight | `prediction_aux.weight=0.001` |
+| base method | Grad R-STE + adaptive freeze |
+| first seed | 45 |
 
 Recommended comparison set:
 
 | Condition | Purpose |
 |-----------|---------|
-| learned C | current reference |
-| learned C + prediction auxiliary loss | test stability of topology formation |
-| random_sparse + prediction auxiliary loss | separate topology-specific gain from generic regularization |
-| no recurrence + prediction auxiliary loss | check whether the auxiliary loss alone explains the improvement |
+| Grad R-STE + adaptive freeze | current strongest baseline |
+| Grad R-STE + adaptive freeze + prediction auxiliary loss | test local temporal signal |
+| learned C + prediction auxiliary loss | optional later comparison |
+| random_sparse + prediction auxiliary loss | check whether prediction loss alone explains improvement |
+
+Why this matters:
+
+- Adaptive freeze handles gradient explosion and rescued seed 44.
+- Seed 45 suggests a remaining bad-but-stable topology problem.
+- Prediction auxiliary loss should be framed as a topology-quality signal, not merely an anti-explosion device.
+
+
 
 ---
 
@@ -775,4 +785,38 @@ Recommended comparison set:
 - [ ] HDF5 fallback 필요 여부 결정
 - [ ] B/B*/C/D/A 비교 실험 실행 및 표 정리
 - [ ] learned topology 구조 분석 코드 추가
-- [ ] tau/topology gradient 안정화 ablation 실행
+- [x] Grad R-STE 수정 및 multi-seed 실행
+- [x] adaptive theta freeze 구현 및 seed 42/43/44/45 실행
+- [ ] prediction auxiliary loss 구현
+- [ ] prediction auxiliary loss seed 45/44/42/43 실행
+- [ ] tau/topology gradient 안정화 ablation 정리
+
+
+### Step 7.5: Grad R-STE adaptive freeze — 현재 strongest baseline
+
+Corrected Grad R-STE는 Gumbel noise 없이 deterministic hard threshold forward와 sigmoid-STE backward를 사용한다. Fixed freeze epoch은 seed별 gradient 폭주 시점을 맞추기 어려워, 현재는 gradient-triggered adaptive freeze를 사용한다.
+
+Adaptive freeze 설정:
+
+```bash
+liquid.theta_adaptive_freeze=true
+liquid.theta_freeze_min_epoch=20
+liquid.theta_freeze_grad_threshold=30.0
+liquid.theta_freeze_patience=2
+```
+
+결과:
+
+| Seed | Freeze epoch | Best test acc | 판단 |
+|------|-------------:|--------------:|------|
+| 42 | 39 | 0.6051 | current best |
+| 43 | 33 | 0.5808 | strong success |
+| 44 | 50 | 0.5866 | Gumbel seed-44 failure rescue |
+| 45 | not triggered | 0.5486 | near baseline; bad-or-stable topology 후보 |
+
+해석:
+
+- Grad R-STE + adaptive freeze가 현재 가장 강한 recipe다.
+- seed 44 rescue는 중요하다. Gumbel learned C에서 실패했던 seed가 Grad R-STE adaptive에서는 강하게 회복됐다.
+- seed 45는 gradient trigger가 잡지 못한 다른 failure mode로 보이며, prediction auxiliary loss의 첫 타깃이다.
+

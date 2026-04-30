@@ -46,6 +46,26 @@ LSM은 뇌의 피질 미세회로를 모방한 reservoir computing 모델로, �
 
 이는 interconnected SNN에서 “어떤 뉴런과 어떤 뉴런을 연결할 것인가”를 네트워크가 스스로 발견하게 하는 첫 번째 단계이다.
 
+### 1.5 현재 실험 업데이트: Gumbel 단독에서 Gradient-Based Topology Learning으로 확장
+
+최근 SHD LSM 결과는 초기 프레이밍을 한 단계 확장한다. Gumbel-Sigmoid learned C는 일부 seed에서 no-recurrence baseline을 넘으며 topology learning 가능성을 보였지만, seed 44에서 불안정했다. 반면 수정된 Grad R-STE는 hard-threshold forward와 sigmoid-STE backward를 사용했을 때 강한 경쟁 baseline이 되었고, gradient-triggered adaptive freeze를 붙였을 때 현재 가장 강한 recipe가 되었다.
+
+현재 핵심 수치:
+
+| 조건 | seed 42 | seed 43 | seed 44 | seed 45 | mean | median |
+|---|---:|---:|---:|---:|---:|---:|
+| no recurrence | - | - | - | - | 0.5490 | 0.5490 |
+| learned C original | 0.5689 | 0.5751 | 0.5331 | 0.5587 | 0.5590 | 0.5638 |
+| Grad R-STE non-freeze | 0.6038 | 0.5711 | 0.5587 | 0.5486 | 0.5706 | 0.5649 |
+| **Grad R-STE + adaptive freeze** | **0.6051** | **0.5808** | **0.5866** | **0.5486** | **0.5803** | **0.5837** |
+
+따라서 현재 가장 안전한 중심 주장은 다음과 같다.
+
+> 랜덤 recurrent topology는 충분하지 않다. 핵심은 recurrent topology를 gradient로 학습하는 것이며, 현재 가장 강한 구현은 Grad R-STE + adaptive theta freeze이다. Gumbel-Sigmoid는 여전히 중요한 learned-topology mechanism이지만, 단독 winner로 주장하기보다는 Grad R-STE와 함께 gradient-based topology learning family 안에서 비교하는 것이 더 안전하다.
+
+이 업데이트는 논문의 방향을 폐기하는 것이 아니라 강화한다. “Gumbel trick 하나”가 아니라, **interconnected SNN에서 연결 구조를 학습하고 적절한 시점에 안정화하는 원리**가 핵심 기여로 이동한다.
+
+
 ---
 
 ## 2. 배경 이론
@@ -237,6 +257,23 @@ B에서 p ∈ {0.1, 0.2, 0.3, 0.5}를 각각 실험하여 최적 p를 탐색.
 | **D (Grad R)** | Hard threshold rewiring | 학습 | 동적 변화 | **기존 gradient 기반 rewiring baseline** |
 | **C** | Gumbel 학습 | 학습 | 자동 결정 | 제안 방법 |
 
+### 현재 실험 설계 업데이트
+
+초기 설계에서는 C(Gumbel)가 주된 제안 방법이고 D(Grad R)는 closest baseline이었다. 그러나 corrected Grad R-STE + adaptive freeze 결과가 강하게 나오면서, 실험 구도는 다음처럼 업데이트한다.
+
+| 조건 | 의미 | 현재 역할 |
+|---|---|---|
+| A | 전통 LSM / fixed liquid | 전통 baseline |
+| B | random topology + trainable dynamics | random recurrent baseline |
+| B* | same-density random topology | density-only control |
+| C | Gumbel-Sigmoid learned topology | stochastic/relaxed topology learner |
+| D | Grad R-STE hard-threshold topology learner | strong competing topology-learning baseline |
+| D+AF | Grad R-STE + adaptive freeze | current strongest recipe |
+| D+AF+Pred | Grad R-STE + adaptive freeze + prediction auxiliary loss | next experiment |
+
+핵심 비교는 이제 `B* < C`만이 아니라 `B* < {C, D, D+AF}`이다. 즉, 학습된 edge placement가 random edge placement보다 유리한지, 그리고 어떤 topology learner가 더 안정적인지를 함께 본다.
+
+
 ### Grad R을 추가 baseline으로 포함하는 이유
 
 Grad R (Chen et al., 2021)은 본 연구와 가장 가까운 경쟁자이다. 둘 다 gradient 기반으로 연결을 제거/추가하며 SNN에 직접 적용한다. 차이는 “hard threshold (θ>0이면 연결) vs soft relaxation (Gumbel-Sigmoid)”뿐이다.
@@ -252,6 +289,19 @@ Grad R (Chen et al., 2021)은 본 연구와 가장 가까운 경쟁자이다. �
 - Gumbel-Sigmoid: temperature로 매끄럽게 전환 → 안정적 gradient 흐름
 - Gumbel-Sigmoid: temperature annealing으로 탐색(높은 τ)↔︎확정(낮은 τ)의 자연스러운 전환
 - Gumbel-Sigmoid: commitment loss로 양극화 유도 가능 (Grad R에는 대응물 없음)
+
+### 현재 Grad R-STE 결과에 따른 포지셔닝 수정
+
+초기 기대와 달리, corrected Grad R-STE는 단순한 약한 baseline이 아니라 매우 강한 topology learner로 나타났다. 특히 adaptive freeze를 붙이면 seed 42/43/44에서 각각 `0.6051`, `0.5808`, `0.5866`을 기록했고, Gumbel learned C가 실패했던 seed 44를 크게 회복했다.
+
+따라서 Discussion에서는 다음처럼 정리하는 것이 안전하다.
+
+- Gumbel-Sigmoid의 장점: stochastic exploration, temperature-controlled relaxation, soft-to-hard transition.
+- Grad R-STE의 장점: deterministic hard topology, simpler dynamics, no sampling noise.
+- Adaptive freeze의 장점: seed마다 다른 topology instability 시점을 gradient signal로 감지하여 topology를 고정.
+
+현재 결론은 “Gumbel이 Grad R보다 항상 낫다”가 아니라, **recurrent SNN에서는 topology learning과 topology stabilization이 모두 중요하다**는 것이다.
+
 
 ### 학습된 구조의 패턴 분석: LSNN+DEEP R과의 비교
 
@@ -490,6 +540,18 @@ PGExplainer의 설계를 따라, **마스크를 시뮬레이션 전에 한 번 �
     - 루프 길이 분포
     - Small-world 특성 여부
 5. **수렴 속도 및 안정성**: 랜덤 대비 학습 효율 개선 여부
+
+### 6.1.1 현재 실험 기준 기여 업데이트
+
+현재 SHD 실험 결과를 반영하면, 핵심 기여는 다음처럼 재정렬된다.
+
+1. **랜덤 recurrence의 한계 확인**: no-recurrence `0.5490`, best random recurrent `0.5499`, same-density random `0.5216`으로, 단순 recurrent density는 충분하지 않음.
+2. **Gradient-based topology learning의 효과 확인**: Gumbel learned C와 Grad R-STE 모두 random topology보다 강한 결과를 보임.
+3. **Grad R-STE + adaptive freeze의 강한 성능**: seed 42/43/44/45에서 mean `0.5803`, median `0.5837`로 현재 strongest recipe.
+4. **Topology stabilization의 중요성**: fixed epoch freeze보다 gradient-triggered adaptive freeze가 Grad R-STE에 더 적합함.
+5. **Local prediction signal로의 자연스러운 확장**: seed 45처럼 gradient explosion 없이 낮은 성능을 보이는 bad-but-stable topology를 개선하기 위해 prediction auxiliary loss를 다음 단계로 설정.
+
+
 
 ### 6.2 흥미로운 추가 분석
 
@@ -832,12 +894,6 @@ Step 4: B vs C 비교
 - sparsity/commitment loss 가중치 조정
 - 뉴런 수 변경
 - 그래도 차이 없으면: “가중치 학습으로 충분하다”는 것 자체가 발견 (negative result 논문 가능성)
-
-현재 시점에서는 여기에 한 단계 더 추가해야 한다.
-
-- seed 44 freeze64 결과는 learned topology가 일부 seed에서 baseline을 넘지만, 아직 robust하지 않다는 것을 보여준다.
-- 따라서 단순 p sweep이나 tau sweep보다 먼저 topology checkpoint selection과 theta schedule shaping을 확인하는 것이 맞다.
-- 그래도 seed sensitivity가 남으면, topology formation을 돕는 local prediction auxiliary loss를 다음 단계로 올린다.
 
 ### Phase 2: Baseline 강화 (1~2주)
 
