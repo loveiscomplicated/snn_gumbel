@@ -83,10 +83,16 @@ class LiquidConfig:
     theta_freeze_epoch: int = (
         0  # learned mode에서 해당 epoch 시작 시 theta freeze (0 = 비활성화)
     )
+    theta_adaptive_freeze: bool = False  # gradient-triggered adaptive theta freeze 활성화
+    theta_freeze_min_epoch: int = 20  # adaptive freeze를 고려하기 시작하는 최소 epoch
+    theta_freeze_grad_threshold: float = 30.0  # theta grad norm 임계값
+    theta_freeze_patience: int = 2  # 연속으로 임계값 초과해야 하는 epoch 수
     noise_scale: float = (
         0.1  # 에폭 단위 Gumbel noise 크기 (0=결정적, 1=표준 Gumbel std≈1.81)
     )
     # 작은 값 → 경계(theta≈0) 엣지만 뒤집힘, 확실한 ON/OFF는 유지
+    pred_aux_enabled: bool = False  # next-state prediction auxiliary loss 활성화
+    pred_trace_decay: float = 0.9  # filtered trace EMA decay (spike → trace)
 
 
 # ---------------------------------------------------------------------------
@@ -131,6 +137,7 @@ class Config:
     lr_min: float = 1e-5  # cosine scheduler의 최솟값
     lambda_sparse: float = 0.005
     lambda_commit: float = 0.08
+    lambda_pred: float = 0.0
     weight_decay: float = 0.0
     edge_threshold: float = 0.5
     seed: int = 42

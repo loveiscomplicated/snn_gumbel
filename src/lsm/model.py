@@ -17,7 +17,6 @@ from typing import List
 
 from src.models.layers import gumbel_sigmoid, gumbel_sigmoid_ste, sigmoid_ste, spike_fn
 
-
 # ---------------------------------------------------------------------------
 # InputProjection: fixed random excitatory input → liquid
 # ---------------------------------------------------------------------------
@@ -85,7 +84,7 @@ class LiquidLayer(nn.Module):
 
         self.theta = nn.Parameter(
             torch.randn(n_liquid, n_liquid) * theta_init_std + theta_init_mean,
-            requires_grad=(mode == "learned"),
+            requires_grad=(mode in ("learned", "grad_r")),
         )
         # softplus(w_raw) is the weight magnitude.
         # softplus(0)=0.693 is way too large for recurrent nets.
@@ -150,6 +149,8 @@ class LiquidLayer(nn.Module):
         Critically, the STE tensor is NOT stored here. sample_mask() recomputes it
         freshly each batch using this stored noise, so each batch gets its own graph
         that is safely freed after backward().
+
+        Actual mask generation is done by sample_mask
         """
         self._epoch_noise = epoch_noise
         self._epoch_tau = tau
@@ -256,6 +257,8 @@ class LSMModel(nn.Module):
         w_raw_max: float = -1.0,
         bptt_truncate: int = 0,
         noise_scale: float = 0.1,
+        pred_aux_enabled: bool = False,
+        pred_trace_decay: float = 0.9,
     ):
         super().__init__()
         self.T = T  # time stamp
@@ -289,6 +292,11 @@ class LSMModel(nn.Module):
         )
         self.readout = nn.Linear(n_liquid, n_output)
 
+        self.pred_aux_enabled = pred_aux_enabled
+        self.pred_trace_decay = pred_trace_decay
+        self.pred_aux = nn.Linear(n_liquid, n_liquid) if pred_aux_enabled else None
+        self._last_pred_loss: torch.Tensor | None = None
+
     def forward(self, spikes: torch.Tensor, tau: float = 1.0) -> torch.Tensor:
         """
         Args:
@@ -314,16 +322,29 @@ class LSMModel(nn.Module):
         # track firing rates for monitoring
         spike_sum = torch.zeros(batch_size, self.n_liquid, device=device)
 
+        # filtered trace and accumulator for prediction auxiliary loss
+        if self.pred_aux_enabled:
+            liquid_trace = torch.zeros(batch_size, self.n_liquid, device=device)
+            pred_loss_acc = torch.zeros((), device=device)
+            pred_count = 0
+
         # 3. timestep loop
         # truncated BPTT: detach hidden state before the gradient window
         # self.bptt_truncate: window
         grad_start = (self.T - self.bptt_truncate) if self.bptt_truncate > 0 else 0
 
         for t in range(self.T):
+            # Truncated BPTT:
+            # keep the current liquid state values, but cut their history.
+            # This makes the remaining timesteps start a fresh graph,
+            # so gradients do not flow back before grad_start.
             if t == grad_start and t > 0:
                 liquid_mem = liquid_mem.detach()
                 liquid_spike = liquid_spike.detach()
+                if self.pred_aux_enabled:
+                    liquid_trace = liquid_trace.detach()
 
+            # pick up the current timepoint
             input_current = self.input_proj(spikes[:, t])  # (batch, N)
             recurrent_current = self.liquid(liquid_spike)  # (batch, N)
 
@@ -332,13 +353,31 @@ class LSMModel(nn.Module):
             )
             liquid_mem = torch.clamp(liquid_mem, -3.0, 3.0)
             liquid_spike = spike_fn(liquid_mem - self.liquid.threshold.clamp(min=0.01))
-            liquid_mem = liquid_mem * (1.0 - liquid_spike)  # reset
+            liquid_mem = liquid_mem * (1.0 - liquid_spike)  # reset fired neurons
+
+            if self.pred_aux_enabled:
+                prev_trace = liquid_trace
+                liquid_trace = (
+                    self.pred_trace_decay * liquid_trace
+                    + (1.0 - self.pred_trace_decay) * liquid_spike
+                )
+                if t > 0:
+                    pred_out = torch.sigmoid(self.pred_aux(prev_trace))
+                    pred_loss_acc = pred_loss_acc + F.mse_loss(
+                        pred_out, liquid_trace.detach(), reduction="mean"
+                    )
+                    pred_count += 1
 
             readout_mem = readout_mem + self.readout(liquid_spike)
             spike_sum = spike_sum + liquid_spike
 
         # store for monitoring (detached)
         self._last_spike_rates = (spike_sum / self.T).detach()
+
+        if self.pred_aux_enabled and pred_count > 0:
+            self._last_pred_loss = pred_loss_acc / pred_count
+        else:
+            self._last_pred_loss = torch.zeros((), device=device)
 
         return readout_mem / self.T
 
@@ -347,7 +386,7 @@ class LSMModel(nn.Module):
     # ------------------------------------------------------------------
 
     def sparsity_loss(self) -> torch.Tensor:
-        # sparsity_loss는 theta 값을 조정하여 시그모이드 함수를 통과한
+        # sparsity_loss는 theta 값을 조정하여 시그모이드 함수를 통과한에
         # 결과가 0에 더 가깝게 하여 분포가 희소하게 만드는 역할을 함.
         if self.liquid.mode != "learned":
             return torch.tensor(0.0, device=self.liquid.theta.device)
@@ -355,6 +394,7 @@ class LSMModel(nn.Module):
 
     def commitment_loss(self) -> torch.Tensor:
         # theta를 시그모이드를 통과한 것의 분포가 0 또는 1에 몰리게 하는 결과를 내도록 함
+        # 만약 theta가 0.5 근처에 존재한다면 엣지의 존재유무가 확확 바뀌기 때문에 불안정해진다.
         if self.liquid.mode != "learned":
             return torch.tensor(0.0, device=self.liquid.theta.device)
         eps = 1e-6
@@ -374,3 +414,15 @@ class LSMModel(nn.Module):
             "mean": rates.mean().item(),
             "max": rates.mean(dim=0).max().item(),
         }
+
+    def prediction_loss(self) -> torch.Tensor:
+        """Return next-state prediction auxiliary loss from the last forward pass."""
+        if not self.pred_aux_enabled or self._last_pred_loss is None:
+            return torch.zeros((), device=self.readout.weight.device)
+        return self._last_pred_loss
+
+    def prediction_info(self) -> float:
+        """Return scalar prediction loss for logging."""
+        if not self.pred_aux_enabled or self._last_pred_loss is None:
+            return 0.0
+        return float(self._last_pred_loss.detach().cpu().item())

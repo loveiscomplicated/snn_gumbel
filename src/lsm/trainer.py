@@ -89,6 +89,8 @@ def build_model(cfg: Config, device: torch.device) -> LSMModel:
         w_raw_max=liq.w_raw_max,
         bptt_truncate=liq.bptt_truncate,
         noise_scale=liq.noise_scale,
+        pred_aux_enabled=liq.pred_aux_enabled,
+        pred_trace_decay=liq.pred_trace_decay,
     ).to(device)
 
 
@@ -96,7 +98,8 @@ def _compute_loss(rates, labels, model, cfg):
     loss = ce_loss(rates, labels)
     sp = model.sparsity_loss()
     cm = model.commitment_loss()
-    return loss + cfg.lambda_sparse * sp + cfg.lambda_commit * cm
+    pd = model.prediction_loss()
+    return loss + cfg.lambda_sparse * sp + cfg.lambda_commit * cm + cfg.lambda_pred * pd
 
 
 def _evaluate(model: LSMModel, loader, device: torch.device, tau: float) -> float:
@@ -214,6 +217,10 @@ def train(cfg: Config) -> tuple:
     clip_norm_w = cfg.liquid.grad_clip_max_norm_w
     clip_norm_theta = cfg.liquid.grad_clip_max_norm_theta
 
+    adaptive_freeze_bad_epochs = 0
+    theta_adaptive_frozen = False
+    theta_freeze_reason = ""
+
     epoch_bar = tqdm(range(cfg.epochs), desc="Epochs", unit="ep")
 
     with open(log_path, "a") as log_f:
@@ -224,17 +231,18 @@ def train(cfg: Config) -> tuple:
                 tqdm.write(
                     f"  Phase 2: theta unfrozen at epoch {epoch+1}, topology learning begins"
                 )
-            if is_learned and theta_freeze_epoch > 0 and epoch + 1 == theta_freeze_epoch:
+            if has_theta and theta_freeze_epoch > 0 and epoch + 1 == theta_freeze_epoch:
                 model.liquid.theta.requires_grad_(False)
                 model.liquid.unlock_epoch_mask()
                 tqdm.write(
                     f"  Theta frozen at epoch {epoch+1}; topology fixed deterministically"
                 )
             theta_frozen_by_schedule = (
-                is_learned and theta_freeze_epoch > 0 and epoch + 1 >= theta_freeze_epoch
+                (has_theta and theta_freeze_epoch > 0 and epoch + 1 >= theta_freeze_epoch)
+                or theta_adaptive_frozen
             )
 
-            tau = get_tau(epoch, cfg, warmup_epochs=warmup)
+            tau = get_tau(epoch, cfg, warmup_epochs=warmup) if is_learned else 1.0
             phase_label = "P1" if (is_learned and epoch < warmup) else "P2"
             model.train()
 
@@ -309,6 +317,33 @@ def train(cfg: Config) -> tuple:
             avg_theta_grad = epoch_theta_grad_norm / max(n_batches, 1)
             avg_w_raw_grad = epoch_w_raw_grad_norm / max(n_batches, 1)
 
+            # Adaptive theta freeze: check after batch loop once avg_theta_grad is known
+            if (
+                has_theta
+                and cfg.liquid.theta_adaptive_freeze
+                and not theta_adaptive_frozen
+                and not theta_frozen_by_schedule
+                and epoch + 1 >= cfg.liquid.theta_freeze_min_epoch
+            ):
+                if avg_theta_grad > cfg.liquid.theta_freeze_grad_threshold:
+                    adaptive_freeze_bad_epochs += 1
+                else:
+                    adaptive_freeze_bad_epochs = 0
+
+                if adaptive_freeze_bad_epochs >= cfg.liquid.theta_freeze_patience:
+                    model.liquid.theta.requires_grad_(False)
+                    model.liquid.unlock_epoch_mask()
+                    theta_adaptive_frozen = True
+                    theta_frozen_by_schedule = True
+                    theta_freeze_reason = (
+                        f"adaptive_grad>{cfg.liquid.theta_freeze_grad_threshold}"
+                    )
+                    tqdm.write(
+                        f"  Freezing theta at epoch {epoch + 1}: "
+                        f"adaptive_grad>{cfg.liquid.theta_freeze_grad_threshold} "
+                        f"for {cfg.liquid.theta_freeze_patience} epochs"
+                    )
+
             # Unlock epoch mask before eval so eval uses fresh deterministic mask
             model.liquid.unlock_epoch_mask()
             test_acc = _evaluate(model, test_loader, device, tau)
@@ -328,7 +363,7 @@ def train(cfg: Config) -> tuple:
                 epoch=epoch + 1,
                 phase=phase_label,
                 lr=current_lr,
-                tau=tau,
+                tau=tau if is_learned else None,
                 train_loss=train_loss,
                 train_acc=train_acc,
                 test_acc=test_acc,
@@ -340,31 +375,33 @@ def train(cfg: Config) -> tuple:
                 w_raw_grad_norm=avg_w_raw_grad,
                 mean_firing_rate=fr_info["mean"],
                 max_firing_rate=fr_info["max"],
+                pred_loss=model.prediction_info(),
                 warmup_epoch=warmup if is_learned else 0,
                 warmup_dynamic=dynamic_warmup,
                 warmup_strategy=warmup_strategy if dynamic_warmup else "",
-                theta_freeze_epoch=theta_freeze_epoch if is_learned else 0,
+                theta_freeze_epoch=theta_freeze_epoch if has_theta else 0,
                 theta_frozen=theta_frozen_by_schedule,
+                theta_adaptive_freeze=cfg.liquid.theta_adaptive_freeze,
+                theta_freeze_reason=theta_freeze_reason,
+                adaptive_freeze_bad_epochs=adaptive_freeze_bad_epochs,
                 warmup_metric_value=None,
                 warmup_slope=None,
                 warmup_slow_count=0,
             )
 
-            epoch_bar.set_postfix(
-                tau=f"{tau:.3f}",
-                loss=f"{train_loss:.4f}",
-                train=f"{train_acc:.4f}",
-                test=f"{test_acc:.4f}",
-                sp=f"{sparsity:.3f}",
-            )
+            postfix: dict = dict(loss=f"{train_loss:.4f}", train=f"{train_acc:.4f}", test=f"{test_acc:.4f}", sp=f"{sparsity:.3f}")
+            if is_learned:
+                postfix["tau"] = f"{tau:.3f}"
+            epoch_bar.set_postfix(postfix)
             grad_detail = (
                 f"  θ_grad={avg_theta_grad:.2e}  w_grad={avg_w_raw_grad:.2e}"
-                if is_learned
+                if has_theta
                 else ""
             )
+            tau_str = f"  tau={tau:.3f}" if is_learned else ""
             tqdm.write(
                 f"[{epoch+1:03d}/{cfg.epochs}|{phase_label}] "
-                f"lr={current_lr:.2e}  tau={tau:.3f}  loss={train_loss:.4f}  "
+                f"lr={current_lr:.2e}{tau_str}  loss={train_loss:.4f}  "
                 f"train={train_acc:.4f}  test={test_acc:.4f}  "
                 f"sp={sparsity:.3f}  grad={avg_grad_norm:.1f}  "
                 f"fr={fr_info['mean']:.3f}/{fr_info['max']:.3f}  "
