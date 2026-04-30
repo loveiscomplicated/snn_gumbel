@@ -833,6 +833,12 @@ Step 4: B vs C 비교
 - 뉴런 수 변경
 - 그래도 차이 없으면: “가중치 학습으로 충분하다”는 것 자체가 발견 (negative result 논문 가능성)
 
+현재 시점에서는 여기에 한 단계 더 추가해야 한다.
+
+- seed 44 freeze64 결과는 learned topology가 일부 seed에서 baseline을 넘지만, 아직 robust하지 않다는 것을 보여준다.
+- 따라서 단순 p sweep이나 tau sweep보다 먼저 topology checkpoint selection과 theta schedule shaping을 확인하는 것이 맞다.
+- 그래도 seed sensitivity가 남으면, topology formation을 돕는 local prediction auxiliary loss를 다음 단계로 올린다.
+
 ### Phase 2: Baseline 강화 (1~2주)
 
 **목표**: 리뷰어 공격에 대한 방어벽 구축

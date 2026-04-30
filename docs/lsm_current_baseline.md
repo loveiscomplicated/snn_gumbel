@@ -6,7 +6,8 @@ This document fixes the current LSM baseline before further diagnosis or hyperpa
 
 1. reproduce no-recurrence vs `random_sparse` behavior,
 2. diagnose firing/current/separation,
-3. find the minimum setting where recurrent dynamics help.
+3. find the minimum setting where recurrent dynamics help,
+4. keep track of which learned-topology claims are already supported and which are still seed-sensitive.
 
 ## Code Reference
 
@@ -449,8 +450,242 @@ Interpretation:
 Updated next decision:
 
 - Do not train learned C with freely trainable `w_raw`.
-- If learned topology C is attempted next, use `liquid.train_w_raw=false` first.
-- Learned C should test whether learned topology can improve edge placement while avoiding recurrent magnitude saturation.
+- Learned C should use `liquid.train_w_raw=false` and a less sparse hard-mask initialization.
+- `theta_init_mean=-1.0`, `theta_init_std=0.5`, `w_raw_init_mean=-2.25` is the first successful learned C setting.
+
+## Learned Topology C Result
+
+The first learned C attempt with the default `theta_init_mean=-2.2` and frozen `w_raw` failed because the learned hard mask was almost off.
+
+| Run | Best test accuracy | Decision |
+|-----|-------------------:|----------|
+| `p=0.0` no recurrence | 0.5490 | baseline |
+| best random recurrent freeze | 0.5499 | random baseline |
+| learned C, `theta_init_mean=-2.2`, `train_w_raw=false` | 0.5433 | too sparse, reject |
+| learned C, `theta=-1.0,std=0.5,w=-2.25,freeze_w`, seed 42 | 0.5689 | success |
+| learned C, same setting, seed 43 | 0.5751 | best tau=0.05 run |
+| learned C, same setting, seed 44 | 0.5331 | unstable/reject |
+| learned C, same setting, seed 45 | 0.5587 | success, but late theta-grad instability |
+| learned C, same setting, `tau_end=0.2`, seed 42 | 0.5782 | tau-stabilized |
+| learned C, same setting, `tau_end=0.2`, seed 43 | 0.5795 | current best; late theta-grad still spikes |
+| learned C, `theta=-1.2,std=0.5,w=-2.25,freeze_w` | 0.5442 | reject |
+| learned C, `theta=-0.8,std=0.3,w=-2.25,freeze_w` | 0.5389 | reject; not density-preserving |
+| random sparse, `p=0.041,w=-2.25,freeze_w` | 0.5216 | same-density random control failed |
+
+Successful command:
+
+```bash
+python scripts/train_lsm.py configs/lsm_shd_baseline.yaml \
+  liquid.recurrent_mode=learned \
+  liquid.train_w_raw=false \
+  liquid.w_raw_init_mean=-2.25 \
+  liquid.w_raw_max=-2.0 \
+  liquid.theta_init_mean=-1.0 \
+  liquid.theta_init_std=0.5 \
+  experiment_name=lsm_shd_C_freeze_w_theta100_w225
+```
+
+Experiment directory:
+
+```text
+experiments/lsm_shd_C_freeze_w_theta100_w225_260429122610
+```
+
+Diagnostic comparison:
+
+| Metric | no recurrence | learned C success |
+|--------|--------------:|------------------:|
+| best test acc | 0.5490 | 0.5689 |
+| density | 0.0000 | 0.0578 |
+| active edges | 0 | 14457 |
+| `\|rec\|/\|input\|` | 0.0000 | 0.3261 |
+| `\|exc rec\|/\|input\|` | 0.0000 | 0.2816 |
+| `\|inh rec\|/\|input\|` | 0.0000 | 0.1936 |
+| firing mean | 0.0511 | 0.0804 |
+| firing max | 0.4200 | 0.7800 |
+| active neurons `>0.01` | 327 / 500 | 398 / 500 |
+| active neurons `>0.05` | 182 / 500 | 257 / 500 |
+| cosine mean | 0.9676 | 0.9556 |
+| cosine min | 0.9234 | 0.9142 |
+| clamped fraction | 1.0000 | 0.0000 |
+
+Interpretation:
+
+- The default learned C failure was not evidence against learned topology; it was caused by near-zero hard density.
+- `theta_init_mean=-1.0,std=0.5` has an initial hard density near `P(N(-1.0,0.5)>0) ~= 0.023`, not `0.05~0.06`.
+- In the successful learned C checkpoints, topology learning raises the hard density into the `0.04~0.06` range, which is high enough for recurrent dynamics to matter.
+- Freezing `w_raw` remains important: the successful run has `clamped fraction=0.0000` and stable effective recurrent magnitude around `0.1002`.
+- Unlike random sparse recurrence, learned C expands active neurons and improves class separation.
+- The current best hypothesis is that learned edge placement, not just recurrent density, produced the gain.
+
+## Learned Topology C: Seed-44 Freeze64 Check
+
+The seed-44 failure needed one more check: whether the problem was only late-stage instability or whether the topology itself was already unfavorable. A scheduled freeze at epoch 64 isolates that question.
+
+Seed-44 freeze64 run:
+
+```bash
+python scripts/train_lsm.py configs/lsm_shd_baseline.yaml \
+  liquid.recurrent_mode=learned \
+  liquid.train_w_raw=false \
+  liquid.w_raw_init_mean=-2.25 \
+  liquid.w_raw_max=-2.0 \
+  liquid.theta_init_mean=-1.0 \
+  liquid.theta_init_std=0.5 \
+  liquid.theta_lr_scale=0.3 \
+  liquid.theta_freeze_epoch=64 \
+  liquid.theta_warmup_epochs=10 \
+  liquid.recurrent_sparsity=0.0 \
+  schedule.tau_end=0.2 \
+  seed=44 \
+  experiment_name=lsm_shd_C_freeze_w_theta100_w225_tau020_tlr030_freeze64_s44
+```
+
+Result:
+
+| Metric | Value |
+|--------|------:|
+| best test acc | 0.5477 |
+| baseline best test acc | 0.5490 |
+| delta | -0.0013 |
+| density | 0.0587 |
+| `|rec| / |input|` | 0.2809 |
+| firing mean | 0.0719 / 0.8200 |
+| active neurons `>0.05` | 220 / 500 |
+| cosine mean / min | 0.9706 / 0.9426 |
+
+Interpretation:
+
+- Freeze64 improved seed 44 from the earlier 0.5331 run, so late-stage theta instability was part of the problem.
+- However, it still did not beat the no-recurrence baseline, so freeze64 is a stabilization step, not a full robustness fix.
+- Seed 44 now looks like a topology-quality or edge-placement failure, not just a late collapse failure.
+- The current conclusion is that learned topology is promising but still seed-sensitive.
+
+Current claim status:
+
+- Confirmed: random-sparse recurrence does not help here.
+- Confirmed: learned topology can beat the baseline on some seeds.
+- Not yet confirmed: the current learned-C recipe is robustly better than no recurrence across seeds.
+- Not yet resolved: whether the remaining seed-44 gap can be closed by topology selection, schedule changes, or a local auxiliary objective.
+
+## Next Step From This Baseline
+
+The next experiment should not be a broad hyperparameter sweep.
+
+Priority order:
+
+1. topology selection or checkpoint choice across several candidate freeze epochs,
+2. theta schedule shaping,
+3. dynamics-aware regularization,
+4. then a local prediction auxiliary loss if topology quality remains seed-sensitive.
+
+Recommended next conceptual move:
+
+- store multiple candidate topology checkpoints,
+- compare them with deterministic readout fine-tuning,
+- then add a small next-state prediction auxiliary loss if selection alone is not enough.
+
+Seed reproducibility check:
+
+| Run | Seed | Best test accuracy | Density at best ckpt | `\|rec\|/\|input\|` | Firing mean/max | Active neurons `>0.05` | Cosine mean/min | Decision |
+|-----|-----:|-------------------:|---------------------:|--------------------:|----------------:|------------------------:|----------------:|----------|
+| learned C, `theta=-1.0,w=-2.25,freeze_w` | 42 | 0.5689 | 0.0578 | 0.3261 | 0.0804 / 0.7800 | 257 / 500 | 0.9556 / 0.9142 | success |
+| learned C, `theta=-1.0,w=-2.25,freeze_w` | 43 | 0.5751 | 0.0409 | 0.1788 | 0.0625 / 0.6800 | 194 / 500 | 0.9724 / 0.9430 | best tau=0.05 run |
+| learned C, `theta=-1.0,w=-2.25,freeze_w` | 44 | 0.5331 | 0.0581 | 0.2756 | 0.0712 / 0.8400 | 214 / 500 | 0.9707 / 0.9421 | unstable/reject |
+| learned C, `theta=-1.0,w=-2.25,freeze_w` | 45 | 0.5587 | n/a | n/a | 0.091 / 0.563 late | n/a | n/a | success, unstable late theta-grad |
+| learned C, `theta=-1.0,w=-2.25,freeze_w,tau_end=0.2` | 42 | 0.5782 | 0.0610 late | n/a | 0.083 / 0.678 final | n/a | n/a | stable theta-grad |
+| learned C, `theta=-1.0,w=-2.25,freeze_w,tau_end=0.2` | 43 | 0.5795 | 0.0620 final | n/a | 0.100 / 0.660 final | n/a | n/a | current best, late theta-grad spikes |
+| learned C, `theta=-1.0,w=-2.25,freeze_w,tau_end=0.2,theta_lr_scale=0.05` | 43 | 0.5530 | 0.023 final | n/a | 0.043 / 0.404 final | n/a | n/a | stable but topology under-opens |
+| learned C, `theta=-1.0,w=-2.25,freeze_w,tau_end=0.2,theta_lr_scale=0.3,theta_freeze_epoch=64` | 42 | 0.5764 | 0.0579 | 0.3315 | 0.0815 / 0.7800 | 255 / 500 | 0.9594 / 0.9179 | peak mostly preserved |
+| learned C, `theta=-1.0,w=-2.25,freeze_w,tau_end=0.2,theta_lr_scale=0.3,theta_freeze_epoch=64` | 43 | 0.5795 | 0.0597 | 0.3177 | 0.0776 / 0.8000 | 254 / 500 | 0.9573 / 0.9214 | current stable candidate |
+| learned C, `theta=-1.0,w=-2.25,freeze_w,tau_end=0.2,theta_lr_scale=0.3,theta_freeze_epoch=64` | 44 | 0.5477 | 0.0587 | 0.2809 | 0.0719 / 0.8200 | 220 / 500 | 0.9706 / 0.9426 | freeze did not rescue seed 44 |
+
+Seed reproducibility interpretation:
+
+- Learned C has real upside: seeds 42, 43, and 45 beat the no-recurrence baseline by `+0.0199`, `+0.0261`, and `+0.0097`.
+- Across seeds 42-45, sorted best accuracies are `0.5331, 0.5587, 0.5689, 0.5751`; the median is `0.5638`, which is `+0.0148` over the no-recurrence baseline.
+- It is not yet robust: seed 44 falls below the no-recurrence baseline despite similar density to seed 42.
+- Seed 44 is not weak; it has higher density, stronger recurrent current, and higher max firing than seed 43. The failure mode is therefore likely edge placement, recurrent current scale, or tau/topology instability, not insufficient recurrence.
+- The simple mean-rate cosine diagnostic only partly explains accuracy. Seed 43 and seed 44 have similar cosine summaries, but very different test accuracy.
+- Seed 43 reached its best accuracy while tau was still high (`tau ~= 0.773`, epoch 39). Later epochs show large topology gradients after tau anneals toward `0.05`, so tau/gradient stabilization is a likely next bottleneck.
+- Current target window for learned hard density appears closer to `0.04~0.06`, but density alone is insufficient; edge placement and recurrent current scale both matter.
+- Raising `tau_end` from `0.05` to `0.2` improved seed 42 from `0.5689` to `0.5782` and seed 43 from `0.5751` to `0.5795`, making `tau_end=0.2` the current default candidate.
+- The stabilization is incomplete: seed 42 kept late `theta_grad_norm` around single/low-double digits, but seed 43 still produced repeated late spikes above `50` even with `tau=0.2`.
+- Lowering `theta_lr_scale` to `0.05` removed the gradient spikes but kept sparsity near the initial `~0.023`, so the learned topology failed to open and best test fell to `0.5530`. A partial `theta_lr_scale=0.075` run showed the same under-opening pattern through the mid/late epochs.
+- `theta_lr_scale=0.1` with scheduled freeze also under-opened: `theta_freeze_epoch=60` reached only `~0.025` sparsity and best test `0.5570`.
+- Keeping `theta_lr_scale=0.3` and freezing later worked better for seeds 42 and 43. `theta_freeze_epoch=64` preserves the seed 43 best test `0.5795`, raises final test from the non-freeze `0.5252` to `0.5663`, and keeps post-freeze `theta_grad=0` with deterministic topology.
+- Seed 42 and seed 43 freeze64 checkpoints converge to the same useful regime: density `~0.058~0.060`, `|rec|/|input| ~0.32`, mean firing `~0.08`, active neurons `>0.05` around `255/500`, and cosine mean/min around `0.96/0.92`.
+- Seed 44 with the same freeze64 recipe reaches only `0.5477`, below the no-recurrence baseline `0.5490`. Scheduled theta freeze therefore stabilizes late training but does not by itself solve seed-sensitive topology quality.
+- The seed 44 freeze64 checkpoint still opens the topology to density `0.0587`, keeps `w_raw` unclamped, and produces nontrivial recurrent current (`|rec|/|input|=0.2809`). Its failure is not caused by under-opening or recurrent-current absence.
+- Compared with the successful seed 42/43 freeze64 checkpoints, seed 44 has fewer active neurons above `0.05` (`220/500`) and weaker class separation by cosine summary (`0.9706/0.9426`). The current failure hypothesis moves back toward edge placement and representation geometry, not merely training stability.
+
+Same-density random control result:
+
+```bash
+python scripts/train_lsm.py configs/lsm_shd_baseline.yaml \
+  liquid.recurrent_mode=random_sparse \
+  liquid.recurrent_sparsity=0.041 \
+  liquid.w_raw_init_mean=-2.25 \
+  liquid.w_raw_max=-2.0 \
+  liquid.train_w_raw=false \
+  experiment_name=lsm_shd_rs_p0041_w225_freeze_w
+```
+
+This run reached best test accuracy `0.5216`, so matching learned C seed 43 density with random sparse topology is not enough. This strengthens the interpretation that learned edge placement matters.
+
+The `theta=-0.8,std=0.3` run was also rejected:
+
+```bash
+python scripts/train_lsm.py configs/lsm_shd_baseline.yaml \
+  liquid.recurrent_mode=learned \
+  liquid.train_w_raw=false \
+  liquid.w_raw_init_mean=-2.25 \
+  liquid.w_raw_max=-2.0 \
+  liquid.theta_init_mean=-0.8 \
+  liquid.theta_init_std=0.3 \
+  seed=42 \
+  experiment_name=lsm_shd_C_freeze_w_theta080_std030_w225
+```
+
+It reached best test accuracy `0.5389`. This setting was not density-preserving: for `std=0.3`, preserving the initial hard density of `theta=-1.0,std=0.5` requires approximately `theta_init_mean=-0.6`, while targeting a more aggressive `4~6%` initial hard density requires approximately `theta_init_mean=-0.5`.
+
+Current stabilization candidate: keep `theta=-1.0,std=0.5,w=-2.25,freeze_w`, `tau_end=0.2`, and `theta_lr_scale=0.3`, then set `liquid.theta_freeze_epoch=64`. This freezes theta and disables epoch-level Gumbel mask resampling from the start of epoch 64. On seeds 42 and 43, it preserves the best-test window (`0.5764` and `0.5795`) and prevents large late collapse. On seed 44, however, the same recipe reaches only `0.5477`, so freeze64 should be treated as a stabilization candidate, not as a robustness fix.
+
+Seed 44 freeze64 command:
+
+```bash
+python scripts/train_lsm.py configs/lsm_shd_baseline.yaml \
+  liquid.recurrent_mode=learned \
+  liquid.train_w_raw=false \
+  liquid.w_raw_init_mean=-2.25 \
+  liquid.w_raw_max=-2.0 \
+  liquid.theta_init_mean=-1.0 \
+  liquid.theta_init_std=0.5 \
+  tau_end=0.2 \
+  liquid.theta_lr_scale=0.3 \
+  liquid.theta_freeze_epoch=64 \
+  seed=44 \
+  experiment_name=lsm_shd_C_freeze_w_theta100_w225_tau020_tlr030_freeze64_s44
+```
+
+Seed 44 freeze64 diagnostic:
+
+| Metric | Value |
+|--------|------:|
+| best test acc | 0.5477 |
+| final test acc | 0.5287 |
+| density | 0.0587 |
+| active edges | 14680 / 250000 |
+| `|rec|/|input|` | 0.2809 |
+| `|exc rec|/|input|` | 0.2319 |
+| `|inh rec|/|input|` | 0.1696 |
+| firing mean / max | 0.0719 / 0.8200 |
+| active neurons `>0.01` | 388 / 500 |
+| active neurons `>0.05` | 220 / 500 |
+| cosine mean / min / max | 0.9706 / 0.9426 / 0.9866 |
+| clamped fraction | 0.0000 |
+
+Next check: do not assume freeze64 solves seed instability. Either run seed 45 with freeze64 to complete the seed check, or analyze learned edge placement in seed 44 against seeds 42/43 before trying another broad hyperparameter sweep.
 
 ## Recent Diagnostic Summary
 

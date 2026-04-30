@@ -54,6 +54,7 @@ threshold_min: float = 0.8
 threshold_max: float = 1.5
 theta_warmup_epochs: int = 0
 theta_lr_scale: float = 0.1
+theta_freeze_epoch: int = 0
 noise_scale: float = 0.1
 ```
 
@@ -305,11 +306,11 @@ python scripts/diagnose_liquid.py configs/lsm_shd_baseline.yaml liquid.n_liquid=
 | 5. random_sparse p-sweep 재현 | 완료 | `p=0.02,w=-2.25` 54.55%, `p=0.03,w=-2.5` 52.69%; 둘 다 reject |
 | 6. 원인 분리 | 완료 | `w_raw` 학습 포화가 주요 실패 모드, density 증가 시 inhibitory suppression 악화 |
 | 7. 최소 세팅 탐색 | 완료 | `p=0.02,w=-2.25,train_w_raw=false`가 best random recurrent지만 baseline 수준 |
-| 8. learned topology C 재시도 | 다음 단계 | `train_w_raw=false`로 먼저 시도 |
-| 9. analysis 도구 추가 | 미완료 | learned topology 구조 분석 |
-| 10. predictive coding loss 검토 | 미완료 | LSM baseline 이후 검토 |
+| 8. learned topology C 재시도 | 진행 중 | `theta_init_mean=-1.0`, `w_raw_init_mean=-2.25`, `train_w_raw=false`; seed 42/43 성공, seed 44 실패 |
+| 9. analysis 도구 추가 | 진행 중 | learned topology 구조 분석 및 checkpoint selection |
+| 10. predictive coding loss 검토 | 다음 단계 | learned topology seed sensitivity 완화용 local auxiliary signal |
 
-현재는 learned C 학습보다 원인 분리가 우선이다.
+현재는 learned C 성공 설정의 seed 민감도 원인 분리와 동일 density random baseline 비교가 우선이며, seed 44 freeze64 결과까지 반영하면 다음 질문은 "좋은 topology를 언제 고정할 것인가"와 "topology 형성을 돕는 local signal이 필요한가"로 이동한다.
 
 ### Step 1: No-recurrence baseline 재현
 
@@ -527,7 +528,11 @@ python scripts/train_lsm.py configs/lsm_shd_baseline.yaml \
 python scripts/train_lsm.py configs/lsm_shd_baseline.yaml \
   liquid.recurrent_mode=learned \
   liquid.train_w_raw=false \
-  experiment_name=lsm_shd_C_freeze_w
+  liquid.w_raw_init_mean=-2.25 \
+  liquid.w_raw_max=-2.0 \
+  liquid.theta_init_mean=-1.0 \
+  liquid.theta_init_std=0.5 \
+  experiment_name=lsm_shd_C_freeze_w_theta100_w225
 ```
 
 목표:
@@ -537,12 +542,114 @@ python scripts/train_lsm.py configs/lsm_shd_baseline.yaml \
 - `p=0.02,w=-2.25,train_w_raw=false`가 보여준 baseline 수준 성능을 learned topology가 넘어서는지 확인
 - learned topology가 edge placement를 개선하되 recurrent magnitude saturation을 피할 수 있는지 확인
 
-고정 warmup C를 먼저 기준선으로 삼고, 그 다음 dynamic warmup ablation을 비교한다.
+결과:
+
+| Run | Best test acc | 판단 |
+|-----|--------------:|------|
+| learned C, default `theta_init_mean=-2.2`, `train_w_raw=false` | 0.5433 | hard density `0.0006`, reject |
+| learned C, `theta=-1.0,std=0.5,w=-2.25,freeze_w`, seed 42 | 0.5689 | success |
+| learned C, same setting, seed 43 | 0.5751 | best tau=0.05 run |
+| learned C, same setting, seed 44 | 0.5331 | failure |
+| learned C, same setting, seed 45 | 0.5587 | success, late theta-grad instability |
+| learned C, same setting, `tau_end=0.2`, seed 42 | 0.5782 | tau-stabilized |
+| learned C, same setting, `tau_end=0.2`, seed 43 | 0.5795 | current best, late theta-grad still spikes |
+| learned C, same setting, `tau_end=0.2`, `theta_lr_scale=0.05`, seed 43 | 0.5530 | stable but topology under-opens |
+| learned C, same setting, `tau_end=0.2`, `theta_lr_scale=0.3`, `theta_freeze_epoch=64`, seed 42 | 0.5764 | peak mostly preserved |
+| learned C, same setting, `tau_end=0.2`, `theta_lr_scale=0.3`, `theta_freeze_epoch=64`, seed 43 | 0.5795 | current stable candidate |
+| learned C, `theta=-1.2,std=0.5,w=-2.25,freeze_w` | 0.5442 | reject |
+| learned C, `theta=-0.8,std=0.3,w=-2.25,freeze_w` | 0.5389 | reject; not density-preserving |
+| random sparse, `p=0.041,w=-2.25,freeze_w` | 0.5216 | same-density random control failed |
+
+성공 run 진단:
+
+| 항목 | 값 |
+|------|---:|
+| experiment dir | `experiments/lsm_shd_C_freeze_w_theta100_w225_260429122610` |
+| density | 0.0578 |
+| active edges | 14457 / 250000 |
+| `\|rec\|/\|input\|` | 0.3261 |
+| firing mean / max | 0.0804 / 0.7800 |
+| active neurons `>0.05` | 257 / 500 |
+| cosine mean / min | 0.9556 / 0.9142 |
+| clamped fraction | 0.0000 |
+
+판단:
+
+- learned topology 자체는 성공 가능성이 있다.
+- 이전 C 실패는 `theta_init_mean=-2.2`로 인한 hard mask under-activation이 주원인이다.
+- `train_w_raw=false`로 recurrent magnitude saturation을 막고, `theta_init_mean=-1.0,std=0.5`로 learned topology가 hard density를 학습하게 두는 것이 현재 최선이다.
+- `theta=-1.0,std=0.5`의 초기 hard density는 약 `2.3%`이며, 성공 checkpoint에서 학습 후 `0.04~0.06` 범위로 올라간다.
+- 다음은 seed별 topology 구조 분석과 tau/topology gradient 안정화다.
+
+Seed 재현성 결과:
+
+| Seed | Best test acc | Density | `\|rec\|/\|input\|` | Firing mean/max | Active neurons `>0.05` | Cosine mean/min | 판단 |
+|------|--------------:|--------:|--------------------:|----------------:|------------------------:|----------------:|------|
+| 42 | 0.5689 | 0.0578 | 0.3261 | 0.0804 / 0.7800 | 257 / 500 | 0.9556 / 0.9142 | 성공 |
+| 43 | 0.5751 | 0.0409 | 0.1788 | 0.0625 / 0.6800 | 194 / 500 | 0.9724 / 0.9430 | best tau=0.05 run |
+| 44 | 0.5331 | 0.0581 | 0.2756 | 0.0712 / 0.8400 | 214 / 500 | 0.9707 / 0.9421 | 실패 |
+| 45 | 0.5587 | n/a | n/a | 0.091 / 0.563 late | n/a | n/a | 성공, 후반 theta-grad 불안정 |
+| 42, `tau_end=0.2` | 0.5782 | 0.0610 late | n/a | 0.083 / 0.678 final | n/a | n/a | theta-grad 안정 |
+| 43, `tau_end=0.2` | 0.5795 | 0.0620 final | n/a | 0.100 / 0.660 final | n/a | n/a | current best, 후반 theta-grad spike |
+| 42, `tau_end=0.2`, `theta_freeze_epoch=64` | 0.5764 | 0.0579 | 0.3315 | 0.0815 / 0.7800 | 255 / 500 | 0.9594 / 0.9179 | peak 거의 보존 |
+| 43, `tau_end=0.2`, `theta_freeze_epoch=64` | 0.5795 | 0.0597 | 0.3177 | 0.0776 / 0.8000 | 254 / 500 | 0.9573 / 0.9214 | current stable candidate |
+
+Seed 진단 해석:
+
+- Learned topology는 seed 42/43/45에서 no-recurrence baseline을 넘었다.
+- Seed 42-45 best accuracy의 중앙값은 `0.5638`로, no-recurrence baseline `0.5490`보다 `+0.0148` 높다.
+- Seed 44는 density와 recurrent current가 더 큰데도 실패했다. 따라서 실패 원인은 recurrent 부족이 아니라 edge placement, recurrent current scale, 또는 tau annealing 후반의 topology instability 후보에 가깝다.
+- Seed 43은 더 낮은 density와 더 낮은 recurrent current에서 최고 성능을 냈다.
+- Class mean-rate cosine만으로는 실제 readout 성능을 충분히 설명하지 못한다. seed 43/44의 cosine summary는 유사하지만 test accuracy 차이는 크다.
+- 다음 tuning 방향은 density를 더 키우는 것이 아니라 `0.04~0.06` 범위에서 recurrent current와 topology gradient를 안정화하는 것이다.
+- `tau_end=0.2`는 seed 42를 `0.5689 -> 0.5782`, seed 43을 `0.5751 -> 0.5795`로 개선했다. 따라서 `tau_end=0.2`를 현재 기본 후보로 둔다.
+- 단, seed 43에서는 `tau=0.2`에서도 후반 `theta_grad_norm > 50` spike가 반복됐다. tau 하한을 올리는 것만으로는 topology gradient instability가 완전히 해결되지 않는다.
+- `liquid.theta_lr_scale=0.05`는 theta-gradient spike를 제거했지만 sparsity가 `~0.023`에 머물러 topology가 거의 열리지 않았고, best test도 `0.5530`으로 하락했다. `theta_lr_scale=0.075`도 중반까지 sparsity가 `~0.024`에 머물렀으므로 단순 theta LR 축소는 너무 보수적이다.
+- `theta_lr_scale=0.1`도 scheduled freeze와 함께 쓰면 under-opened 상태가 된다. `theta_freeze_epoch=60` run은 sparsity가 `~0.025`에 머물고 best test `0.5570`에 그쳤다.
+- `theta_lr_scale=0.3`을 유지하고 `theta_freeze_epoch=64`를 적용하면 topology가 `~0.060`까지 열린 뒤 deterministic하게 고정된다. Seed 43은 best `0.5795`를 유지하고 final test가 non-freeze `0.5252`에서 `0.5663`으로 개선됐다. Seed 42도 best `0.5764`로 non-freeze peak `0.5782`를 거의 보존했다.
+- Seed 42/43 freeze64는 density `~0.058~0.060`, `|rec|/|input| ~0.32`, firing mean `~0.08`, active neurons `>0.05` `~255/500`, cosine mean/min `~0.96/~0.92`로 비슷한 topology regime을 재현했다.
+
+Seed 44 freeze64 check:
+
+| Seed | Best test acc | Density | `\|rec\|/\|input\|` | Firing mean/max | Active neurons `>0.05` | Cosine mean/min | 판단 |
+|------|--------------:|--------:|--------------------:|----------------:|------------------------:|----------------:|------|
+| 44, freeze64 | 0.5477 | 0.0587 | 0.2809 | 0.0719 / 0.8200 | 220 / 500 | 0.9706 / 0.9426 | freeze stabilizes but does not beat baseline |
+
+- Freeze64 improves seed 44 relative to the earlier 0.5331 run, so late instability mattered.
+- Freeze64 still does not cross the 0.5490 no-recurrence baseline, so the remaining problem is not only late collapse.
+- The failure is more consistent with unfavorable topology formation or edge placement than with density shortage.
+- At this point, the main open question is whether topology selection or a local auxiliary objective can recover the remaining gap.
+
+고정 warmup + `tau_end=0.2` C의 현재 안정화 기준은 `theta_lr_scale=0.3`, `theta_freeze_epoch=64`다.
 
 ```bash
 python scripts/train_lsm.py configs/lsm_shd_baseline.yaml \
   liquid.recurrent_mode=learned \
   liquid.train_w_raw=false \
+  liquid.w_raw_init_mean=-2.25 \
+  liquid.w_raw_max=-2.0 \
+  liquid.theta_init_mean=-1.0 \
+  liquid.theta_init_std=0.5 \
+  tau_end=0.2 \
+  seed=43 \
+  liquid.theta_lr_scale=0.3 \
+  liquid.theta_freeze_epoch=64 \
+  experiment_name=lsm_shd_C_freeze_w_theta100_w225_tau020_tlr030_freeze64_s43
+```
+
+다음은 seed 44에 같은 freeze64 설정을 적용해 seed-sensitive failure를 완화하는지 확인한다. 이후 필요하면 `theta_freeze_epoch=60/68` timing ablation을 비교한다.
+
+Dynamic warmup은 후순위 ablation으로 유지한다.
+
+```bash
+python scripts/train_lsm.py configs/lsm_shd_baseline.yaml \
+  liquid.recurrent_mode=learned \
+  liquid.train_w_raw=false \
+  liquid.w_raw_init_mean=-2.25 \
+  liquid.w_raw_max=-2.0 \
+  liquid.theta_init_mean=-1.0 \
+  liquid.theta_init_std=0.5 \
+  tau_end=0.2 \
   liquid.theta_warmup_dynamic=true \
   liquid.theta_warmup_strategy=slope \
   liquid.theta_warmup_window=3 \
@@ -555,17 +662,25 @@ python scripts/train_lsm.py configs/lsm_shd_baseline.yaml \
 
 ### Step 6: 동일 희소성 B*
 
-C의 최종 `sparsity`를 확인한 뒤:
+Seed 43의 best checkpoint density와 맞춘 `p ~= 0.041` random control은 실패했다.
 
 ```bash
 python scripts/train_lsm.py configs/lsm_shd_baseline.yaml \
   liquid.recurrent_mode=random_sparse \
-  liquid.recurrent_sparsity=<C_final_sparsity>
+  liquid.recurrent_sparsity=0.041 \
+  liquid.w_raw_init_mean=-2.25 \
+  liquid.w_raw_max=-2.0 \
+  liquid.train_w_raw=false \
+  experiment_name=lsm_shd_rs_p0041_w225_freeze_w
 ```
+
+결과: best test accuracy `0.5216`.
 
 목표:
 
 - 연결 수가 아니라 연결 위치의 효과를 분리
+- 같은 density에서 random sparse가 크게 실패했으므로 learned C의 이득은 density만으로 설명되지 않는다.
+- 필요하면 seed 42/44 수준의 denser control인 `p=0.058`도 추가 실행할 수 있지만, 현재 우선순위는 tau/topology gradient 안정화다.
 
 ### Step 7: A와 D
 
@@ -579,13 +694,45 @@ python scripts/train_lsm.py configs/lsm_shd_baseline.yaml liquid.recurrent_mode=
 - A -> B: recurrent weight 학습의 효과
 - D -> C: hard threshold 대비 Gumbel/STE + annealing의 효과
 
+### Step 8: Topology selection and local auxiliary signal
+
+The seed-44 freeze64 result shifts the next step away from broad tuning.
+
+Priority:
+
+1. compare multiple candidate freeze epochs or checkpointed topologies,
+2. fine-tune only the non-topology parameters on those candidates,
+3. if the gap remains seed-sensitive, add a small local next-state prediction auxiliary loss.
+
+Why this matters:
+
+- The learned topology already beats the baseline on some seeds.
+- The remaining problem is not recurrence in general, but unstable topology formation.
+- A local prediction objective is a cleaner next experiment than a larger hyperparameter sweep.
+
+Minimal auxiliary-loss sketch:
+
+```text
+liquid state at t -> small predictor -> t+1 liquid state / filtered spike / membrane-like target
+```
+
+Recommended comparison set:
+
+| Condition | Purpose |
+|-----------|---------|
+| learned C | current reference |
+| learned C + prediction auxiliary loss | test stability of topology formation |
+| random_sparse + prediction auxiliary loss | separate topology-specific gain from generic regularization |
+| no recurrence + prediction auxiliary loss | check whether the auxiliary loss alone explains the improvement |
+
 ---
 
 ## 5. 남은 구현/정리 작업
 
 우선순위 높은 항목:
 
-- 원인 분리 ablation 결과를 표로 고정.
+- learned C seed 42/43/44/45의 topology 구조 차이 분석.
+- tau annealing 후반 `theta_grad_norm` 폭주 완화 실험 설계.
 - SHD 직접 HDF5 fallback 추가 여부 결정. 현재는 Tonic 의존.
 - `src/lsm/model.py`의 import 중 `gumbel_sigmoid`, `gumbel_sigmoid_ste`, `List`는 현재 직접 사용되지 않는다. 정리 가능.
 - `InputProjection` 설명을 모든 문서/코드 주석에서 mixed-sign random projection으로 통일.
@@ -620,11 +767,12 @@ python scripts/train_lsm.py configs/lsm_shd_baseline.yaml liquid.recurrent_mode=
 - [x] LSM용 `scripts/evaluate.py` 경로 수정
 - [x] `liquid.train_w_raw` ablation 옵션 추가
 - [x] recurrent E/I balance 진단 출력 추가
+- [x] learned C seed 42/43/44/45 1차 재현성 확인
+- [x] same-density random sparse control `p=0.041` 실행
 
 남음:
 
 - [ ] HDF5 fallback 필요 여부 결정
 - [ ] B/B*/C/D/A 비교 실험 실행 및 표 정리
-- [ ] `w_raw` freeze / weak cap 원인 분리 ablation 실행
 - [ ] learned topology 구조 분석 코드 추가
-- [ ] 문서의 실험 결과 섹션을 실제 LSM 결과로 갱신
+- [ ] tau/topology gradient 안정화 ablation 실행

@@ -258,6 +258,18 @@ commitment loss가 필요한 이유: L_sparse(0으로 밀기)와 L_CE(연결 유
 | 조건 | Test accuracy |
 |------|--------------|
 | Fashion-MNIST 처음부터 학습 | 86.79% |
+
+---
+
+## 5. 현재 LSM/SHD 상태 업데이트
+
+이제 SHD 쪽 결론은 다음처럼 정리하는 것이 가장 안전하다.
+
+- `random_sparse` recurrence는 현재 구조에서 no-recurrence baseline을 안정적으로 넘지 못한다.
+- learned topology C는 일부 seed에서 baseline을 넘는 성능을 보였고, 따라서 구조 학습 자체는 유효하다.
+- 하지만 seed 44 freeze64 결과가 `0.5477`로 baseline `0.5490`을 넘지 못했기 때문에, 현재 recipe를 robust improvement라고 부를 수는 없다.
+- 남은 문제는 late collapse만이 아니라 topology formation / edge placement의 seed sensitivity다.
+- 다음 실험은 broad hyperparameter sweep보다 topology selection, theta schedule shaping, dynamics-aware regularization, 그리고 필요하면 local prediction auxiliary loss 쪽이 더 맞다.
 | MNIST 토폴로지 이식 후 weight만 fine-tuning | ~51% |
 
 **핵심 발견**: 갭이 35% 이상. 두 가지를 동시에 증명:
