@@ -120,10 +120,11 @@ class LiquidLayer(nn.Module):
 
         # --- fixed mask for random_sparse / fixed modes ---
         if mode in ("random_sparse", "fixed"):
+            # Generate a sparse binary mask with a density of target_sparsity
             mask = (torch.rand(n_liquid, n_liquid) < target_sparsity).float()
             mask = (
                 mask * self_conn_mask
-            )  # respect self-connection setting / torch tensor * means element wise mul.
+            )  # respect self-connection setting & torch tensor * means element wise mul.
             self.register_buffer("fixed_mask", mask)
         else:
             self.register_buffer("fixed_mask", None)
@@ -186,7 +187,11 @@ class LiquidLayer(nn.Module):
         elif self.mode in ("random_sparse", "fixed"):
             self.current_mask = self.fixed_mask
         elif self.mode == "grad_r":
-            self.current_mask = (self.theta > 0).float()
+            if self.training and self.theta.requires_grad:
+                # STE: forward=hard threshold, backward=sigmoid gradient
+                self.current_mask = sigmoid_ste(self.theta)
+            else:
+                self.current_mask = (self.theta > 0).float()
         else:
             raise ValueError(f"Unknown liquid mode: {self.mode}")
         return self.current_mask

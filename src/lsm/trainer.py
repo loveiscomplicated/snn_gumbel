@@ -158,6 +158,8 @@ def train(cfg: Config) -> tuple:
     # Phase 2: unfreeze theta to learn topology via Gumbel-STE.
     warmup = cfg.liquid.theta_warmup_epochs
     is_learned = cfg.liquid.recurrent_mode == "learned"
+    # grad_r also has a trainable theta but skips Gumbel noise / warmup logic
+    has_theta = cfg.liquid.recurrent_mode in ("learned", "grad_r")
     dynamic_warmup = is_learned and cfg.liquid.theta_warmup_dynamic and warmup > 0
     warmup_min_epochs = min(max(cfg.liquid.theta_warmup_min_epochs, 1), warmup)
     warmup_patience = max(cfg.liquid.theta_warmup_patience, 1)
@@ -165,6 +167,7 @@ def train(cfg: Config) -> tuple:
     warmup_metric = cfg.liquid.theta_warmup_metric
     warmup_strategy = cfg.liquid.theta_warmup_strategy
     warmup_window = max(cfg.liquid.theta_warmup_window, 2)
+    theta_freeze_epoch = max(cfg.liquid.theta_freeze_epoch, 0)
     warmup_metric_best: float | None = None
     warmup_slow_count = 0
     warmup_scores: list[float] = []
@@ -184,7 +187,8 @@ def train(cfg: Config) -> tuple:
 
     # Separate optimizer groups so theta gradient cannot suppress w_raw updates.
     # Independent per-group clipping is applied before optimizer.step().
-    if is_learned:
+    # Both "learned" and "grad_r" get a dedicated theta param group for fair comparison.
+    if has_theta:
         theta_params = [model.liquid.theta]
         other_params = [p for n, p in model.named_parameters() if n != "liquid.theta"]
         param_groups = [
@@ -220,6 +224,15 @@ def train(cfg: Config) -> tuple:
                 tqdm.write(
                     f"  Phase 2: theta unfrozen at epoch {epoch+1}, topology learning begins"
                 )
+            if is_learned and theta_freeze_epoch > 0 and epoch + 1 == theta_freeze_epoch:
+                model.liquid.theta.requires_grad_(False)
+                model.liquid.unlock_epoch_mask()
+                tqdm.write(
+                    f"  Theta frozen at epoch {epoch+1}; topology fixed deterministically"
+                )
+            theta_frozen_by_schedule = (
+                is_learned and theta_freeze_epoch > 0 and epoch + 1 >= theta_freeze_epoch
+            )
 
             tau = get_tau(epoch, cfg, warmup_epochs=warmup)
             phase_label = "P1" if (is_learned and epoch < warmup) else "P2"
@@ -228,7 +241,7 @@ def train(cfg: Config) -> tuple:
             # Phase 2: sample Gumbel noise ONCE per epoch, lock mask for all batches.
             # This keeps topology stable within an epoch (BPTT safe) while allowing
             # exploration across epochs (OFF edges get a chance to be ON → w_raw learns).
-            if is_learned and epoch >= warmup:
+            if is_learned and epoch >= warmup and not theta_frozen_by_schedule:
                 eps = torch.rand_like(model.liquid.theta).clamp(1e-6, 1 - 1e-6)
                 epoch_noise = (torch.log(eps) - torch.log(1.0 - eps)).to(device)
                 model.liquid.sample_epoch_mask(tau=tau, epoch_noise=epoch_noise)
@@ -268,7 +281,7 @@ def train(cfg: Config) -> tuple:
                 #          Adam to normalize; smaller than clip_norm_w to enforce time-
                 #          scale separation: topology changes slowly, weights adapt fast)
                 #   other: clip_norm_w (large enough for recurrent BPTT norms ~10^2–10^4)
-                if is_learned and theta_params:
+                if has_theta and theta_params:
                     torch.nn.utils.clip_grad_norm_(
                         theta_params, max_norm=clip_norm_theta
                     )
@@ -330,6 +343,8 @@ def train(cfg: Config) -> tuple:
                 warmup_epoch=warmup if is_learned else 0,
                 warmup_dynamic=dynamic_warmup,
                 warmup_strategy=warmup_strategy if dynamic_warmup else "",
+                theta_freeze_epoch=theta_freeze_epoch if is_learned else 0,
+                theta_frozen=theta_frozen_by_schedule,
                 warmup_metric_value=None,
                 warmup_slope=None,
                 warmup_slow_count=0,
@@ -361,7 +376,7 @@ def train(cfg: Config) -> tuple:
                 tqdm.write(
                     f"  ⚠ grad_norm={avg_grad_norm:.1f} — consider reducing lr or clip_max_norm"
                 )
-            if is_learned and avg_theta_grad > 50:
+            if has_theta and avg_theta_grad > 50:
                 tqdm.write(
                     f"  ⚠ theta_grad={avg_theta_grad:.1f} — topology gradient exploding (tau={tau:.3f})"
                 )

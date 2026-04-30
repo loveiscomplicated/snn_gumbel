@@ -80,6 +80,9 @@ class LiquidConfig:
     theta_warmup_min_delta: float = 0.002  # P1 metric 개선으로 인정할 최소 변화량
     theta_warmup_metric: str = "test_acc"  # test_acc | train_acc | train_loss
     theta_lr_scale: float = 0.1  # theta LR = base_lr × theta_lr_scale
+    theta_freeze_epoch: int = (
+        0  # learned mode에서 해당 epoch 시작 시 theta freeze (0 = 비활성화)
+    )
     noise_scale: float = (
         0.1  # 에폭 단위 Gumbel noise 크기 (0=결정적, 1=표준 Gumbel std≈1.81)
     )
