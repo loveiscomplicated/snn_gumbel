@@ -275,9 +275,9 @@ SHD LSM 실험의 중심 결론은 다음처럼 업데이트한다.
 
 - `random_sparse` recurrence는 현재 구조에서 no-recurrence baseline을 안정적으로 넘지 못한다.
 - same-density random control도 실패했으므로, 단순한 recurrent density만으로는 성능 향상을 설명할 수 없다.
-- Gumbel learned C는 seed 42/43/45에서 baseline을 넘었고, 중앙값 기준으로 구조 학습의 가능성을 보였다.
-- 그러나 seed 44에서는 original learned C가 `0.5331`, learned C freeze64가 `0.5477`에 머물러, Gumbel recipe는 아직 robust하지 않다.
-- 수정된 Grad R-STE는 강한 경쟁 baseline이 되었고, adaptive theta freeze를 붙였을 때 현재 가장 강한 recipe가 되었다.
+- Gumbel learned C는 seed 42/43/45에서 baseline을 넘었지만, seed 44에서는 original `0.5331`, freeze64 `0.5477`에 머물렀다.
+- corrected Grad R-STE + adaptive freeze는 강한 4-seed baseline이 되었고, seed 44를 `0.5866`까지 회복했다.
+- 최신 `learned_lowrank`는 edge-wise theta 대신 latent neuron embedding으로 topology logits를 만들며, seed 42/43/44에서 모두 강한 성능을 냈고 seed 44에서 `0.6444`를 기록했다.
 
 현재 핵심 결과:
 
@@ -287,31 +287,24 @@ SHD LSM 실험의 중심 결론은 다음처럼 업데이트한다.
 | learned C original | 0.5689 | 0.5751 | 0.5331 | 0.5587 | 0.5590 | 0.5638 |
 | learned C tau0.2/freeze64 | 0.5764 | 0.5795 | 0.5477 | n/a | n/a | n/a |
 | Grad R-STE non-freeze | 0.6038 | 0.5711 | 0.5587 | 0.5486 | 0.5706 | 0.5649 |
-| **Grad R-STE + adaptive freeze** | **0.6051** | **0.5808** | **0.5866** | **0.5486** | **0.5803** | **0.5837** |
-
-Adaptive freeze details:
-
-| Seed | Freeze trigger | Best test acc | 해석 |
-|---:|---|---:|---|
-| 42 | epoch 39, `adaptive_grad>30.0` for 2 epochs | 0.6051 | current best |
-| 43 | epoch 33, `adaptive_grad>30.0` for 2 epochs | 0.5808 | strong success |
-| 44 | epoch 50, `adaptive_grad>30.0` for 2 epochs | 0.5866 | Gumbel 실패 seed rescue |
-| 45 | not triggered | 0.5486 | bad-or-stable topology 후보 |
+| Grad R-STE + adaptive freeze | 0.6051 | 0.5808 | 0.5866 | 0.5486 | 0.5803 | 0.5837 |
+| learned_lowrank r16, no-freeze/tau0.05 | 0.5941 | 0.5861 | **0.6444** | n/a | **0.6082** | **0.5941** |
+| learned_lowrank r16, ramp10+bias0.05+tau0.2+freeze64 | **0.5989** | n/a | n/a | n/a | n/a | n/a |
 
 해석:
 
-- seed 44 결과가 가장 중요하다. seed 44는 Gumbel learned C에서는 실패했지만, Grad R-STE + adaptive freeze에서는 `0.5866`까지 올라갔다.
-- 따라서 seed 44 자체가 나쁜 seed라기보다, Gumbel-Sigmoid topology formation 절차가 해당 seed에서 좋은 edge placement를 만들지 못한 것으로 보는 것이 더 자연스럽다.
-- 현재 가장 안전한 중심 주장은 “Gumbel-Sigmoid가 항상 우월하다”가 아니라 **gradient-based recurrent topology learning이 중요하다**이다.
-- 그 안에서 현재 가장 강한 recipe는 **Grad R-STE + adaptive theta freeze**다.
-- seed 45는 adaptive freeze가 발동하지 않았고 baseline 근처에 머물렀다. 이는 gradient explosion이 아니라 bad-but-stable topology formation일 수 있다.
+- seed 44 결과가 가장 중요하다. seed 44는 edge-wise Gumbel learned C에서는 실패했지만, Grad R-STE + adaptive freeze에서는 `0.5866`, learned_lowrank에서는 `0.6444`까지 올라갔다.
+- 따라서 seed 44는 “나쁜 데이터 seed”가 아니라, topology formation mechanism에 민감한 seed였다고 보는 것이 타당하다.
+- Grad R-STE + adaptive freeze는 현재 가장 안전한 4-seed stabilized baseline이다.
+- learned_lowrank는 아직 seed 45와 stabilized multi-seed가 부족하지만, 현재까지는 가장 강한 topology parameterization 후보이다.
+- learned_lowrank의 핵심은 edge를 독립 파라미터로 보지 않고, source/destination neuron embedding의 role interaction으로 edge logit field를 생성한다는 점이다.
 
 다음 단계:
 
-- Grad R-STE + adaptive freeze를 current strongest baseline으로 고정한다.
-- 여기에 small local prediction auxiliary loss를 추가한다.
-- 첫 목표는 seed 45 개선 여부다. seed 45가 개선되면 prediction auxiliary loss는 gradient 폭주 억제가 아니라 topology quality 개선 신호로 해석할 수 있다.
-- 이후 seed 42/43/44에서 성능 보존 여부를 확인한다.
+- learned_lowrank seed 45를 먼저 실행해 4-seed robustness를 확인한다.
+- seed 43/44에 `ramp10 + theta_bias_lr_scale=0.05 + tau_end=0.2 + freeze64` stabilized setting을 적용해 peak 성능이 보존되는지 확인한다.
+- same-density random control을 `p≈0.039`, `p≈0.046`, `p≈0.060`에서 추가해 density-only explanation을 더 강하게 배제한다.
+- topology 구조 분석은 edge-wise learned C, Grad R-STE, learned_lowrank를 함께 비교해야 한다.
 
 
 ## 5. 누적된 주장의 구조

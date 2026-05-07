@@ -755,7 +755,7 @@ Comparison against earlier topology learners:
 
 Interpretation:
 
-- Grad R-STE + adaptive freeze is the current strongest LSM topology-learning recipe.
+- Grad R-STE + adaptive freeze is the strongest completed 4-seed stabilized baseline before learned_lowrank.
 - The adaptive trigger improved seed 42 from `0.6038` to `0.6051`, seed 43 from `0.5711` to `0.5808`, and seed 44 from `0.5587` to `0.5866`.
 - The seed-44 rescue is especially important: the same seed failed under Gumbel learned C (`0.5331`) and remained below baseline under learned C freeze64 (`0.5477`), but Grad R-STE + adaptive freeze reached `0.5866`.
 - The result weakens the claim that Gumbel-Sigmoid is empirically superior to hard-threshold topology learning.
@@ -764,11 +764,74 @@ Interpretation:
 
 Updated next step:
 
-- Treat **Grad R-STE + adaptive freeze** as the current strongest baseline.
-- Move to **Grad R-STE + adaptive freeze + prediction auxiliary loss**.
+- Treat **Grad R-STE + adaptive freeze** as the strongest completed 4-seed stabilized baseline, while learned_lowrank becomes the current strongest candidate.
+- Move priority to **learned_lowrank seed 45 and stabilized learned_lowrank seed 43/44** before returning to prediction auxiliary loss.
 - First target seed 45, because it is the remaining bad-or-stable case that gradient-triggered freeze did not catch.
 - Then confirm that prediction auxiliary loss does not degrade strong seeds 42/43/44.
 
+
+
+## Learned Low-Rank Latent Topology Result
+
+`learned_lowrank` replaces the dense edge-wise topology parameter `theta ∈ R^{N×N}` with latent source/destination neuron embeddings. There is no trainable dense `self.theta` parameter in this mode. The effective topology logit matrix is materialized as:
+
+```text
+topology_logit = src_embed @ dst_embed.T + theta_bias
+```
+
+Therefore log keys such as `topology_logit_mean/std` describe the materialized edge-logit field, while `topology_grad_pre_clip/post_clip` aggregates gradients over `src_embed`, `dst_embed`, and `theta_bias`. Legacy `theta_*` keys may still exist for compatibility, but in `learned_lowrank` they should not be interpreted as dense `theta.grad`.
+
+Implementation/logging updates:
+
+- Console label changed from `theta`/`theta_grad` to `logit`/`topo_grad`.
+- JSONL logs include `topology_logit_mean/std`, `topology_logit_p05/p95`, `topology_sigmoid_mean/std`, `hard_density`, `topology_grad_pre_clip`, `topology_grad_post_clip`, `src_grad_*`, `dst_grad_*`, `bias_grad_*`, `topology_lr`, and `theta_bias_lr`.
+- `theta_lr_ramp_epochs` and `theta_bias_lr_scale` are wired for low-rank stabilization.
+- `learned_lowrank` P1 warmup freezes all topology parameters: `src_embed`, `dst_embed`, and `theta_bias`.
+
+### Results
+
+| Run | Seed | Setting | Best test accuracy | Final test accuracy | Key dynamics | Decision |
+|-----|-----:|---------|-------------------:|-------------------:|--------------|----------|
+| learned_lowrank r16 | 42 | no-freeze, default tau_end≈0.05 | 0.5941 | 0.5835 | density≈0.073, firing≈0.197/0.798 | strong success |
+| learned_lowrank r16 | 43 | no-freeze, default tau_end≈0.05 | 0.5861 | 0.5861 | density≈0.060, firing≈0.312/0.921 | success but high firing |
+| learned_lowrank r16 | 44 | no-freeze, default tau_end≈0.05 | **0.6444** | 0.6254 | density≈0.039, firing≈0.157/0.790 | current best observed run |
+| learned_lowrank r16 | 42 | ramp10 + bias0.05 + tau0.2 + freeze64 | **0.5989** | 0.5892 | density≈0.046, topology frozen at epoch 64 | stabilized success |
+
+Summary over no-freeze seeds 42/43/44:
+
+| Metric | Value |
+|--------|------:|
+| mean best test accuracy | 0.6082 |
+| median best test accuracy | 0.5941 |
+| worst seed | 0.5861 |
+| best seed | 0.6444 |
+
+Comparison against previous topology learners:
+
+| Method | Seeds included | Mean | Median | Worst | Best |
+|--------|----------------|-----:|-------:|------:|-----:|
+| learned C, original tau=0.05 | 42/43/44/45 | 0.5590 | 0.5638 | 0.5331 | 0.5751 |
+| Grad R-STE, non-freeze | 42/43/44/45 | 0.5706 | 0.5649 | 0.5486 | 0.6038 |
+| Grad R-STE + adaptive freeze | 42/43/44/45 | 0.5803 | 0.5837 | 0.5486 | 0.6051 |
+| learned_lowrank r16, no-freeze | 42/43/44 | **0.6082** | **0.5941** | **0.5861** | **0.6444** |
+
+Interpretation:
+
+- `learned_lowrank` is now the strongest candidate topology learner by observed peak and 3-seed mean.
+- The seed-44 reversal is the key result: edge-wise Gumbel learned C failed at `0.5331`, Grad R-STE + adaptive freeze rescued it to `0.5866`, and learned_lowrank reached `0.6444`.
+- This supports the hypothesis that the failure mode was not the seed itself but the edge-wise independent topology parameterization.
+- Low-rank latent neuron embedding turns independent edge search into role-based structured topology search.
+- Stability is not fully solved: no-freeze seed 43 shows high firing (`max_firing_rate > 0.9`), and no-freeze seed 44 shows repeated pre-clip topology gradient explosions that are bounded by clipping.
+- The stabilized seed-42 run confirms that ramp/bias/freeze can preserve strong performance, but stabilized seed 43/44 remain necessary.
+
+Updated next step:
+
+- Treat **Grad R-STE + adaptive freeze** as the strongest completed 4-seed stabilized baseline.
+- Treat **learned_lowrank r16** as the current strongest candidate and the main next focus.
+- Run learned_lowrank seed 45.
+- Run learned_lowrank stabilized setting on seeds 43 and 44.
+- Add same-density random controls around `p≈0.039`, `p≈0.046`, and `p≈0.060`.
+- Move naive prediction auxiliary loss to lower priority unless redesigned, because the first trace-prediction attempt degraded seed 44 and did not improve seed 45.
 
 ## Recent Diagnostic Summary
 

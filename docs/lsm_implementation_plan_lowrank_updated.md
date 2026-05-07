@@ -4,7 +4,7 @@
 
 기존 feedforward Gumbel-SNN 위에 LSM(Liquid State Machine) 전용 코드가 추가되어 있다. 초기 계획서의 핵심 항목인 config 확장, SHD 로더, LSM 모델, 학습 CLI, gradient clipping, 모니터링은 현재 코드베이스에 구현되어 있다.
 
-현재 목표는 SHD에서 gradient-based recurrent topology learning의 효과를 안정적으로 검증하고, current strongest baseline인 Grad R-STE + adaptive freeze 위에 prediction auxiliary loss를 추가하는 것이다.
+현재 목표는 SHD에서 gradient-based recurrent topology learning의 효과를 안정적으로 검증하고, 최신 learned_lowrank latent topology parameterization이 기존 edge-wise learned C와 Grad R-STE baseline을 얼마나 안정적으로 넘어서는지 확인하는 것이다.
 
 | 조건 | 코드 mode | 의미 |
 |------|-----------|------|
@@ -689,9 +689,81 @@ python scripts/train_lsm.py configs/lsm_shd_baseline.yaml liquid.recurrent_mode=
 - A -> B: recurrent weight 학습의 효과
 - D -> C: hard threshold 대비 Gumbel/STE + annealing의 효과
 
+
+
+### Step 8: Learned low-rank latent topology — new strongest candidate
+
+The previous plan treated Grad R-STE + adaptive freeze as the current strongest recipe and prediction auxiliary loss as the next experiment. New `learned_lowrank` results change the priority.
+
+`learned_lowrank` does not use a dense edge-wise `theta` parameter. It learns neuron-level source and destination embeddings and materializes effective edge logits as:
+
+```text
+topology_logit = src_embed @ dst_embed.T + theta_bias
+```
+
+This directly targets the seed-instability hypothesis: edge-wise independent parameters may let small initialization differences harden into very different edge configurations, while latent neuron embeddings force edge decisions to share a role-based structure.
+
+Results so far:
+
+| Condition | Seed | Best test acc | Final test acc | Notes |
+|---|---:|---:|---:|---|
+| learned_lowrank r16, no-freeze/tau0.05 | 42 | 0.5941 | 0.5835 | strong success |
+| learned_lowrank r16, no-freeze/tau0.05 | 43 | 0.5861 | 0.5861 | success; high firing warnings |
+| learned_lowrank r16, no-freeze/tau0.05 | 44 | **0.6444** | 0.6254 | current best observed run |
+| learned_lowrank r16, ramp10+bias0.05+tau0.2+freeze64 | 42 | **0.5989** | 0.5892 | stabilized seed-42 success |
+
+Priority now:
+
+1. Run learned_lowrank no-freeze seed 45 to complete the first 4-seed table.
+2. Run learned_lowrank stabilized setting on seeds 43 and 44.
+3. Compare no-freeze vs stabilized learned_lowrank: does stabilization preserve the seed-44 high-performing basin?
+4. Add same-density random controls around learned_lowrank densities (`p≈0.039`, `p≈0.046`, `p≈0.060`).
+5. Only after this, return to prediction auxiliary loss with a redesigned, weaker or gradient-restricted objective.
+
+No-freeze command template:
+
+```bash
+python scripts/train_lsm.py configs/lsm_shd_baseline.yaml \
+  liquid.recurrent_mode=learned_lowrank \
+  liquid.theta_rank=16 \
+  liquid.theta_lowrank_init_std=0.30 \
+  liquid.train_w_raw=false \
+  liquid.w_raw_init_mean=-2.25 \
+  liquid.w_raw_max=-2.0 \
+  liquid.theta_init_mean=-1.0 \
+  liquid.theta_lr_scale=0.3 \
+  seed=<seed> \
+  experiment_name=lsm_shd_lowrank_r16_std030_tlr030_no_freeze_tau005_s<seed>
+```
+
+Stabilized command template:
+
+```bash
+python scripts/train_lsm.py configs/lsm_shd_baseline.yaml \
+  liquid.recurrent_mode=learned_lowrank \
+  liquid.theta_rank=16 \
+  liquid.theta_lowrank_init_std=0.30 \
+  liquid.train_w_raw=false \
+  liquid.w_raw_init_mean=-2.25 \
+  liquid.w_raw_max=-2.0 \
+  liquid.theta_init_mean=-1.0 \
+  tau_end=0.2 \
+  liquid.theta_lr_scale=0.3 \
+  liquid.theta_lr_ramp_epochs=10 \
+  liquid.theta_bias_lr_scale=0.05 \
+  liquid.theta_freeze_epoch=64 \
+  seed=<seed> \
+  experiment_name=lsm_shd_lowrank_r16_ramp10_bias005_tau020_freeze64_s<seed>
+```
+
+Prediction auxiliary loss status:
+
+The first trace-prediction auxiliary test degraded performance (`seed44: 0.5866 -> 0.5353`, `seed45: 0.5486 -> 0.5464`). Therefore prediction auxiliary loss is no longer the immediate next step. It should be revisited only after learned_lowrank robustness and density controls are resolved.
+
+
 ### Step 8: Prediction auxiliary loss
 
-The next experiment is no longer broad hyperparameter tuning. The current strongest baseline is Grad R-STE + adaptive freeze, and the next question is whether a local temporal prediction signal can improve topology quality, especially for bad-but-stable cases like seed 45.
+This experiment is now lower priority. The first trace-prediction attempt degraded performance, and learned_lowrank has become the stronger immediate direction. Revisit prediction auxiliary loss only after learned_lowrank seed 45, stabilized seed 43/44, and density controls are complete.
 
 Priority:
 
@@ -741,8 +813,10 @@ Why this matters:
 
 우선순위 높은 항목:
 
-- learned C seed 42/43/44/45의 topology 구조 차이 분석.
-- tau annealing 후반 `theta_grad_norm` 폭주 완화 실험 설계.
+- learned_lowrank seed 45 실행.
+- learned_lowrank stabilized seed 43/44 실행.
+- learned C / Grad R-STE / learned_lowrank의 topology 구조 차이 분석.
+- tau annealing 후반 `topology_grad_norm` 폭주 완화 실험 설계.
 - SHD 직접 HDF5 fallback 추가 여부 결정. 현재는 Tonic 의존.
 - `src/lsm/model.py`의 import 중 `gumbel_sigmoid`, `gumbel_sigmoid_ste`, `List`는 현재 직접 사용되지 않는다. 정리 가능.
 - `InputProjection` 설명을 모든 문서/코드 주석에서 mixed-sign random projection으로 통일.
@@ -790,6 +864,11 @@ Why this matters:
 - [ ] prediction auxiliary loss 구현
 - [ ] prediction auxiliary loss seed 45/44/42/43 실행
 - [ ] tau/topology gradient 안정화 ablation 정리
+- [x] learned_lowrank 구현 및 logging/stabilization instrumentation 추가
+- [x] learned_lowrank seed 42/43/44 1차 실행
+- [ ] learned_lowrank seed 45 실행
+- [ ] learned_lowrank stabilized seed 43/44 실행
+- [ ] learned_lowrank same-density random controls 실행
 
 
 ### Step 7.5: Grad R-STE adaptive freeze — 현재 strongest baseline

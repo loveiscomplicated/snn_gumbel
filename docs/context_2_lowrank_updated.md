@@ -46,25 +46,34 @@ LSM은 뇌의 피질 미세회로를 모방한 reservoir computing 모델로, �
 
 이는 interconnected SNN에서 “어떤 뉴런과 어떤 뉴런을 연결할 것인가”를 네트워크가 스스로 발견하게 하는 첫 번째 단계이다.
 
-### 1.5 현재 실험 업데이트: Gumbel 단독에서 Gradient-Based Topology Learning으로 확장
+### 1.5 현재 실험 업데이트: Gradient-Based Topology Learning에서 Latent Topology Parameterization으로 확장
 
-최근 SHD LSM 결과는 초기 프레이밍을 한 단계 확장한다. Gumbel-Sigmoid learned C는 일부 seed에서 no-recurrence baseline을 넘으며 topology learning 가능성을 보였지만, seed 44에서 불안정했다. 반면 수정된 Grad R-STE는 hard-threshold forward와 sigmoid-STE backward를 사용했을 때 강한 경쟁 baseline이 되었고, gradient-triggered adaptive freeze를 붙였을 때 현재 가장 강한 recipe가 되었다.
+최근 SHD LSM 결과는 초기 프레이밍을 다시 한 단계 확장한다. Gumbel-Sigmoid learned C는 일부 seed에서 no-recurrence baseline을 넘었지만 seed 44에서 불안정했다. 이후 corrected Grad R-STE + adaptive freeze가 강한 4-seed baseline이 되었고, topology stabilization의 중요성을 확인했다. 그러나 최신 `learned_lowrank` 결과는 더 중요한 전환점을 만든다.
+
+`learned_lowrank`는 edge마다 독립적인 `theta_ij`를 두지 않는다. 대신 각 뉴런에 source embedding과 destination embedding을 두고, edge logit을 다음처럼 materialize한다.
+
+```text
+topology_logit_ij = src_embed_i · dst_embed_j + theta_bias
+```
+
+즉 연결은 독립 edge parameter가 아니라 **latent neuron role 조합**으로 결정된다. 이는 기존 문제의식 — “엣지를 독립 객체로 학습하면 edge 조합이 seed에 따라 불안정하게 굳어질 수 있다” — 에 대한 직접적인 구조적 대응이다.
 
 현재 핵심 수치:
 
-| 조건 | seed 42 | seed 43 | seed 44 | seed 45 | mean | median |
-|---|---:|---:|---:|---:|---:|---:|
-| no recurrence | - | - | - | - | 0.5490 | 0.5490 |
-| learned C original | 0.5689 | 0.5751 | 0.5331 | 0.5587 | 0.5590 | 0.5638 |
-| Grad R-STE non-freeze | 0.6038 | 0.5711 | 0.5587 | 0.5486 | 0.5706 | 0.5649 |
-| **Grad R-STE + adaptive freeze** | **0.6051** | **0.5808** | **0.5866** | **0.5486** | **0.5803** | **0.5837** |
+| 조건 | seed 42 | seed 43 | seed 44 | seed 45 | mean | median | 해석 |
+|---|---:|---:|---:|---:|---:|---:|---|
+| no recurrence | - | - | - | - | 0.5490 | 0.5490 | baseline |
+| learned C original | 0.5689 | 0.5751 | 0.5331 | 0.5587 | 0.5590 | 0.5638 | seed-sensitive |
+| Grad R-STE non-freeze | 0.6038 | 0.5711 | 0.5587 | 0.5486 | 0.5706 | 0.5649 | strong hard-threshold baseline |
+| Grad R-STE + adaptive freeze | 0.6051 | 0.5808 | 0.5866 | 0.5486 | 0.5803 | 0.5837 | strongest 4-seed stabilized baseline so far |
+| learned_lowrank r16, no-freeze/tau0.05 | 0.5941 | 0.5861 | **0.6444** | n/a | **0.6082** | **0.5941** | strongest observed topology learner; seed 45 pending |
+| learned_lowrank r16, ramp10+bias0.05+tau0.2+freeze64 | **0.5989** | n/a | n/a | n/a | n/a | n/a | stabilized seed-42 validation |
 
-따라서 현재 가장 안전한 중심 주장은 다음과 같다.
+따라서 현재 중심 주장은 다음처럼 업데이트한다.
 
-> 랜덤 recurrent topology는 충분하지 않다. 핵심은 recurrent topology를 gradient로 학습하는 것이며, 현재 가장 강한 구현은 Grad R-STE + adaptive theta freeze이다. Gumbel-Sigmoid는 여전히 중요한 learned-topology mechanism이지만, 단독 winner로 주장하기보다는 Grad R-STE와 함께 gradient-based topology learning family 안에서 비교하는 것이 더 안전하다.
+> 랜덤 recurrent topology는 충분하지 않다. 핵심은 recurrent topology를 gradient로 학습하는 것이며, 더 나아가 edge-wise independent parameterization보다 **latent neuron role 기반 topology parameterization**이 더 강한 inductive bias가 될 수 있다. Grad R-STE + adaptive freeze는 현재 가장 안전한 4-seed stabilized baseline이고, learned_lowrank는 현재 가장 강한 성능 후보이자 seed-44 failure를 가장 크게 뒤집은 방법이다.
 
-이 업데이트는 논문의 방향을 폐기하는 것이 아니라 강화한다. “Gumbel trick 하나”가 아니라, **interconnected SNN에서 연결 구조를 학습하고 적절한 시점에 안정화하는 원리**가 핵심 기여로 이동한다.
-
+이 업데이트는 “Gumbel trick 하나”에서 “gradient-based recurrent topology learning”으로, 다시 “edge-wise topology search vs latent role-based topology search”로 연구 질문이 정교화되었음을 의미한다. 현재 논문의 가장 강한 포인트는 **연결을 독립 edge가 아니라 뉴런 role interaction으로 parameterize했을 때 topology formation이 달라지고, 기존 failure seed가 최고 성능 seed로 반전될 수 있다**는 것이다.
 
 ---
 
@@ -301,6 +310,14 @@ Grad R (Chen et al., 2021)은 본 연구와 가장 가까운 경쟁자이다. �
 - Adaptive freeze의 장점: seed마다 다른 topology instability 시점을 gradient signal로 감지하여 topology를 고정.
 
 현재 결론은 “Gumbel이 Grad R보다 항상 낫다”가 아니라, **recurrent SNN에서는 topology learning과 topology stabilization이 모두 중요하다**는 것이다.
+
+현재 최신 결과를 반영하면 여기에 한 가지 축이 추가된다. **learned_lowrank**는 Gumbel/Grad R의 soft-vs-hard 차이가 아니라, topology parameterization 자체를 바꾼다. edge별 독립 θ를 제거하고, 뉴런별 source/destination embedding으로 전체 edge logit field를 생성한다. 따라서 Discussion의 비교축은 다음 세 가지가 된다.
+
+- Gumbel-Sigmoid: stochastic relaxed topology learner.
+- Grad R-STE: deterministic hard-threshold topology learner.
+- learned_lowrank: latent neuron role-based topology parameterization.
+
+현재 관측상 learned_lowrank는 seed 44에서 `0.6444`를 기록하여 가장 강한 단일 run을 만들었다. 다만 seed 45와 stabilized multi-seed가 아직 없으므로, 최종 주장은 “current strongest candidate”로 제한한다.
 
 
 ### 학습된 구조의 패턴 분석: LSNN+DEEP R과의 비교
