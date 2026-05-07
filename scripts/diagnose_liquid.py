@@ -168,30 +168,63 @@ def print_parameter_sanity(cfg, model) -> None:
         f"expected=({cfg.liquid.n_liquid}, 1)"
     )
     diag_sum = model.liquid.self_conn_mask.diag().sum().item()
+    if model.liquid.mode == "grad_r":
+        topology_trainable = model.liquid.theta.requires_grad
+    else:
+        topology_trainable = any(
+            param.requires_grad for param in model.liquid.topology_parameters()
+        )
     print(f"  self diag sum    : {diag_sum:.1f}")
-    print(f"  theta trainable  : {model.liquid.theta.requires_grad}")
+    print(f"  topology trainable: {topology_trainable}")
     print(f"  w_raw trainable  : {model.liquid.w_raw.requires_grad}")
     print(f"  beta trainable   : {model.liquid.logit_beta.requires_grad}")
     print(f"  threshold trainable: {model.liquid.threshold.requires_grad}")
+    if model.liquid.mode == "learned_lowrank":
+        theta_named = [
+            name for name, _ in model.liquid.named_parameters() if "theta" in name
+        ]
+        embed_named = [
+            name
+            for name, _ in model.liquid.named_parameters()
+            if "embed" in name or "bias" in name
+        ]
+        print(f"  theta rank       : {model.liquid.src_embed.shape[1]}")
+        print(f"  has dense theta  : {hasattr(model.liquid, 'theta')}")
+        print(f"  theta params     : {theta_named}")
+        print(f"  topology params  : {embed_named}")
 
 
 def print_recurrent_sparsity(model, tau: float) -> None:
     print_header("2. Recurrent sparsity")
     model.liquid.sample_mask(tau=tau)
     mask = model.liquid.get_binary_mask().detach().cpu()
+    mask = mask * model.liquid.self_conn_mask.detach().cpu()
     n_total = mask.numel()
     n_active = int(mask.sum().item())
     diag_active = int(mask.diag().sum().item())
     print(f"  density     : {n_active / n_total:.4f}")
     print(f"  active edges: {n_active} / {n_total}")
     print(f"  self edges  : {diag_active}")
-    if model.liquid.mode == "learned":
-        probs = torch.sigmoid(model.liquid.theta.detach().cpu())
+    if model.liquid.mode in ("learned", "learned_lowrank"):
+        topology_logit = model.liquid.get_theta().detach().cpu()
+        probs = torch.sigmoid(topology_logit)
         print(
-            f"  sigma(theta): mean={probs.mean():.4f}  std={probs.std():.4f}  "
+            f"  sigma(logit): mean={probs.mean():.4f}  std={probs.std():.4f}  "
             f"min={probs.min():.4f}  max={probs.max():.4f}"
         )
+        if model.liquid.mode == "learned_lowrank":
+            src = model.liquid.src_embed.detach().cpu()
+            dst = model.liquid.dst_embed.detach().cpu()
+            bias = model.liquid.theta_bias.detach().cpu().item()
+            print(
+                f"  src_embed   : {tensor_summary(src)}  norm={src.norm(dim=1).mean().item():.4f}"
+            )
+            print(
+                f"  dst_embed   : {tensor_summary(dst)}  norm={dst.norm(dim=1).mean().item():.4f}"
+            )
+            print(f"  theta_bias  : {bias:.4f}")
     print_recurrent_weight_stats(model, mask)
+    print_graph_structure_stats(mask)
 
 
 def tensor_summary(x: torch.Tensor) -> str:
@@ -247,6 +280,61 @@ def print_recurrent_weight_stats(model, binary_mask: torch.Tensor) -> None:
     print(f"  inh |w| on active edges  : {tensor_summary(inh_mag)}")
     print(f"  incoming exc degree/post : {tensor_summary(exc_in_degree)}")
     print(f"  incoming inh degree/post : {tensor_summary(inh_in_degree)}")
+
+
+def connected_component_sizes(mask: torch.Tensor) -> list[int]:
+    """Weakly connected component sizes on the undirected version of the graph."""
+    undirected = (mask.bool() | mask.bool().T)
+    n = undirected.shape[0]
+    visited = torch.zeros(n, dtype=torch.bool)
+    sizes: list[int] = []
+
+    for start in range(n):
+        if visited[start]:
+            continue
+        stack = [start]
+        visited[start] = True
+        size = 0
+        while stack:
+            node = stack.pop()
+            size += 1
+            neighbors = torch.nonzero(undirected[node], as_tuple=False).flatten().tolist()
+            for nxt in neighbors:
+                if not visited[nxt]:
+                    visited[nxt] = True
+                    stack.append(nxt)
+        sizes.append(size)
+    return sorted(sizes, reverse=True)
+
+
+def print_graph_structure_stats(mask: torch.Tensor) -> None:
+    print("\n  graph structure:")
+    active = mask.bool()
+    in_degree = active.float().sum(dim=0)
+    out_degree = active.float().sum(dim=1)
+    total_degree = in_degree + out_degree
+    isolated = total_degree == 0
+    component_sizes = connected_component_sizes(active)
+    giant_size = component_sizes[0] if component_sizes else 0
+
+    print(f"  in-degree              : {tensor_summary(in_degree)}")
+    print(f"  out-degree             : {tensor_summary(out_degree)}")
+    print(
+        f"  isolated neurons       : {isolated.sum().item()} / {active.shape[0]} "
+        f"({isolated.float().mean().item():.4f})"
+    )
+    print(
+        f"  weak components        : count={len(component_sizes)}  "
+        f"giant={giant_size} ({giant_size / max(active.shape[0], 1):.4f})"
+    )
+    top_in = in_degree.topk(min(5, in_degree.numel()))
+    top_out = out_degree.topk(min(5, out_degree.numel()))
+    print("  top in-degree hubs     : " + ", ".join(
+        f"{idx}:{val:.0f}" for idx, val in zip(top_in.indices.tolist(), top_in.values.tolist())
+    ))
+    print("  top out-degree hubs    : " + ", ".join(
+        f"{idx}:{val:.0f}" for idx, val in zip(top_out.indices.tolist(), top_out.values.tolist())
+    ))
 
 
 def collect_batches(loader, n_batches: int) -> list[tuple[torch.Tensor, torch.Tensor]]:
@@ -373,11 +461,15 @@ def print_current_and_firing_stats(diag: dict) -> None:
         f"  neuron mean rate   : mean={neuron_mean.mean():.4f}  "
         f"std={neuron_mean.std():.4f}  max={neuron_mean.max():.4f}"
     )
+    print(f"  dead neurons ==0.0 : {(neuron_mean == 0.0).sum().item()} / {rates.shape[1]}")
     print(
         f"  active neurons >0.01: {(neuron_mean > 0.01).sum().item()} / {rates.shape[1]}"
     )
     print(
         f"  active neurons >0.05: {(neuron_mean > 0.05).sum().item()} / {rates.shape[1]}"
+    )
+    print(
+        f"  overactive >0.20    : {(neuron_mean > 0.20).sum().item()} / {rates.shape[1]}"
     )
 
 
@@ -424,7 +516,7 @@ def liquid_mean_rate(model, batch: torch.Tensor, device, tau: float) -> torch.Te
 
 def print_class_separation(
     model, loader, device, tau: float, n_classes: int, samples_per_class: int
-) -> None:
+) -> dict[int, list]:
     print_header("6. Class separation")
     samples_by_class = collect_samples_by_class(loader, n_classes, samples_per_class)
     counts = {cls: len(samples) for cls, samples in sorted(samples_by_class.items())}
@@ -438,7 +530,7 @@ def print_class_separation(
         print(f"  collected sample counts: {counts}")
     if len(chosen) < 2:
         print("  not enough classes collected")
-        return
+        return samples_by_class
 
     class_vecs = {}
     for cls in chosen:
@@ -483,6 +575,70 @@ def print_class_separation(
             f"    neuron {idx:4d}: |diff|={val:.4f}  "
             f"class{keys[0]}={v0[idx]:.4f}  class{keys[1]}={v1[idx]:.4f}"
         )
+    return samples_by_class
+
+
+def readout_logits_mean(model, batch: torch.Tensor, device, tau: float) -> torch.Tensor:
+    with torch.no_grad():
+        logits = model(batch.to(device), tau=tau)
+    return logits.mean(dim=0).detach().cpu()
+
+
+def print_readout_separation(
+    model,
+    samples_by_class: dict[int, list],
+    device,
+    tau: float,
+    n_classes: int,
+    samples_per_class: int,
+) -> None:
+    print_header("7. Readout separation")
+    eligible = [
+        cls for cls, samples in sorted(samples_by_class.items()) if len(samples) >= samples_per_class
+    ]
+    chosen = eligible[:n_classes]
+    if len(chosen) < 2:
+        print("  not enough classes collected")
+        return
+
+    class_logits = {}
+    for cls in chosen:
+        batch = torch.stack(samples_by_class[cls])
+        class_logits[cls] = readout_logits_mean(model, batch, device, tau)
+
+    print(f"  classes analysed: {chosen}")
+    print("  mean logits per class:")
+    for cls in chosen:
+        v = class_logits[cls]
+        top2 = v.topk(k=min(2, v.numel()))
+        margin = float("-inf")
+        if v.numel() > 1:
+            others = torch.cat([v[:cls], v[cls + 1 :]])
+            if others.numel() > 0:
+                margin = (v[cls] - others.max()).item()
+        print(
+            f"    class {cls:2d}: true_logit={v[cls]:.4f}  "
+            f"margin_vs_best_other={margin:.4f}  "
+            f"top_pred={top2.indices[0].item()} ({top2.values[0].item():.4f})"
+        )
+
+    print("\n  pairwise cosine similarity between class mean-logit vectors:")
+    sims = []
+    keys = list(class_logits.keys())
+    for i in range(len(keys)):
+        for j in range(i + 1, len(keys)):
+            a = class_logits[keys[i]]
+            b = class_logits[keys[j]]
+            sim = F.cosine_similarity(a.unsqueeze(0), b.unsqueeze(0)).item()
+            l2 = (a - b).norm().item()
+            sims.append(sim)
+            print(f"    class {keys[i]} vs {keys[j]}: cosine={sim:.4f}  L2={l2:.4f}")
+    if sims:
+        sims_t = torch.tensor(sims)
+        print(
+            f"  cosine summary: mean={sims_t.mean():.4f}  "
+            f"min={sims_t.min():.4f}  max={sims_t.max():.4f}"
+        )
 
 
 def main():
@@ -507,9 +663,17 @@ def main():
     diag = run_liquid_diagnostics(model, batches, device, cfg.tau_end)
     print_current_and_firing_stats(diag)
 
-    print_class_separation(
+    samples_by_class = print_class_separation(
         model,
         test_loader,
+        device,
+        cfg.tau_end,
+        args.classes,
+        args.samples_per_class,
+    )
+    print_readout_separation(
+        model,
+        samples_by_class,
         device,
         cfg.tau_end,
         args.classes,

@@ -42,13 +42,17 @@ class LiquidConfig:
     n_liquid: int = 200  # 리퀴드 뉴런 수
     exc_ratio: float = 0.8  # 흥분성 뉴런 비율
     p_input: float = 0.1  # 입력→리퀴드 연결 확률
-    recurrent_mode: str = "learned"  # learned | random_sparse | fixed | grad_r
+    recurrent_mode: str = "learned"  # learned | learned_lowrank | random_sparse | fixed | grad_r
     recurrent_sparsity: float = 0.2  # random_sparse 모드 시 연결 확률
     self_connection: bool = False  # 자기 연결 허용 여부
     theta_init_mean: float = (
         0.0  # theta 초기화 평균 (음수→희소 초기 연결, e.g. -2.0→12%)
     )
     theta_init_std: float = 0.01  # theta 초기화 표준편차
+    theta_rank: int = 16  # learned_lowrank 모드에서 source/target 임베딩 차원
+    theta_lowrank_init_std: float = (
+        0.30  # learned_lowrank 임베딩 초기화 표준편차
+    )
     grad_clip_max_norm_w: float = (
         100.0  # w_raw/readout gradient clipping (순환 BPTT: param 44k × T steps → norm 수백~수천이 정상)
     )
@@ -80,6 +84,8 @@ class LiquidConfig:
     theta_warmup_min_delta: float = 0.002  # P1 metric 개선으로 인정할 최소 변화량
     theta_warmup_metric: str = "test_acc"  # test_acc | train_acc | train_loss
     theta_lr_scale: float = 0.1  # theta LR = base_lr × theta_lr_scale
+    theta_lr_ramp_epochs: int = 1  # P2 topology LR ramp length (1 = no ramp)
+    theta_bias_lr_scale: float = 1.0  # learned_lowrank bias LR relative to topology LR
     theta_freeze_epoch: int = (
         0  # learned mode에서 해당 epoch 시작 시 theta freeze (0 = 비활성화)
     )

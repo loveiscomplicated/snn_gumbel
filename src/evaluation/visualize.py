@@ -129,6 +129,12 @@ def plot_input_connectivity(model, save_path: str):
 # ===========================================================================
 
 
+def _history_metric(row: dict, new_key: str, old_key: str, default=0):
+    if new_key in row:
+        return row.get(new_key, default)
+    return row.get(old_key, default)
+
+
 def lsm_plot_training_curves(history: list, save_path: str):
     epochs = [h["epoch"] for h in history]
     fig, axes = plt.subplots(2, 3, figsize=(18, 9))
@@ -152,7 +158,7 @@ def lsm_plot_training_curves(history: list, save_path: str):
     axes[0, 2].set_title("Liquid Sparsity (%)")
     axes[0, 2].grid(True)
 
-    # Row 2: grad_norm, firing rates, theta stats
+    # Row 2: grad_norm, firing rates, topology logit stats
     axes[1, 0].plot(epochs, [h.get("grad_norm", 0) for h in history], color="purple")
     axes[1, 0].set_title("Grad Norm")
     axes[1, 0].set_yscale("symlog")
@@ -166,14 +172,20 @@ def lsm_plot_training_curves(history: list, save_path: str):
     axes[1, 1].legend()
     axes[1, 1].grid(True)
 
-    axes[1, 2].plot(epochs, [h.get("theta_mean", 0) for h in history], label="mean")
+    logit_mean = [
+        _history_metric(h, "topology_logit_mean", "theta_mean", 0) for h in history
+    ]
+    logit_std = [
+        _history_metric(h, "topology_logit_std", "theta_std", 0) for h in history
+    ]
+    axes[1, 2].plot(epochs, logit_mean, label="mean")
     axes[1, 2].fill_between(
         epochs,
-        [h.get("theta_mean", 0) - h.get("theta_std", 0) for h in history],
-        [h.get("theta_mean", 0) + h.get("theta_std", 0) for h in history],
+        [mean - std for mean, std in zip(logit_mean, logit_std)],
+        [mean + std for mean, std in zip(logit_mean, logit_std)],
         alpha=0.3,
     )
-    axes[1, 2].set_title("Theta (mean +/- std)")
+    axes[1, 2].set_title("Topology Logit (mean +/- std)")
     axes[1, 2].grid(True)
 
     plt.tight_layout()
@@ -217,7 +229,7 @@ def lsm_plot_topology(model, save_path: str):
 def lsm_plot_theta_distribution(model, save_path: str):
     """Visualise sigma(theta) distribution for the liquid layer."""
     with torch.no_grad():
-        probs = torch.sigmoid(model.liquid.theta).cpu().numpy().ravel()
+        probs = torch.sigmoid(model.liquid.get_theta()).cpu().numpy().ravel()
 
     fig, ax = plt.subplots(figsize=(8, 4))
     ax.hist(probs, bins=80, color="steelblue", edgecolor="white", linewidth=0.3)

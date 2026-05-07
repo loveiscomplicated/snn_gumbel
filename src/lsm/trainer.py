@@ -83,6 +83,8 @@ def build_model(cfg: Config, device: torch.device) -> LSMModel:
         self_connection=liq.self_connection,
         theta_init_mean=liq.theta_init_mean,
         theta_init_std=liq.theta_init_std,
+        theta_rank=liq.theta_rank,
+        theta_lowrank_init_std=liq.theta_lowrank_init_std,
         w_raw_init_mean=liq.w_raw_init_mean,
         w_raw_init_std=liq.w_raw_init_std,
         train_w_raw=liq.train_w_raw,
@@ -145,6 +147,21 @@ def _warmup_slope(scores: list[float], window: int) -> float | None:
     return (recent[-1] - recent[0]) / max(window - 1, 1)
 
 
+def _grad_norm(params: list[torch.nn.Parameter]) -> float:
+    grad_sq = 0.0
+    for param in params:
+        if param.grad is not None:
+            grad_sq += param.grad.norm().item() ** 2
+    return grad_sq**0.5 if grad_sq > 0.0 else 0.0
+
+
+def _param_group_lr(optimizer: optim.Optimizer, name: str) -> float:
+    for group in optimizer.param_groups:
+        if group.get("name") == name:
+            return float(group["lr"])
+    return 0.0
+
+
 def train(cfg: Config) -> tuple:
     os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")
     torch.manual_seed(cfg.seed)
@@ -157,12 +174,24 @@ def train(cfg: Config) -> tuple:
     train_loader, test_loader = get_dataloaders(cfg)
     model = build_model(cfg, device)
 
+    def _topology_param_group():
+        if cfg.liquid.recurrent_mode == "grad_r":
+            return [model.liquid.theta]
+        return list(model.liquid.topology_parameters())
+
+    def _set_topology_requires_grad(requires_grad: bool) -> None:
+        if cfg.liquid.recurrent_mode == "grad_r":
+            model.liquid.theta.requires_grad_(requires_grad)
+        else:
+            model.liquid.set_topology_requires_grad(requires_grad)
+
     # Phase 1 warmup: freeze theta so w_raw/readout learn on stable random topology.
     # Phase 2: unfreeze theta to learn topology via Gumbel-STE.
     warmup = cfg.liquid.theta_warmup_epochs
-    is_learned = cfg.liquid.recurrent_mode == "learned"
+    learned_modes = {"learned", "learned_lowrank"}
+    is_learned = cfg.liquid.recurrent_mode in learned_modes
     # grad_r also has a trainable theta but skips Gumbel noise / warmup logic
-    has_theta = cfg.liquid.recurrent_mode in ("learned", "grad_r")
+    has_theta = is_learned or cfg.liquid.recurrent_mode == "grad_r"
     dynamic_warmup = is_learned and cfg.liquid.theta_warmup_dynamic and warmup > 0
     warmup_min_epochs = min(max(cfg.liquid.theta_warmup_min_epochs, 1), warmup)
     warmup_patience = max(cfg.liquid.theta_warmup_patience, 1)
@@ -177,7 +206,7 @@ def train(cfg: Config) -> tuple:
     if warmup_strategy not in {"slope", "best"}:
         raise ValueError("liquid.theta_warmup_strategy must be one of: slope, best")
     if is_learned and warmup > 0:
-        model.liquid.theta.requires_grad_(False)
+        _set_topology_requires_grad(False)
         tqdm.write(f"  Phase 1 warmup: theta frozen for {warmup} epochs")
         if dynamic_warmup:
             tqdm.write(
@@ -188,25 +217,72 @@ def train(cfg: Config) -> tuple:
                 f"min_delta={warmup_min_delta:g}"
             )
 
-    # Separate optimizer groups so theta gradient cannot suppress w_raw updates.
+    def _current_topology_lr_scale(epoch_idx: int) -> float:
+        if not is_learned or epoch_idx < warmup:
+            return 0.0
+        ramp_epochs = max(cfg.liquid.theta_lr_ramp_epochs, 1)
+        p2_epoch = epoch_idx - warmup
+        ramp = min(1.0, (p2_epoch + 1) / ramp_epochs)
+        return cfg.liquid.theta_lr_scale * ramp
+
+    # Separate optimizer groups so topology gradient cannot suppress w_raw updates.
     # Independent per-group clipping is applied before optimizer.step().
-    # Both "learned" and "grad_r" get a dedicated theta param group for fair comparison.
     if has_theta:
-        theta_params = [model.liquid.theta]
-        other_params = [p for n, p in model.named_parameters() if n != "liquid.theta"]
-        param_groups = [
-            {"params": other_params, "lr": cfg.lr, "weight_decay": cfg.weight_decay},
-            {
-                "params": theta_params,
-                "lr": cfg.lr * cfg.liquid.theta_lr_scale,
-                "weight_decay": 0.0,
-            },
+        topology_params = _topology_param_group()
+        theta_params = topology_params
+        theta_bias_params = []
+        theta_main_params = topology_params
+        if cfg.liquid.recurrent_mode == "learned_lowrank":
+            theta_bias_params = [model.liquid.theta_bias]
+            theta_main_params = [model.liquid.src_embed, model.liquid.dst_embed]
+        theta_param_ids = {id(param) for param in topology_params}
+        other_params = [
+            param
+            for param in model.parameters()
+            if id(param) not in theta_param_ids
         ]
+        param_groups = [
+            {
+                "params": other_params,
+                "lr": cfg.lr,
+                "weight_decay": cfg.weight_decay,
+                "name": "other",
+            }
+        ]
+        if theta_main_params:
+            param_groups.append(
+                {
+                    "params": theta_main_params,
+                    "lr": cfg.lr * cfg.liquid.theta_lr_scale,
+                    "weight_decay": 0.0,
+                    "name": "topology",
+                }
+            )
+        if theta_bias_params:
+            param_groups.append(
+                {
+                    "params": theta_bias_params,
+                    "lr": (
+                        cfg.lr
+                        * cfg.liquid.theta_lr_scale
+                        * cfg.liquid.theta_bias_lr_scale
+                    ),
+                    "weight_decay": 0.0,
+                    "name": "topology_bias",
+                }
+            )
     else:
         other_params = list(model.parameters())
         theta_params = []
+        theta_main_params = []
+        theta_bias_params = []
         param_groups = [
-            {"params": other_params, "lr": cfg.lr, "weight_decay": cfg.weight_decay}
+            {
+                "params": other_params,
+                "lr": cfg.lr,
+                "weight_decay": cfg.weight_decay,
+                "name": "other",
+            }
         ]
     optimizer = optim.Adam(param_groups)
     scheduler = CosineAnnealingLR(optimizer, T_max=cfg.epochs, eta_min=cfg.lr_min)
@@ -225,14 +301,26 @@ def train(cfg: Config) -> tuple:
 
     with open(log_path, "a") as log_f:
         for epoch in epoch_bar:
+            current_lr = optimizer.param_groups[0]["lr"]
+            topology_lr_scale = _current_topology_lr_scale(epoch)
+            for group in optimizer.param_groups:
+                if group.get("name") == "topology":
+                    group["lr"] = current_lr * topology_lr_scale
+                elif group.get("name") == "topology_bias":
+                    group["lr"] = (
+                        current_lr
+                        * topology_lr_scale
+                        * cfg.liquid.theta_bias_lr_scale
+                    )
+
             # Phase transition: unfreeze theta at warmup boundary
             if is_learned and warmup > 0 and epoch == warmup:
-                model.liquid.theta.requires_grad_(True)
+                _set_topology_requires_grad(True)
                 tqdm.write(
                     f"  Phase 2: theta unfrozen at epoch {epoch+1}, topology learning begins"
                 )
             if has_theta and theta_freeze_epoch > 0 and epoch + 1 == theta_freeze_epoch:
-                model.liquid.theta.requires_grad_(False)
+                _set_topology_requires_grad(False)
                 model.liquid.unlock_epoch_mask()
                 tqdm.write(
                     f"  Theta frozen at epoch {epoch+1}; topology fixed deterministically"
@@ -250,7 +338,7 @@ def train(cfg: Config) -> tuple:
             # This keeps topology stable within an epoch (BPTT safe) while allowing
             # exploration across epochs (OFF edges get a chance to be ON → w_raw learns).
             if is_learned and epoch >= warmup and not theta_frozen_by_schedule:
-                eps = torch.rand_like(model.liquid.theta).clamp(1e-6, 1 - 1e-6)
+                eps = torch.rand_like(model.liquid.get_theta()).clamp(1e-6, 1 - 1e-6)
                 epoch_noise = (torch.log(eps) - torch.log(1.0 - eps)).to(device)
                 model.liquid.sample_epoch_mask(tau=tau, epoch_noise=epoch_noise)
 
@@ -258,13 +346,21 @@ def train(cfg: Config) -> tuple:
             epoch_grad_norm = 0.0
             n_batches = 0
 
-            epoch_theta_grad_norm = 0.0
-            epoch_w_raw_grad_norm = 0.0
+            epoch_topology_grad_pre = 0.0
+            epoch_topology_grad_post = 0.0
+            epoch_w_raw_grad_pre = 0.0
+            epoch_src_grad_pre = 0.0
+            epoch_dst_grad_pre = 0.0
+            epoch_bias_grad_pre = 0.0
+            epoch_src_grad_post = 0.0
+            epoch_dst_grad_post = 0.0
+            epoch_bias_grad_post = 0.0
+            topology_clip_violations = 0
 
             batch_bar = tqdm(train_loader, desc="  Train", leave=False, unit="batch")
             for x, y in batch_bar:
                 x, y = x.to(device), y.to(device)
-                optimizer.zero_grad()
+                optimizer.zero_grad(set_to_none=True)
                 rates = model(x, tau=tau)
                 loss = _compute_loss(rates, y, model, cfg)
                 # NaN detection
@@ -277,15 +373,19 @@ def train(cfg: Config) -> tuple:
                 loss.backward()
 
                 # per-component grad norms (before clipping)
-                theta_g = model.liquid.theta.grad
                 w_raw_g = model.liquid.w_raw.grad
-                if theta_g is not None:
-                    epoch_theta_grad_norm += theta_g.norm().item()
+                topology_grad_pre = _grad_norm(theta_params)
+                if topology_grad_pre > 0.0:
+                    epoch_topology_grad_pre += topology_grad_pre
                 if w_raw_g is not None:
-                    epoch_w_raw_grad_norm += w_raw_g.norm().item()
+                    epoch_w_raw_grad_pre += w_raw_g.norm().item()
+                if cfg.liquid.recurrent_mode == "learned_lowrank":
+                    epoch_src_grad_pre += _grad_norm([model.liquid.src_embed])
+                    epoch_dst_grad_pre += _grad_norm([model.liquid.dst_embed])
+                    epoch_bias_grad_pre += _grad_norm([model.liquid.theta_bias])
 
                 # Independent per-group clipping:
-                #   theta: clip_norm_theta (moderate — prevents runaway while allowing
+                #   topology: clip_norm_theta (moderate — prevents runaway while allowing
                 #          Adam to normalize; smaller than clip_norm_w to enforce time-
                 #          scale separation: topology changes slowly, weights adapt fast)
                 #   other: clip_norm_w (large enough for recurrent BPTT norms ~10^2–10^4)
@@ -293,11 +393,21 @@ def train(cfg: Config) -> tuple:
                     torch.nn.utils.clip_grad_norm_(
                         theta_params, max_norm=clip_norm_theta
                     )
+                    topology_grad_post = _grad_norm(theta_params)
+                    if topology_grad_post > 0.0:
+                        epoch_topology_grad_post += topology_grad_post
+                    if topology_grad_post > clip_norm_theta + 1e-3:
+                        topology_clip_violations += 1
+                    if cfg.liquid.recurrent_mode == "learned_lowrank":
+                        epoch_src_grad_post += _grad_norm([model.liquid.src_embed])
+                        epoch_dst_grad_post += _grad_norm([model.liquid.dst_embed])
+                        epoch_bias_grad_post += _grad_norm([model.liquid.theta_bias])
                     other_norm = torch.nn.utils.clip_grad_norm_(
                         other_params, max_norm=clip_norm_w
                     )
                     grad_norm = other_norm
                 else:
+                    topology_grad_post = 0.0
                     grad_norm = torch.nn.utils.clip_grad_norm_(
                         other_params, max_norm=clip_norm_w
                     )
@@ -314,8 +424,16 @@ def train(cfg: Config) -> tuple:
             train_acc = correct / n
             train_loss = total_l / n
             avg_grad_norm = epoch_grad_norm / max(n_batches, 1)
-            avg_theta_grad = epoch_theta_grad_norm / max(n_batches, 1)
-            avg_w_raw_grad = epoch_w_raw_grad_norm / max(n_batches, 1)
+            avg_topology_grad_pre = epoch_topology_grad_pre / max(n_batches, 1)
+            avg_topology_grad_post = epoch_topology_grad_post / max(n_batches, 1)
+            avg_w_raw_grad = epoch_w_raw_grad_pre / max(n_batches, 1)
+            avg_src_grad = epoch_src_grad_pre / max(n_batches, 1)
+            avg_dst_grad = epoch_dst_grad_pre / max(n_batches, 1)
+            avg_bias_grad = epoch_bias_grad_pre / max(n_batches, 1)
+            avg_src_grad_post = epoch_src_grad_post / max(n_batches, 1)
+            avg_dst_grad_post = epoch_dst_grad_post / max(n_batches, 1)
+            avg_bias_grad_post = epoch_bias_grad_post / max(n_batches, 1)
+            topology_clip_violation = topology_clip_violations > 0
 
             # Adaptive theta freeze: check after batch loop once avg_theta_grad is known
             if (
@@ -325,13 +443,13 @@ def train(cfg: Config) -> tuple:
                 and not theta_frozen_by_schedule
                 and epoch + 1 >= cfg.liquid.theta_freeze_min_epoch
             ):
-                if avg_theta_grad > cfg.liquid.theta_freeze_grad_threshold:
+                if avg_topology_grad_pre > cfg.liquid.theta_freeze_grad_threshold:
                     adaptive_freeze_bad_epochs += 1
                 else:
                     adaptive_freeze_bad_epochs = 0
 
                 if adaptive_freeze_bad_epochs >= cfg.liquid.theta_freeze_patience:
-                    model.liquid.theta.requires_grad_(False)
+                    _set_topology_requires_grad(False)
                     model.liquid.unlock_epoch_mask()
                     theta_adaptive_frozen = True
                     theta_frozen_by_schedule = True
@@ -349,30 +467,75 @@ def train(cfg: Config) -> tuple:
             test_acc = _evaluate(model, test_loader, device, tau)
             sparsity = model.sparsity_info()
             fr_info = model.firing_rate_info()
-            current_lr = scheduler.get_last_lr()[0]
 
             scheduler.step()
 
-            # theta stats
+            # effective topology logit stats
             with torch.no_grad():
-                theta = model.liquid.theta
-                theta_mean = theta.mean().item()
-                theta_std = theta.std().item()
+                if has_theta:
+                    topology_logit = (
+                        model.liquid.get_theta()
+                        if cfg.liquid.recurrent_mode in learned_modes
+                        else model.liquid.theta
+                    )
+                    topology_logit_mean = topology_logit.mean().item()
+                    topology_logit_std = topology_logit.std().item()
+                    topology_sigmoid = torch.sigmoid(topology_logit)
+                    topology_sigmoid_mean = topology_sigmoid.mean().item()
+                    topology_sigmoid_std = topology_sigmoid.std().item()
+                    topology_logit_p05 = torch.quantile(
+                        topology_logit.reshape(-1), 0.05
+                    ).item()
+                    topology_logit_p95 = torch.quantile(
+                        topology_logit.reshape(-1), 0.95
+                    ).item()
+                else:
+                    topology_logit_mean = 0.0
+                    topology_logit_std = 0.0
+                    topology_sigmoid_mean = 0.0
+                    topology_sigmoid_std = 0.0
+                    topology_logit_p05 = 0.0
+                    topology_logit_p95 = 0.0
+
+            topology_lr = _param_group_lr(optimizer, "topology")
+            theta_bias_lr = _param_group_lr(optimizer, "topology_bias")
 
             row = dict(
                 epoch=epoch + 1,
                 phase=phase_label,
                 lr=current_lr,
+                base_lr=current_lr,
                 tau=tau if is_learned else None,
                 train_loss=train_loss,
                 train_acc=train_acc,
                 test_acc=test_acc,
                 sparsity=sparsity,
-                theta_mean=theta_mean,
-                theta_std=theta_std,
+                hard_density=sparsity,
+                topology_logit_mean=topology_logit_mean,
+                topology_logit_std=topology_logit_std,
+                topology_logit_p05=topology_logit_p05,
+                topology_logit_p95=topology_logit_p95,
+                topology_sigmoid_mean=topology_sigmoid_mean,
+                topology_sigmoid_std=topology_sigmoid_std,
+                theta_mean=topology_logit_mean,
+                theta_std=topology_logit_std,
                 grad_norm=avg_grad_norm,
-                theta_grad_norm=avg_theta_grad,
+                topology_grad_pre_clip=avg_topology_grad_pre,
+                topology_grad_post_clip=avg_topology_grad_post,
+                topology_clip_violation=topology_clip_violation,
+                theta_grad_norm=avg_topology_grad_pre,
                 w_raw_grad_norm=avg_w_raw_grad,
+                w_raw_grad_pre_clip=avg_w_raw_grad,
+                src_grad_pre_clip=avg_src_grad,
+                dst_grad_pre_clip=avg_dst_grad,
+                bias_grad_pre_clip=avg_bias_grad,
+                src_grad_post_clip=avg_src_grad_post,
+                dst_grad_post_clip=avg_dst_grad_post,
+                bias_grad_post_clip=avg_bias_grad_post,
+                topology_lr=topology_lr,
+                theta_bias_lr=theta_bias_lr,
+                topology_lr_scale=topology_lr_scale,
+                topology_lr_scale_effective=topology_lr_scale,
                 mean_firing_rate=fr_info["mean"],
                 max_firing_rate=fr_info["max"],
                 pred_loss=model.prediction_info(),
@@ -394,7 +557,18 @@ def train(cfg: Config) -> tuple:
                 postfix["tau"] = f"{tau:.3f}"
             epoch_bar.set_postfix(postfix)
             grad_detail = (
-                f"  θ_grad={avg_theta_grad:.2e}  w_grad={avg_w_raw_grad:.2e}"
+                f"  topo_grad={avg_topology_grad_pre:.2e}/{avg_topology_grad_post:.2e}  "
+                f"w_grad={avg_w_raw_grad:.2e}"
+                if has_theta
+                else ""
+            )
+            lr_detail = (
+                f"  topo_lr={topology_lr:.2e}"
+                + (
+                    f"  bias_lr={theta_bias_lr:.2e}"
+                    if cfg.liquid.recurrent_mode == "learned_lowrank"
+                    else ""
+                )
                 if has_theta
                 else ""
             )
@@ -405,7 +579,10 @@ def train(cfg: Config) -> tuple:
                 f"train={train_acc:.4f}  test={test_acc:.4f}  "
                 f"sp={sparsity:.3f}  grad={avg_grad_norm:.1f}  "
                 f"fr={fr_info['mean']:.3f}/{fr_info['max']:.3f}  "
-                f"θ={theta_mean:.3f}±{theta_std:.3f}" + grad_detail
+                f"logit={topology_logit_mean:.3f}±{topology_logit_std:.3f}  "
+                f"sig={topology_sigmoid_mean:.3f}±{topology_sigmoid_std:.3f}"
+                + grad_detail
+                + lr_detail
             )
 
             # early warnings
@@ -413,9 +590,13 @@ def train(cfg: Config) -> tuple:
                 tqdm.write(
                     f"  ⚠ grad_norm={avg_grad_norm:.1f} — consider reducing lr or clip_max_norm"
                 )
-            if has_theta and avg_theta_grad > 50:
+            if has_theta and avg_topology_grad_pre > 50:
                 tqdm.write(
-                    f"  ⚠ theta_grad={avg_theta_grad:.1f} — topology gradient exploding (tau={tau:.3f})"
+                    f"  ⚠ topo_grad={avg_topology_grad_pre:.1f} — topology gradient exploding (tau={tau:.3f})"
+                )
+            if has_theta and topology_clip_violation:
+                tqdm.write(
+                    f"  ⚠ topo_grad_post={avg_topology_grad_post:.2f} exceeded clip max {clip_norm_theta:.2f}"
                 )
             if is_learned and avg_w_raw_grad > 50:
                 tqdm.write(
@@ -425,9 +606,9 @@ def train(cfg: Config) -> tuple:
                 tqdm.write(
                     f"  ⚠ max_firing_rate={fr_info['max']:.3f} — possible excitatory loop runaway"
                 )
-            if epoch > 20 and theta_std < 0.01:
+            if epoch > 20 and topology_logit_std < 0.01:
                 tqdm.write(
-                    f"  ⚠ theta_std={theta_std:.4f} — theta stagnating, consider increasing lambda_commit"
+                    f"  ⚠ logit_std={topology_logit_std:.4f} — topology logit stagnating, consider increasing lambda_commit"
                 )
 
             if dynamic_warmup and phase_label == "P1":

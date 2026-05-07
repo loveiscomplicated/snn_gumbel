@@ -3,9 +3,10 @@ LSM model: InputProjection → LiquidLayer (recurrent) → Readout.
 
 Liquid topology modes:
   - "learned"       : Gumbel-Sigmoid mask, trained end-to-end
-  - "random_sparse" : fixed random binary mask at init
-  - "fixed"         : random sparse + weights frozen (traditional LSM)
-  - "grad_r"        : hard threshold (theta > 0) mask
+  - "learned_lowrank": Gumbel-Sigmoid mask with directed low-rank theta
+  - "random_sparse"  : fixed random binary mask at init
+  - "fixed"          : random sparse + weights frozen (traditional LSM)
+  - "grad_r"         : hard threshold (theta > 0) mask
 """
 
 from __future__ import annotations
@@ -13,9 +14,8 @@ from __future__ import annotations
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from typing import List
 
-from src.models.layers import gumbel_sigmoid, gumbel_sigmoid_ste, sigmoid_ste, spike_fn
+from src.models.layers import sigmoid_ste, spike_fn
 
 # ---------------------------------------------------------------------------
 # InputProjection: fixed random excitatory input → liquid
@@ -50,7 +50,7 @@ class LiquidLayer(nn.Module):
     """
     Recurrent liquid layer with topology learning.
 
-    Parameters learned: theta (N,N), w_raw (N,N), threshold (N,), log_beta
+    Parameters learned: topology logits, w_raw (N,N), threshold (N,), log_beta
     Buffers (fixed): dale_sign (N,1), self_conn_mask (N,N)
     """
 
@@ -63,6 +63,8 @@ class LiquidLayer(nn.Module):
         self_connection: bool = False,
         theta_init_mean: float = 0.0,
         theta_init_std: float = 0.01,
+        theta_rank: int = 16,
+        theta_lowrank_init_std: float = 0.30,
         w_raw_init_mean: float = -4.0,
         w_raw_init_std: float = 0.01,
         train_w_raw: bool = True,
@@ -81,11 +83,24 @@ class LiquidLayer(nn.Module):
 
         # --- learnable parameters ---
         weight_trainable = mode != "fixed"
-
-        self.theta = nn.Parameter(
-            torch.randn(n_liquid, n_liquid) * theta_init_std + theta_init_mean,
-            requires_grad=(mode in ("learned", "grad_r")),
-        )
+        if mode == "learned":
+            self.theta = nn.Parameter(
+                torch.randn(n_liquid, n_liquid) * theta_init_std + theta_init_mean,
+                requires_grad=True,
+            )
+        elif mode == "learned_lowrank":
+            self.src_embed = nn.Parameter(
+                torch.randn(n_liquid, theta_rank) * theta_lowrank_init_std
+            )
+            self.dst_embed = nn.Parameter(
+                torch.randn(n_liquid, theta_rank) * theta_lowrank_init_std
+            )
+            self.theta_bias = nn.Parameter(torch.tensor(float(theta_init_mean)))
+        else:
+            self.theta = nn.Parameter(
+                torch.randn(n_liquid, n_liquid) * theta_init_std + theta_init_mean,
+                requires_grad=(mode == "grad_r"),
+            )
         # softplus(w_raw) is the weight magnitude.
         # softplus(0)=0.693 is way too large for recurrent nets.
         # With N=200, p=0.2: ~40 inputs/neuron, 80% exc.
@@ -138,6 +153,24 @@ class LiquidLayer(nn.Module):
     def beta(self):
         return torch.sigmoid(self.logit_beta)
 
+    def get_theta(self) -> torch.Tensor:
+        if self.mode == "learned":
+            return self.theta
+        if self.mode == "learned_lowrank":
+            return self.src_embed @ self.dst_embed.T + self.theta_bias
+        raise RuntimeError(f"Topology logits are not defined for mode: {self.mode}")
+
+    def topology_parameters(self) -> list[nn.Parameter]:
+        if self.mode == "learned":
+            return [self.theta]
+        if self.mode == "learned_lowrank":
+            return [self.src_embed, self.dst_embed, self.theta_bias]
+        return []
+
+    def set_topology_requires_grad(self, requires_grad: bool) -> None:
+        for param in self.topology_parameters():
+            param.requires_grad_(requires_grad)
+
     def sample_epoch_mask(self, tau: float, epoch_noise: torch.Tensor) -> None:
         """Store epoch-level Gumbel noise for Phase 2 training.
 
@@ -166,25 +199,26 @@ class LiquidLayer(nn.Module):
             other batches this epoch, but a fresh computation graph each call.
         Phase 1 / eval: deterministic hard mask, no gradient.
         """
-        if self.mode == "learned":
+        if self.mode in ("learned", "learned_lowrank"):
+            theta = self.get_theta()
             if self._epoch_noise is not None:
                 # Phase 2: recompute STE with the epoch noise every batch.
                 # Same noise → same hard{0,1} topology. New graph each call → backward safe.
                 # noise_scale controls exploration radius:
                 #   0.1 → only edges with |theta| < 0.18 can flip (~0.3% of all edges)
                 #   1.0 → standard Gumbel, ~33% flip regardless of theta magnitude
-                noisy_logits = (
-                    self.theta / self._epoch_tau + self.noise_scale * self._epoch_noise
-                )
+                noisy_logits = theta / self._epoch_tau + self.noise_scale * self._epoch_noise
                 soft = torch.sigmoid(noisy_logits)
                 hard_mask = (soft >= 0.5).float()
                 self.current_mask = hard_mask - soft.detach() + soft
-            elif self.training and self.theta.requires_grad:
+            elif self.training and any(
+                param.requires_grad for param in self.topology_parameters()
+            ):
                 # Phase 2 fallback without noise (shouldn't be reached in normal flow)
-                self.current_mask = sigmoid_ste(self.theta)
+                self.current_mask = sigmoid_ste(theta)
             else:
                 # Phase 1 or eval: pure deterministic
-                self.current_mask = (torch.sigmoid(self.theta) >= 0.5).float()
+                self.current_mask = (torch.sigmoid(theta) >= 0.5).float()
         elif self.mode in ("random_sparse", "fixed"):
             self.current_mask = self.fixed_mask
         elif self.mode == "grad_r":
@@ -223,8 +257,10 @@ class LiquidLayer(nn.Module):
             return self.fixed_mask
         if self.mode == "grad_r":
             return (self.theta > 0).float() * self.self_conn_mask
-        # learned
-        return ((torch.sigmoid(self.theta) >= 0.5).float()) * self.self_conn_mask
+        if self.mode in ("learned", "learned_lowrank"):
+            theta = self.get_theta()
+            return ((torch.sigmoid(theta) >= 0.5).float()) * self.self_conn_mask
+        raise RuntimeError(f"Unknown liquid mode: {self.mode}")
 
 
 # ---------------------------------------------------------------------------
@@ -251,6 +287,8 @@ class LSMModel(nn.Module):
         self_connection: bool = False,
         theta_init_mean: float = 0.0,
         theta_init_std: float = 0.01,
+        theta_rank: int = 16,
+        theta_lowrank_init_std: float = 0.30,
         w_raw_init_mean: float = -4.0,
         w_raw_init_std: float = 0.01,
         train_w_raw: bool = True,
@@ -280,6 +318,8 @@ class LSMModel(nn.Module):
             self_connection=self_connection,
             theta_init_mean=theta_init_mean,
             theta_init_std=theta_init_std,
+            theta_rank=theta_rank,
+            theta_lowrank_init_std=theta_lowrank_init_std,
             w_raw_init_mean=w_raw_init_mean,
             w_raw_init_std=w_raw_init_std,
             train_w_raw=train_w_raw,
@@ -388,17 +428,19 @@ class LSMModel(nn.Module):
     def sparsity_loss(self) -> torch.Tensor:
         # sparsity_loss는 theta 값을 조정하여 시그모이드 함수를 통과한에
         # 결과가 0에 더 가깝게 하여 분포가 희소하게 만드는 역할을 함.
-        if self.liquid.mode != "learned":
-            return torch.tensor(0.0, device=self.liquid.theta.device)
-        return torch.sigmoid(self.liquid.theta).mean()
+        if self.liquid.mode not in ("learned", "learned_lowrank"):
+            return torch.zeros((), device=self.readout.weight.device)
+        theta = self.liquid.get_theta()
+        return torch.sigmoid(theta).mean()
 
     def commitment_loss(self) -> torch.Tensor:
         # theta를 시그모이드를 통과한 것의 분포가 0 또는 1에 몰리게 하는 결과를 내도록 함
         # 만약 theta가 0.5 근처에 존재한다면 엣지의 존재유무가 확확 바뀌기 때문에 불안정해진다.
-        if self.liquid.mode != "learned":
-            return torch.tensor(0.0, device=self.liquid.theta.device)
+        if self.liquid.mode not in ("learned", "learned_lowrank"):
+            return torch.zeros((), device=self.readout.weight.device)
         eps = 1e-6
-        p = torch.sigmoid(self.liquid.theta)
+        theta = self.liquid.get_theta()
+        p = torch.sigmoid(theta)
         entropy = -(p * (p + eps).log() + (1 - p) * (1 - p + eps).log())
         return entropy.mean()
 
