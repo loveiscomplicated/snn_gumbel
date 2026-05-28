@@ -1,0 +1,34 @@
+group_id,role,method,selection_rule,seed,p,experiment_dir,main_table,notes
+R0,no_recurrence,no_recurrence,fixed_baseline,,0.000,experiments/lsm_shd_rs_p000_260428165253,yes,single no-recurrent baseline
+R1,same_density_random,random_sparse,test@best-val,42,0.040,experiments/lsm_shd_rs_density_control_p040_s42_260508171158,yes,density-only control
+R1,same_density_random,random_sparse,test@best-val,43,0.040,experiments/lsm_shd_rs_density_control_p040_s43_260508174841,yes,density-only control
+R1,same_density_random,random_sparse,test@best-val,44,0.040,experiments/lsm_shd_rs_density_control_p040_s44_260508182437,yes,density-only control
+R1,same_density_random,random_sparse,test@best-val,45,0.040,experiments/lsm_shd_rs_density_control_p040_s45_260508190024,yes,density-only control
+R1,same_density_random,random_sparse,test@best-val,42,0.045,experiments/lsm_shd_rs_density_control_p045_s42_260508193630,yes,density-only control
+R1,same_density_random,random_sparse,test@best-val,43,0.045,experiments/lsm_shd_rs_density_control_p045_s43_260508201233,yes,density-only control
+R1,same_density_random,random_sparse,test@best-val,44,0.045,experiments/lsm_shd_rs_density_control_p045_s44_260508210115,yes,density-only control
+R1,same_density_random,random_sparse,test@best-val,45,0.045,experiments/lsm_shd_rs_density_control_p045_s45_260508215340,yes,density-only control
+R1,same_density_random,random_sparse,test@best-val,42,0.050,experiments/lsm_shd_rs_density_control_p050_s42_260508224658,yes,density-only control
+R1,same_density_random,random_sparse,test@best-val,43,0.050,experiments/lsm_shd_rs_density_control_p050_s43_260508234121,yes,density-only control
+R1,same_density_random,random_sparse,test@best-val,44,0.050,experiments/lsm_shd_rs_density_control_p050_s44_260509024915,yes,density-only control
+R1,same_density_random,random_sparse,test@best-val,45,0.050,experiments/lsm_shd_rs_density_control_p050_s45_260509035356,yes,density-only control
+R2,learned_c_original,learned_c,historical_best-test/no-val,42,,experiments/lsm_shd_C_freeze_w_theta100_w225_260429122610,yes,historical edge-wise Gumbel comparator; logs appear to lack val_acc
+R2,learned_c_original,learned_c,historical_best-test/no-val,43,,experiments/lsm_shd_C_freeze_w_theta100_w225_s43_260429141323,yes,historical edge-wise Gumbel comparator; logs appear to lack val_acc
+R2,learned_c_original,learned_c,historical_best-test/no-val,44,,experiments/lsm_shd_C_freeze_w_theta100_w225_s44_260429141328,yes,historical edge-wise Gumbel comparator; logs appear to lack val_acc
+R2,learned_c_original,learned_c,historical_best-test/no-val,45,,experiments/lsm_shd_C_freeze_w_theta100_w225_s45_260429160420,yes,historical edge-wise Gumbel comparator; logs appear to lack val_acc
+R2v,learned_c_valrollback,learned_c,test@best-val+val_rollback,42,,experiments/lsm_shd_C_valrollback_m50p10_s42_260517005826,yes,validation-selected edge-wise Gumbel comparator
+R2v,learned_c_valrollback,learned_c,test@best-val+val_rollback,43,,experiments/lsm_shd_C_valrollback_m50p10_s43_260517005832,yes,validation-selected edge-wise Gumbel comparator
+R2v,learned_c_valrollback,learned_c,test@best-val+val_rollback,44,,experiments/lsm_shd_C_valrollback_m50p10_s44_260517005838,yes,validation-selected edge-wise Gumbel comparator
+R2v,learned_c_valrollback,learned_c,test@best-val+val_rollback,45,,experiments/lsm_shd_C_valrollback_m50p10_s45_260517005843,yes,validation-selected edge-wise Gumbel comparator
+R4,grad_r_ste,grad_r_ste,historical_best-test/no-val,42,,experiments/lsm_shd_grad_r_STE_theta100_w225_gfreeze30p2_s42_260430203512,yes,historical strong baseline; current logs appear to lack val_acc
+R4,grad_r_ste,grad_r_ste,historical_best-test/no-val,43,,experiments/lsm_shd_grad_r_STE_theta100_w225_gfreeze30p2_s43_260430203518,yes,historical strong baseline; current logs appear to lack val_acc
+R4,grad_r_ste,grad_r_ste,historical_best-test/no-val,44,,experiments/lsm_shd_grad_r_STE_theta100_w225_gfreeze30p2_s44_260430213632,yes,historical strong baseline; current logs appear to lack val_acc
+R4,grad_r_ste,grad_r_ste,historical_best-test/no-val,45,,experiments/lsm_shd_grad_r_STE_theta100_w225_gfreeze30p2_s45_260430213640,yes,historical strong baseline; current logs appear to lack val_acc
+R8,lowrank_main,learned_lowrank_m50p10,test@best-val+val_rollback,42,,experiments/lsm_shd_lowrank_r16_valrollback_m50p10_s42_260508112419,yes,current main lowrank policy
+R8,lowrank_main,learned_lowrank_m50p10,test@best-val+val_rollback,43,,experiments/lsm_shd_lowrank_r16_valrollback_m50p10_s43_260508121237,yes,current main lowrank policy
+R8,lowrank_main,learned_lowrank_m50p10,test@best-val+val_rollback,44,,experiments/lsm_shd_lowrank_r16_valrollback_m50p10_s44_260508121303,yes,current main lowrank policy
+R8,lowrank_main,learned_lowrank_m50p10,test@best-val+val_rollback,45,,experiments/lsm_shd_lowrank_r16_valrollback_m50p10_s45_260508121340,yes,current main lowrank policy
+R4v,grad_r_ste_valrollback,grad_r_ste,test@best-val+val_rollback,42,,experiments/lsm_shd_grad_r_STE_valrollback_m50p10_s42_260516191133,yes,validation-selected Grad R comparator
+R4v,grad_r_ste_valrollback,grad_r_ste,test@best-val+val_rollback,43,,experiments/lsm_shd_grad_r_STE_valrollback_m50p10_s43_260516191139,yes,validation-selected Grad R comparator
+R4v,grad_r_ste_valrollback,grad_r_ste,test@best-val+val_rollback,44,,experiments/lsm_shd_grad_r_STE_valrollback_m50p10_s44_260516191144,yes,validation-selected Grad R comparator
+R4v,grad_r_ste_valrollback,grad_r_ste,test@best-val+val_rollback,45,,experiments/lsm_shd_grad_r_STE_valrollback_m50p10_s45_260516191150,yes,validation-selected Grad R comparator
