@@ -1,0 +1,50 @@
+base: lsm_shd_baseline.yaml
+
+experiment_name: lsm_shd_grad_r_STE_valrollback_m50p10
+
+liquid:
+  recurrent_mode: grad_r
+  recurrent_sparsity: 0.1
+  theta_init_mean: -1.0
+  theta_init_std: 0.5
+  theta_warmup_epochs: 10
+  theta_warmup_dynamic: false
+  theta_warmup_metric: val_acc
+  theta_lr_scale: 0.3
+  theta_freeze_epoch: 0
+  theta_adaptive_freeze: false
+  topology_adaptive_freeze: true
+  topology_freeze_metric: val_acc
+  topology_freeze_min_epoch: 50
+  topology_freeze_patience: 10
+  topology_freeze_min_delta: 0.0
+  topology_freeze_rollback_best: true
+  topology_freeze_verbose: true
+  input_weight_scale: 0.3
+  w_raw_init_mean: -2.25
+  w_raw_init_std: 0.01
+  train_w_raw: false
+  w_raw_max: -2.0
+  bptt_truncate: 25
+  beta_min: 0.7
+  beta_max: 0.95
+  threshold_min: 0.8
+  threshold_max: 1.5
+
+tau_start: 1.0
+tau_end: 0.05
+tau_anneal_epochs: 40
+tau_hold_epochs: 15
+
+epochs: 100
+patience: 40
+batch_size: 64
+val_fraction: 0.1
+val_seed: 42
+use_validation: true
+lr: 0.001
+lr_min: 0.00001
+weight_decay: 0.0001
+lambda_sparse: 0.1
+lambda_commit: 0.01
+lambda_pred: 0.0

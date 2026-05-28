@@ -34,7 +34,7 @@ liquid:
   theta_warmup_min_epochs: 5
   theta_warmup_patience: 3
   theta_warmup_min_delta: 0.002
-  theta_warmup_metric: test_acc
+  theta_warmup_metric: val_acc
   theta_lr_scale: 0.3
   theta_freeze_epoch: 0
   theta_adaptive_freeze: false
@@ -56,6 +56,9 @@ tau_hold_epochs: 15
 epochs: 100
 patience: 40
 batch_size: 64
+val_fraction: 0.1
+val_seed: 42
+use_validation: true
 lr: 0.001
 lr_min: 0.00001
 weight_decay: 0.0001
