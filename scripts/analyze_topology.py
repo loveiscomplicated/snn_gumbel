@@ -10,6 +10,36 @@ Focus:
 
 Usage:
     python scripts/analyze_topology.py experiments/exp_a experiments/exp_b
+
+
+for p in 040 045 050; do           
+    for s in 42 43 44 45; do
+      dir=$(ls -d experiments/lsm_shd_rs_density_control_p${p}_s${s}_* 2>/dev/null | head -1)
+      if [ -n "$dir" ]; then
+        python scripts/diagnose_liquid.py "$dir/config.yaml" \
+          --checkpoint "$dir/checkpoints/best.pt" \
+          --batches 4 --classes 20 --samples-per-class 10 \
+          --out-json "$dir/diagnose_topology.json" \
+          --out-csv runs/diagnostics/topology_summary.csv \
+          --save-embeddings "$dir/embedding_pca.csv" \
+          batch_size=16
+      fi
+    done
+  done
+
+
+
+for s in 42 43 44 45; do                     
+    dir=$(ls -d experiments/lsm_shd_lowrank_r16_valrollback_m50p10_s${s}_* 2>/dev/null | head -1)         
+    if [ -n "$dir" ]; then
+      python scripts/diagnose_liquid.py "$dir/config.yaml" \
+        --checkpoint "$dir/checkpoints/best.pt" \
+        --batches 4 --classes 20 --samples-per-class 10 \                                                  
+        --out-json "$dir/diagnose_topology.json" \   
+        --out-csv runs/diagnostics/topology_summary.csv \                            
+        --save-embeddings "$dir/embedding_pca.csv" \
+        batch_size=16
+    fi
 """
 
 from __future__ import annotations
@@ -27,6 +57,14 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from src.lsm.trainer import build_model, get_device
 from src.utils.config import load_config
+
+try:
+    from diagnose_liquid import compute_graph_metrics, print_graph_topology_metrics
+except ImportError:
+    from scripts.diagnose_liquid import (
+        compute_graph_metrics,
+        print_graph_topology_metrics,
+    )
 
 
 def parse_args():
@@ -159,13 +197,19 @@ def subset_summary(mask: torch.Tensor, neuron_mask: torch.Tensor) -> str:
     return tensor_summary(vals)
 
 
-def reciprocal_counts(mask: torch.Tensor, exc: torch.Tensor, inh: torch.Tensor) -> dict[str, int]:
+def reciprocal_counts(
+    mask: torch.Tensor, exc: torch.Tensor, inh: torch.Tensor
+) -> dict[str, int]:
     reciprocal = mask & mask.T
     counts = {
         "total_pairs": int(reciprocal.triu(diagonal=1).sum().item()),
-        "ee_pairs": int((reciprocal & exc[:, None] & exc[None, :]).triu(diagonal=1).sum().item()),
+        "ee_pairs": int(
+            (reciprocal & exc[:, None] & exc[None, :]).triu(diagonal=1).sum().item()
+        ),
         "ei_pairs": int((reciprocal & exc[:, None] & inh[None, :]).sum().item()),
-        "ii_pairs": int((reciprocal & inh[:, None] & inh[None, :]).triu(diagonal=1).sum().item()),
+        "ii_pairs": int(
+            (reciprocal & inh[:, None] & inh[None, :]).triu(diagonal=1).sum().item()
+        ),
     }
     return counts
 
@@ -201,6 +245,8 @@ def print_single_experiment_report(exp: ExperimentTopology, topk: int) -> None:
     print(f"  inh in-degree           : {subset_summary(exp.in_degree, inh)}")
     print(f"  inh out-degree          : {subset_summary(exp.out_degree, inh)}")
 
+    print_graph_topology_metrics(compute_graph_metrics(exp.mask, exp.dale_sign))
+
     total_degree = exp.in_degree + exp.out_degree
     print_header("2. Hub neurons")
     print(f"  top in-degree hubs      : {topk_pairs(exp.in_degree, topk)}")
@@ -228,9 +274,13 @@ def print_single_experiment_report(exp: ExperimentTopology, topk: int) -> None:
         f"  corr(readout, total)    : {pearson_corr(exp.readout_importance, total_degree):.4f}"
     )
 
-    top_degree = set(total_degree.topk(min(topk, total_degree.numel())).indices.tolist())
+    top_degree = set(
+        total_degree.topk(min(topk, total_degree.numel())).indices.tolist()
+    )
     top_readout = set(
-        exp.readout_importance.topk(min(topk, exp.readout_importance.numel())).indices.tolist()
+        exp.readout_importance.topk(
+            min(topk, exp.readout_importance.numel())
+        ).indices.tolist()
     )
     overlap = sorted(top_degree & top_readout)
     print(
@@ -255,7 +305,9 @@ def shared_topk_fraction(a: torch.Tensor, b: torch.Tensor, k: int) -> float:
     return len(set_a & set_b) / denom
 
 
-def print_cross_seed_report(experiments: list[ExperimentTopology], topk: int, compare_seed: str) -> None:
+def print_cross_seed_report(
+    experiments: list[ExperimentTopology], topk: int, compare_seed: str
+) -> None:
     if len(experiments) < 2:
         return
 
