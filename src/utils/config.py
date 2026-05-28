@@ -82,7 +82,7 @@ class LiquidConfig:
     theta_warmup_min_epochs: int = 5  # dynamic warmup에서 최소 P1 epoch 수
     theta_warmup_patience: int = 3  # dynamic warmup plateau 허용 epoch 수
     theta_warmup_min_delta: float = 0.002  # P1 metric 개선으로 인정할 최소 변화량
-    theta_warmup_metric: str = "test_acc"  # test_acc | train_acc | train_loss
+    theta_warmup_metric: str = "test_acc"  # val_acc | test_acc | train_acc | train_loss
     theta_lr_scale: float = 0.1  # theta LR = base_lr × theta_lr_scale
     theta_lr_ramp_epochs: int = 1  # P2 topology LR ramp length (1 = no ramp)
     theta_bias_lr_scale: float = 1.0  # learned_lowrank bias LR relative to topology LR
@@ -93,6 +93,13 @@ class LiquidConfig:
     theta_freeze_min_epoch: int = 20  # adaptive freeze를 고려하기 시작하는 최소 epoch
     theta_freeze_grad_threshold: float = 30.0  # theta grad norm 임계값
     theta_freeze_patience: int = 2  # 연속으로 임계값 초과해야 하는 epoch 수
+    topology_adaptive_freeze: bool = False  # validation-based adaptive topology freeze
+    topology_freeze_metric: str = "val_acc"  # currently only val_acc is supported
+    topology_freeze_min_epoch: int = 40  # validation-based freeze earliest epoch
+    topology_freeze_patience: int = 8  # validation metric plateau patience
+    topology_freeze_min_delta: float = 0.0  # minimum val_acc improvement for snapshot
+    topology_freeze_rollback_best: bool = True  # rollback best topology before freezing
+    topology_freeze_verbose: bool = True  # print one-time validation freeze event
     noise_scale: float = (
         0.1  # 에폭 단위 Gumbel noise 크기 (0=결정적, 1=표준 Gumbel std≈1.81)
     )
@@ -139,6 +146,9 @@ class Config:
     epochs: int = 100
     patience: int = 20  # early stopping patience (0 = 비활성화)
     batch_size: int = 128
+    val_fraction: float = 0.1
+    val_seed: int = 42
+    use_validation: bool = True
     lr: float = 1e-3
     lr_min: float = 1e-5  # cosine scheduler의 최솟값
     lambda_sparse: float = 0.005

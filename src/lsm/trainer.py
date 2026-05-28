@@ -19,7 +19,7 @@ import torch.optim as optim
 from torch.optim.lr_scheduler import CosineAnnealingLR
 from tqdm import tqdm
 
-from src.data.loaders import get_dataloaders
+from src.data.loaders import get_train_val_test_dataloaders
 from src.lsm.model import LSMModel
 from src.utils.config import Config
 
@@ -104,17 +104,27 @@ def _compute_loss(rates, labels, model, cfg):
     return loss + cfg.lambda_sparse * sp + cfg.lambda_commit * cm + cfg.lambda_pred * pd
 
 
-def _evaluate(model: LSMModel, loader, device: torch.device, tau: float) -> float:
+def _evaluate_metrics(
+    model: LSMModel, loader, device: torch.device, tau: float
+) -> tuple[float, float]:
     model.eval()
     correct = total = 0
+    loss_sum = 0.0
     with torch.no_grad():
         for x, y in loader:
             x, y = x.to(device), y.to(device)
             rates = model(x, tau=tau)
+            loss = ce_loss(rates, y)
             pred = rates.argmax(dim=1)
             correct += (pred == y).sum().item()
             total += y.size(0)
-    return correct / total
+            loss_sum += loss.item() * y.size(0)
+    return correct / total, loss_sum / total
+
+
+def _evaluate(model: LSMModel, loader, device: torch.device, tau: float) -> float:
+    acc, _ = _evaluate_metrics(model, loader, device, tau)
+    return acc
 
 
 def _metric_improved(
@@ -128,12 +138,17 @@ def _metric_improved(
 
 
 def _select_warmup_metric(metric_name: str, row: dict) -> float:
-    if metric_name not in {"test_acc", "train_acc", "train_loss"}:
+    if metric_name not in {"val_acc", "test_acc", "train_acc", "train_loss"}:
         raise ValueError(
             "liquid.theta_warmup_metric must be one of: "
-            "test_acc, train_acc, train_loss"
+            "val_acc, test_acc, train_acc, train_loss"
         )
-    return row[metric_name]
+    value = row.get(metric_name)
+    if value is None:
+        raise ValueError(
+            f"liquid.theta_warmup_metric={metric_name!r} requires that metric to be available."
+        )
+    return value
 
 
 def _warmup_score(metric_name: str, value: float) -> float:
@@ -162,6 +177,10 @@ def _param_group_lr(optimizer: optim.Optimizer, name: str) -> float:
     return 0.0
 
 
+def _selection_state(val_loader) -> str:
+    return "val_acc" if val_loader is not None else "test_acc"
+
+
 def train(cfg: Config) -> tuple:
     os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")
     torch.manual_seed(cfg.seed)
@@ -171,8 +190,20 @@ def train(cfg: Config) -> tuple:
     checkpoint_path = exp_dir / "checkpoints" / "best.pt"
     log_path = exp_dir / "logs" / "train.jsonl"
 
-    train_loader, test_loader = get_dataloaders(cfg)
+    train_loader, val_loader, test_loader = get_train_val_test_dataloaders(cfg)
     model = build_model(cfg, device)
+    selection_metric_name = _selection_state(val_loader)
+    train_size = len(train_loader.dataset)
+    val_size = len(val_loader.dataset) if val_loader is not None else 0
+    test_size = len(test_loader.dataset)
+    tqdm.write(
+        "Data split: "
+        f"train={train_size}  "
+        + (
+            f"val={val_size}  " if val_loader is not None else "val=disabled  "
+        )
+        + f"test={test_size}"
+    )
 
     def _topology_param_group():
         if cfg.liquid.recurrent_mode == "grad_r":
@@ -192,6 +223,8 @@ def train(cfg: Config) -> tuple:
     is_learned = cfg.liquid.recurrent_mode in learned_modes
     # grad_r also has a trainable theta but skips Gumbel noise / warmup logic
     has_theta = is_learned or cfg.liquid.recurrent_mode == "grad_r"
+    topology_trainable_modes = {"learned", "learned_lowrank", "grad_r"}
+    topology_freeze_enabled = has_theta and cfg.liquid.topology_adaptive_freeze
     dynamic_warmup = is_learned and cfg.liquid.theta_warmup_dynamic and warmup > 0
     warmup_min_epochs = min(max(cfg.liquid.theta_warmup_min_epochs, 1), warmup)
     warmup_patience = max(cfg.liquid.theta_warmup_patience, 1)
@@ -205,6 +238,20 @@ def train(cfg: Config) -> tuple:
     warmup_scores: list[float] = []
     if warmup_strategy not in {"slope", "best"}:
         raise ValueError("liquid.theta_warmup_strategy must be one of: slope, best")
+    if topology_freeze_enabled and cfg.liquid.topology_freeze_metric != "val_acc":
+        raise ValueError(
+            "liquid.topology_freeze_metric must be 'val_acc'. "
+            "Test accuracy is reporting-only and cannot drive topology freeze."
+        )
+    if topology_freeze_enabled and val_loader is None:
+        raise ValueError(
+            "liquid.topology_adaptive_freeze=true requires an internal validation split."
+        )
+    if warmup_metric == "val_acc" and val_loader is None:
+        warmup_metric = "test_acc"
+        tqdm.write(
+            "  Validation disabled; falling back to test_acc for theta warmup metric"
+        )
     if is_learned and warmup > 0:
         _set_topology_requires_grad(False)
         tqdm.write(f"  Phase 1 warmup: theta frozen for {warmup} epochs")
@@ -287,7 +334,12 @@ def train(cfg: Config) -> tuple:
     optimizer = optim.Adam(param_groups)
     scheduler = CosineAnnealingLR(optimizer, T_max=cfg.epochs, eta_min=cfg.lr_min)
 
-    best_acc = 0.0
+    best_acc = float("-inf")
+    best_metric_name = selection_metric_name
+    best_metric_value: float | None = None
+    best_val_acc: float | None = None
+    best_test_acc_at_best_val: float | None = None
+    best_epoch = 0
     epochs_no_improve = 0
     history: list[dict] = []
     clip_norm_w = cfg.liquid.grad_clip_max_norm_w
@@ -295,7 +347,35 @@ def train(cfg: Config) -> tuple:
 
     adaptive_freeze_bad_epochs = 0
     theta_adaptive_frozen = False
-    theta_freeze_reason = ""
+    topology_frozen_by_validation = False
+    topology_freeze_reason: str | None = None
+    topology_frozen_epoch: int | None = None
+    best_topology_state: dict[str, torch.Tensor] | None = None
+    best_topology_metric = float("-inf")
+    best_topology_epoch: int | None = None
+    topology_bad_count = 0
+    topology_best_metric_name = cfg.liquid.topology_freeze_metric
+    topology_rollback_applied_any = False
+
+    def _topology_is_frozen(epoch_idx: int) -> bool:
+        fixed_epoch_frozen = topology_freeze_reason == "fixed_epoch" or (
+            has_theta and theta_freeze_epoch > 0 and epoch_idx + 1 > theta_freeze_epoch
+        )
+        return fixed_epoch_frozen or theta_adaptive_frozen or topology_frozen_by_validation
+
+    def _freeze_topology(reason: str, epoch_idx: int) -> None:
+        nonlocal theta_adaptive_frozen
+        nonlocal topology_frozen_by_validation
+        nonlocal topology_freeze_reason
+        nonlocal topology_frozen_epoch
+
+        model.liquid.freeze_topology()
+        if reason == "gradient_threshold":
+            theta_adaptive_frozen = True
+        elif reason == "validation_adaptive":
+            topology_frozen_by_validation = True
+        topology_freeze_reason = reason
+        topology_frozen_epoch = epoch_idx + 1
 
     epoch_bar = tqdm(range(cfg.epochs), desc="Epochs", unit="ep")
 
@@ -314,21 +394,22 @@ def train(cfg: Config) -> tuple:
                     )
 
             # Phase transition: unfreeze theta at warmup boundary
-            if is_learned and warmup > 0 and epoch == warmup:
+            if is_learned and warmup > 0 and epoch == warmup and not _topology_is_frozen(epoch):
                 _set_topology_requires_grad(True)
                 tqdm.write(
                     f"  Phase 2: theta unfrozen at epoch {epoch+1}, topology learning begins"
                 )
-            if has_theta and theta_freeze_epoch > 0 and epoch + 1 == theta_freeze_epoch:
-                _set_topology_requires_grad(False)
-                model.liquid.unlock_epoch_mask()
+            if (
+                has_theta
+                and theta_freeze_epoch > 0
+                and epoch + 1 == theta_freeze_epoch
+                and not _topology_is_frozen(epoch)
+            ):
+                _freeze_topology("fixed_epoch", epoch)
                 tqdm.write(
                     f"  Theta frozen at epoch {epoch+1}; topology fixed deterministically"
                 )
-            theta_frozen_by_schedule = (
-                (has_theta and theta_freeze_epoch > 0 and epoch + 1 >= theta_freeze_epoch)
-                or theta_adaptive_frozen
-            )
+            topology_is_frozen = _topology_is_frozen(epoch)
 
             tau = get_tau(epoch, cfg, warmup_epochs=warmup) if is_learned else 1.0
             phase_label = "P1" if (is_learned and epoch < warmup) else "P2"
@@ -337,7 +418,7 @@ def train(cfg: Config) -> tuple:
             # Phase 2: sample Gumbel noise ONCE per epoch, lock mask for all batches.
             # This keeps topology stable within an epoch (BPTT safe) while allowing
             # exploration across epochs (OFF edges get a chance to be ON → w_raw learns).
-            if is_learned and epoch >= warmup and not theta_frozen_by_schedule:
+            if is_learned and epoch >= warmup and not topology_is_frozen:
                 eps = torch.rand_like(model.liquid.get_theta()).clamp(1e-6, 1 - 1e-6)
                 epoch_noise = (torch.log(eps) - torch.log(1.0 - eps)).to(device)
                 model.liquid.sample_epoch_mask(tau=tau, epoch_noise=epoch_noise)
@@ -440,7 +521,7 @@ def train(cfg: Config) -> tuple:
                 has_theta
                 and cfg.liquid.theta_adaptive_freeze
                 and not theta_adaptive_frozen
-                and not theta_frozen_by_schedule
+                and not topology_is_frozen
                 and epoch + 1 >= cfg.liquid.theta_freeze_min_epoch
             ):
                 if avg_topology_grad_pre > cfg.liquid.theta_freeze_grad_threshold:
@@ -449,13 +530,8 @@ def train(cfg: Config) -> tuple:
                     adaptive_freeze_bad_epochs = 0
 
                 if adaptive_freeze_bad_epochs >= cfg.liquid.theta_freeze_patience:
-                    _set_topology_requires_grad(False)
-                    model.liquid.unlock_epoch_mask()
-                    theta_adaptive_frozen = True
-                    theta_frozen_by_schedule = True
-                    theta_freeze_reason = (
-                        f"adaptive_grad>{cfg.liquid.theta_freeze_grad_threshold}"
-                    )
+                    _freeze_topology("gradient_threshold", epoch)
+                    topology_is_frozen = True
                     tqdm.write(
                         f"  Freezing theta at epoch {epoch + 1}: "
                         f"adaptive_grad>{cfg.liquid.theta_freeze_grad_threshold} "
@@ -464,9 +540,68 @@ def train(cfg: Config) -> tuple:
 
             # Unlock epoch mask before eval so eval uses fresh deterministic mask
             model.liquid.unlock_epoch_mask()
-            test_acc = _evaluate(model, test_loader, device, tau)
+            if val_loader is not None:
+                val_acc, val_loss = _evaluate_metrics(model, val_loader, device, tau)
+            else:
+                val_acc = None
+                val_loss = None
+            test_acc, test_loss = _evaluate_metrics(model, test_loader, device, tau)
+            selection_acc = val_acc if val_loader is not None else test_acc
             sparsity = model.sparsity_info()
             fr_info = model.firing_rate_info()
+            topology_rollback_applied_epoch = False
+
+            if (
+                topology_freeze_enabled
+                and cfg.liquid.recurrent_mode in topology_trainable_modes
+                and not topology_is_frozen
+            ):
+                current_metric = val_acc
+                if current_metric is None:
+                    raise RuntimeError(
+                        "Validation accuracy is required for topology_adaptive_freeze."
+                    )
+
+                improved = (
+                    current_metric
+                    > best_topology_metric + cfg.liquid.topology_freeze_min_delta
+                )
+                if improved:
+                    best_topology_metric = current_metric
+                    best_topology_epoch = epoch + 1
+                    best_topology_state = model.liquid.topology_state_dict()
+                    topology_bad_count = 0
+                else:
+                    topology_bad_count += 1
+
+                can_freeze_topology = (
+                    epoch + 1 >= cfg.liquid.topology_freeze_min_epoch
+                    and topology_bad_count >= cfg.liquid.topology_freeze_patience
+                    and not _topology_is_frozen(epoch)
+                )
+                if can_freeze_topology:
+                    if cfg.liquid.topology_freeze_rollback_best:
+                        if best_topology_state is None or best_topology_epoch is None:
+                            raise RuntimeError(
+                                "No topology snapshot available for rollback."
+                            )
+                        model.liquid.load_topology_state_dict(best_topology_state)
+                        topology_rollback_applied_epoch = True
+                        topology_rollback_applied_any = True
+
+                    _freeze_topology("validation_adaptive", epoch)
+                    topology_is_frozen = True
+                    if cfg.liquid.topology_freeze_verbose:
+                        rollback_msg = ""
+                        if topology_rollback_applied_epoch:
+                            rollback_msg = (
+                                f" Rolling back topology to epoch {best_topology_epoch} "
+                                f"with val_acc={best_topology_metric:.4f}."
+                            )
+                        tqdm.write(
+                            f"[TopologyFreeze] validation_adaptive triggered at epoch {epoch + 1}."
+                            f"{rollback_msg} Freezing topology parameters."
+                        )
 
             scheduler.step()
 
@@ -508,7 +643,12 @@ def train(cfg: Config) -> tuple:
                 tau=tau if is_learned else None,
                 train_loss=train_loss,
                 train_acc=train_acc,
+                val_loss=val_loss,
+                val_acc=val_acc,
+                test_loss=test_loss,
                 test_acc=test_acc,
+                selection_metric=selection_metric_name,
+                selection_acc=selection_acc,
                 sparsity=sparsity,
                 hard_density=sparsity,
                 topology_logit_mean=topology_logit_mean,
@@ -543,16 +683,41 @@ def train(cfg: Config) -> tuple:
                 warmup_dynamic=dynamic_warmup,
                 warmup_strategy=warmup_strategy if dynamic_warmup else "",
                 theta_freeze_epoch=theta_freeze_epoch if has_theta else 0,
-                theta_frozen=theta_frozen_by_schedule,
+                theta_frozen=topology_is_frozen,
                 theta_adaptive_freeze=cfg.liquid.theta_adaptive_freeze,
-                theta_freeze_reason=theta_freeze_reason,
+                theta_freeze_reason=topology_freeze_reason or "",
                 adaptive_freeze_bad_epochs=adaptive_freeze_bad_epochs,
+                topology_adaptive_freeze=cfg.liquid.topology_adaptive_freeze,
+                topology_frozen=topology_is_frozen,
+                topology_frozen_epoch=topology_frozen_epoch,
+                topology_freeze_reason=topology_freeze_reason,
+                topology_best_metric_name=topology_best_metric_name,
+                topology_best_metric_value=(
+                    best_topology_metric if best_topology_epoch is not None else None
+                ),
+                topology_best_epoch=best_topology_epoch,
+                topology_bad_count=topology_bad_count,
+                topology_rollback_applied=topology_rollback_applied_epoch,
                 warmup_metric_value=None,
                 warmup_slope=None,
                 warmup_slow_count=0,
             )
 
-            postfix: dict = dict(loss=f"{train_loss:.4f}", train=f"{train_acc:.4f}", test=f"{test_acc:.4f}", sp=f"{sparsity:.3f}")
+            postfix: dict = dict(
+                loss=f"{train_loss:.4f}",
+                train=f"{train_acc:.4f}",
+                test=f"{test_acc:.4f}",
+                select=f"{selection_metric_name}:{selection_acc:.4f}",
+                sp=f"{sparsity:.3f}",
+                topo_bad=str(topology_bad_count),
+                topo_frozen=str(topology_is_frozen).lower(),
+            )
+            if val_acc is not None:
+                postfix["val"] = f"{val_acc:.4f}"
+            if best_topology_epoch is not None:
+                postfix["topo_best"] = (
+                    f"{topology_best_metric_name}:{best_topology_metric:.4f}@{best_topology_epoch}"
+                )
             if is_learned:
                 postfix["tau"] = f"{tau:.3f}"
             epoch_bar.set_postfix(postfix)
@@ -576,7 +741,16 @@ def train(cfg: Config) -> tuple:
             tqdm.write(
                 f"[{epoch+1:03d}/{cfg.epochs}|{phase_label}] "
                 f"lr={current_lr:.2e}{tau_str}  loss={train_loss:.4f}  "
-                f"train={train_acc:.4f}  test={test_acc:.4f}  "
+                f"train={train_acc:.4f}  "
+                + (f"val={val_acc:.4f}  " if val_acc is not None else "")
+                + f"test={test_acc:.4f}  "
+                f"select={selection_metric_name}:{selection_acc:.4f}  "
+                + (
+                    f"topo_best={topology_best_metric_name}:{best_topology_metric:.4f}@{best_topology_epoch}  "
+                    if best_topology_epoch is not None
+                    else ""
+                )
+                + f"topo_bad={topology_bad_count}  topo_frozen={str(topology_is_frozen).lower()}  "
                 f"sp={sparsity:.3f}  grad={avg_grad_norm:.1f}  "
                 f"fr={fr_info['mean']:.3f}/{fr_info['max']:.3f}  "
                 f"logit={topology_logit_mean:.3f}±{topology_logit_std:.3f}  "
@@ -657,8 +831,12 @@ def train(cfg: Config) -> tuple:
             log_f.flush()
 
             # checkpoint best
-            if test_acc > best_acc:
-                best_acc = test_acc
+            if selection_acc > best_acc:
+                best_acc = selection_acc
+                best_metric_value = selection_acc
+                best_val_acc = val_acc
+                best_test_acc_at_best_val = test_acc
+                best_epoch = epoch + 1
                 epochs_no_improve = 0
                 torch.save(
                     {
@@ -667,6 +845,24 @@ def train(cfg: Config) -> tuple:
                         "scheduler_state": scheduler.state_dict(),
                         "epoch": epoch + 1,
                         "best_acc": best_acc,
+                        "best_metric_name": best_metric_name,
+                        "best_metric_value": best_metric_value,
+                        "best_val_acc": best_val_acc,
+                        "best_val_loss": val_loss,
+                        "best_test_loss": test_loss,
+                        "best_test_acc_at_best_val": best_test_acc_at_best_val,
+                        "best_epoch": best_epoch,
+                        "topology_freeze_enabled": topology_freeze_enabled,
+                        "topology_freeze_reason": topology_freeze_reason,
+                        "topology_frozen_epoch": topology_frozen_epoch,
+                        "topology_best_epoch": best_topology_epoch,
+                        "topology_best_metric_name": topology_best_metric_name,
+                        "topology_best_metric_value": (
+                            best_topology_metric
+                            if best_topology_epoch is not None
+                            else None
+                        ),
+                        "topology_rollback_applied": topology_rollback_applied_any,
                         "history": history,
                     },
                     checkpoint_path,
@@ -678,6 +874,10 @@ def train(cfg: Config) -> tuple:
                 tqdm.write(f"Early stopping: no improvement for {cfg.patience} epochs.")
                 break
 
-    print(f"\nBest test accuracy: {best_acc:.4f}")
+    if best_metric_value is None:
+        best_metric_value = float("nan")
+    print(f"\nBest {best_metric_name}: {best_metric_value:.4f} at epoch {best_epoch}")
+    if best_test_acc_at_best_val is not None and best_metric_name != "test_acc":
+        print(f"Test accuracy at best {best_metric_name}: {best_test_acc_at_best_val:.4f}")
     print(f"Experiment saved to: {exp_dir}")
     return history, exp_dir

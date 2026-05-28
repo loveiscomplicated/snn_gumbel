@@ -138,9 +138,16 @@ def _history_metric(row: dict, new_key: str, old_key: str, default=0):
 def lsm_plot_training_curves(history: list, save_path: str):
     epochs = [h["epoch"] for h in history]
     fig, axes = plt.subplots(2, 3, figsize=(18, 9))
+    has_val = any(h.get("val_acc") is not None for h in history)
 
     # Row 1: accuracy, loss+tau, sparsity
     axes[0, 0].plot(epochs, [h["train_acc"] for h in history], label="Train")
+    if has_val:
+        axes[0, 0].plot(
+            epochs,
+            [h.get("val_acc", np.nan) if h.get("val_acc") is not None else np.nan for h in history],
+            label="Val",
+        )
     axes[0, 0].plot(epochs, [h["test_acc"] for h in history], label="Test")
     axes[0, 0].set_title("Accuracy")
     axes[0, 0].legend()

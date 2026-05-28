@@ -161,7 +161,7 @@ class LiquidLayer(nn.Module):
         raise RuntimeError(f"Topology logits are not defined for mode: {self.mode}")
 
     def topology_parameters(self) -> list[nn.Parameter]:
-        if self.mode == "learned":
+        if self.mode in ("learned", "grad_r"):
             return [self.theta]
         if self.mode == "learned_lowrank":
             return [self.src_embed, self.dst_embed, self.theta_bias]
@@ -170,6 +170,49 @@ class LiquidLayer(nn.Module):
     def set_topology_requires_grad(self, requires_grad: bool) -> None:
         for param in self.topology_parameters():
             param.requires_grad_(requires_grad)
+
+    def topology_state_dict(self) -> dict[str, torch.Tensor]:
+        if self.mode == "learned_lowrank":
+            return {
+                "src_embed": self.src_embed.detach().clone(),
+                "dst_embed": self.dst_embed.detach().clone(),
+                "theta_bias": self.theta_bias.detach().clone(),
+            }
+        if self.mode in ("learned", "grad_r"):
+            return {"theta": self.theta.detach().clone()}
+        return {}
+
+    def load_topology_state_dict(self, state: dict[str, torch.Tensor]) -> None:
+        if self.mode == "learned_lowrank":
+            required_keys = {"src_embed", "dst_embed", "theta_bias"}
+        elif self.mode in ("learned", "grad_r"):
+            required_keys = {"theta"}
+        else:
+            if state:
+                raise ValueError(
+                    f"Topology state is not supported for mode {self.mode!r}, got keys {sorted(state)}."
+                )
+            return
+
+        missing_keys = required_keys.difference(state)
+        if missing_keys:
+            raise ValueError(
+                f"Missing topology state keys for mode {self.mode!r}: {sorted(missing_keys)}"
+            )
+
+        with torch.no_grad():
+            if self.mode == "learned_lowrank":
+                self.src_embed.copy_(state["src_embed"])
+                self.dst_embed.copy_(state["dst_embed"])
+                self.theta_bias.copy_(state["theta_bias"])
+            else:
+                self.theta.copy_(state["theta"])
+
+    def freeze_topology(self) -> None:
+        self.set_topology_requires_grad(False)
+        for param in self.topology_parameters():
+            param.grad = None
+        self.unlock_epoch_mask()
 
     def sample_epoch_mask(self, tau: float, epoch_noise: torch.Tensor) -> None:
         """Store epoch-level Gumbel noise for Phase 2 training.
