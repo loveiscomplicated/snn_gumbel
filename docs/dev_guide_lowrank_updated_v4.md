@@ -1,5 +1,137 @@
 # 개발 가이드: Gumbel-Softmax SNN / LSM 코드베이스
 
+> **Update 2026-05-09 — same-density random controls closed**  
+> Density-matched `random_sparse` controls around the learned-lowrank regime are now complete: `p ∈ {0.040, 0.045, 0.050}` across seeds `42/43/44/45`, with `train_w_raw=false`, `w_raw_init_mean=-2.25`, `w_raw_max=-2.0`, `val_fraction=0.1`, and `val_seed=42`. The controls reached only test@best-val mean `0.5257` with best single run `0.5406`, below the no-recurrence baseline `0.5490` and far below `learned_lowrank + validation rollback m50p10` mean `0.5919` / worst `0.5826`. Density-only explanation is now rejected; next phase is topology diagnostics, graph-structure analysis, and paper-claim/table cleanup.
+
+> **Update 2026-05-08 — adaptive freeze policy closed**  
+> Validation split and `learned_lowrank` topology snapshot/rollback are implemented. The validation-rollback policy search is now closed: `m50p10` is the main proposed policy, `m60p10` is redundant because all `m50p10` freeze events already occurred after epoch 60, and `m60p15` is rejected because it lowers mean and worst-seed generalization. At that point, the next phase was same-density random controls, topology diagnostics, and paper-claim/table cleanup; the density-control part is now closed by the 2026-05-09 update.
+
+
+## Adaptive Freeze Policy Closure — 2026-05-08
+
+This section closes the validation-based adaptive topology freeze search for `learned_lowrank`.
+
+### Final policy decision
+
+| Policy | Config | Result | Decision |
+|---|---|---|---|
+| `m50p10` | `topology_freeze_min_epoch=50`, `topology_freeze_patience=10` | test@best-val mean `0.5919`, median `0.5857`, worst `0.5826` | **main proposed validation-rollback result** |
+| `m60p10` | `topology_freeze_min_epoch=60`, `topology_freeze_patience=10` | not effectively different from `m50p10`; all `m50p10` freeze epochs were already after epoch 60 | **redundant / not distinct** |
+| `m60p15` | `topology_freeze_min_epoch=60`, `topology_freeze_patience=15` | test@best-val mean `0.5834`, median `0.5808`, worst `0.5574` | **rejected** |
+
+### m60p15 completed result
+
+| Seed | Topology rollback epoch | Freeze epoch | Best val epoch | Best val | Test @ best val | Comparison vs m50p10 |
+|---:|---:|---:|---:|---:|---:|---:|
+| 42 | 78 | 93 | 78 | 0.6238 | 0.5852 | -0.0005 |
+| 43 | 54 | 69 | 90 | 0.6654 | 0.6144 | +0.0009 |
+| 44 | 65 | 80 | 97 | 0.6299 | 0.5764 | -0.0093 |
+| 45 | 77 | 92 | 96 | 0.6164 | 0.5574 | -0.0252 |
+
+Aggregate comparison:
+
+| Policy | Mean | Median | Worst | Best |
+|---|---:|---:|---:|---:|
+| `m50p10` | **0.5919** | **0.5857** | **0.5826** | 0.6135 |
+| `m60p15` | 0.5834 | 0.5808 | 0.5574 | **0.6144** |
+
+Interpretation:
+
+- Increasing patience from 10 to 15 does not reliably improve topology quality.
+- The small seed43 gain is not worth the seed44/seed45 degradation.
+- Seed45 is decisive: `m60p15` drops from `0.5826` to `0.5574`, indicating late topology drift or validation over-selection.
+- The adaptive-freeze policy search should stop here to avoid post-hoc policy mining.
+
+Final claim:
+
+> `learned_lowrank + validation rollback m50p10` is the fair main-table result. It is not the absolute peak-search upper bound, but it is the strongest test-leakage-free adaptive policy currently validated across seeds 42/43/44/45. Further gains should come from density controls, topology diagnostics, or a new pre-registered protocol, not additional manual policy search.
+
+### Next phase after closure
+
+| Status / Priority | Work item | Purpose |
+|---:|---|---|
+| **Closed** | same-density random controls around learned_lowrank densities | block density-only explanation; completed at test@best-val mean `0.5257`, best single `0.5406` |
+| 1 | topology diagnostics for `learned`, `grad_r`, and `learned_lowrank` | explain why latent role topology changes seed behavior |
+| 2 | main table cleanup using `test @ best val` | avoid test leakage and post-hoc peak selection |
+| 3 | graph-structure analysis: E/I degree, loop count/length, clustering, path length | support mechanism-level claims |
+| 4 | prediction auxiliary / e-prop / predictive coding | defer until topology-selection claims are defended |
+
+
+## Same-Density Random Control Closure — 2026-05-09
+
+This section closes the density-matched `random_sparse` control batch for the `learned_lowrank` regime.
+
+Common setting:
+
+```text
+recurrent_mode=random_sparse
+recurrent_sparsity ∈ {0.040, 0.045, 0.050}
+seed ∈ {42, 43, 44, 45}
+train_w_raw=false
+w_raw_init_mean=-2.25
+w_raw_max=-2.0
+val_fraction=0.1
+val_seed=42
+train / val / test = 7340 / 816 / 2264
+selection metric = validation-best checkpoint
+```
+
+### Individual density-control results
+
+| Density `p` | Seed | Best val_acc | Best epoch | Test acc @ best val | Run name |
+|---:|---:|---:|---:|---:|---|
+| 0.040 | 42 | 0.5956 | 72 | 0.5190 | `p040_s42` |
+| 0.040 | 43 | 0.5895 | 93 | 0.5327 | `p040_s43` |
+| 0.040 | 44 | 0.5968 | 87 | 0.5336 | `p040_s44` |
+| 0.040 | 45 | 0.5564 | 75 | 0.5340 | `p040_s45` |
+| 0.045 | 42 | 0.5846 | 83 | 0.5230 | `p045_s42` |
+| 0.045 | 43 | 0.5821 | 70 | 0.5243 | `p045_s43` |
+| 0.045 | 44 | **0.6066** | 76 | 0.5265 | `p045_s44` |
+| 0.045 | 45 | 0.5686 | 82 | 0.5283 | `p045_s45` |
+| 0.050 | 42 | 0.5895 | 83 | 0.5159 | `p050_s42` |
+| 0.050 | 43 | 0.5895 | 99 | **0.5406** | `p050_s43` |
+| 0.050 | 44 | 0.5870 | 68 | 0.5177 | `p050_s44` |
+| 0.050 | 45 | 0.5662 | 81 | 0.5133 | `p050_s45` |
+
+### Density-level aggregation
+
+| Density `p` | Mean val_acc | Val std | Mean test acc | Test std | Best single test |
+|---:|---:|---:|---:|---:|---:|
+| 0.040 | 0.5846 | 0.0191 | **0.5298** | 0.0072 | 0.5340 |
+| 0.045 | **0.5855** | 0.0157 | 0.5255 | **0.0023** | 0.5283 |
+| 0.050 | 0.5831 | **0.0113** | 0.5219 | 0.0126 | **0.5406** |
+
+### Seed-level aggregation
+
+| Seed | Mean test acc | Test range | Mean val_acc | Interpretation |
+|---:|---:|---:|---:|---|
+| 42 | 0.5193 | 0.5159–0.5230 | 0.5899 | low but stable test generalization |
+| 43 | **0.5325** | 0.5243–0.5406 | 0.5870 | strongest random-control seed |
+| 44 | 0.5259 | 0.5177–0.5336 | **0.5968** | strong validation, only mid test generalization |
+| 45 | 0.5252 | 0.5133–0.5340 | 0.5637 | weak validation, occasional acceptable test |
+
+### Aggregate decision
+
+| Condition | Mean / Best | Decision |
+|---|---:|---|
+| no-recurrence baseline | `0.5490` | stronger than density-matched random recurrence |
+| random_sparse density-control batch | mean `0.5257 ± 0.0084`, best single `0.5406` | **reject as performance explanation** |
+| learned_lowrank validation rollback `m50p10` | mean `0.5919`, worst `0.5826` | main proposed test-leakage-free result |
+
+Interpretation:
+
+- Increasing fixed random recurrent density from `0.040` to `0.045` to `0.050` does not improve test performance.
+- The best density by mean test accuracy is `p=0.040`, but even this reaches only `0.5298`.
+- The best single random-control run is `p=0.050, seed=43` with test@best-val `0.5406`, still below the no-recurrence baseline `0.5490`.
+- Validation accuracy and test accuracy are weakly aligned for fixed random topologies: `p045_s44` gives the highest validation accuracy `0.6066` but only test `0.5265`.
+- This closes the density-only counterargument. Matching the learned-lowrank density regime is not sufficient; the learned topology advantage must come from edge placement, latent role structure, or downstream representation geometry rather than recurrent density alone.
+
+Final claim:
+
+> Density-matched fixed random recurrence fails to match even the no-recurrence baseline, while `learned_lowrank + validation rollback m50p10` remains substantially higher. Therefore the learned-lowrank gain is not explained by edge density alone; it requires learned edge placement / latent neuron role topology.
+
+
+
 ## 0. 목적
 
 이 문서는 현재 코드베이스를 기준으로 실험을 실행하고 수정할 때 필요한 구현 정보를 정리한다. 현재 실험 수치나 해석은 `docs/lsm_current_baseline_lowrank_updated.md`를 우선 참고하고, 이 문서는 구현과 실행 규약에 초점을 맞춘다.
@@ -160,6 +292,15 @@ python scripts/train_lsm.py configs/lsm_shd_baseline.yaml \
 | `liquid.theta_adaptive_freeze` | `false` |
 | `liquid.noise_scale` | `0.1` |
 | `liquid.pred_aux_enabled` | `false` |
+| `val_fraction` | `0.1` when validation split is enabled |
+| `val_seed` | `42` |
+| `use_validation` | `true` |
+| `liquid.topology_adaptive_freeze` | `false` by default |
+| `liquid.topology_freeze_metric` | `val_acc` |
+| `liquid.topology_freeze_min_epoch` | policy-dependent, e.g. `50` or `60` |
+| `liquid.topology_freeze_patience` | policy-dependent, e.g. `10` |
+| `liquid.topology_freeze_min_delta` | `0.0` |
+| `liquid.topology_freeze_rollback_best` | `true` |
 
 ### 3.3 현재 SHD baseline override
 
@@ -329,6 +470,48 @@ topology_logit = src_embed @ dst_embed.T + theta_bias
 - `fixed`는 recurrent weight까지 freeze하는 전통적인 고정 LSM에 가깝다.
 - 둘 다 timestep마다 mask를 다시 샘플하지 않는다.
 
+
+### 5.3.5 Implemented adaptive topology freeze / rollback
+
+Manual `theta_freeze_epoch` values such as freeze64 and freeze72 remain diagnostic tools. The publishable path now uses validation-based adaptive topology freeze with rollback.
+
+Implemented behavior:
+
+```text
+if validation metric improves:
+    save topology snapshot
+    reset bad_count
+else:
+    bad_count += 1
+
+if epoch >= topology_freeze_min_epoch and bad_count >= topology_freeze_patience:
+    restore best topology snapshot
+    freeze topology parameters
+    continue training readout/beta/threshold only
+```
+
+For `learned_lowrank`, rollback topology state includes only:
+
+| Parameter | Reason |
+|-----------|--------|
+| `src_embed` | source-role topology factors |
+| `dst_embed` | destination-role topology factors |
+| `theta_bias` | global edge-logit bias |
+
+The rollback does **not** restore `readout`, `logit_beta`, `threshold`, `w_raw`, optimizer state, scheduler state, or the full model. That remains a separate full-state rollback ablation.
+
+Current policy names:
+
+| Policy | Config | Status |
+|---|---|---|
+| `m50p10` | `topology_freeze_min_epoch=50`, `topology_freeze_patience=10` | completed on seeds 42/43/44/45 |
+| `m60p10` | `topology_freeze_min_epoch=60`, `topology_freeze_patience=10` | redundant; not distinct from `m50p10` |
+| `m60p15` | `topology_freeze_min_epoch=60`, `topology_freeze_patience=15` | rejected; mean/worst degraded |
+
+Critical rule: use validation accuracy, not test accuracy. Test-based rollback would leak the evaluation set into topology selection.
+
+Current validation split: train `7340`, validation `816`, test `2264`, with `val_fraction=0.1` and `val_seed=42`.
+
 ### 5.4 LSM Forward
 
 ```python
@@ -376,6 +559,13 @@ SHD binning:
 - 기본 bin width는 `dt_us=10_000.0`, 즉 10ms다.
 - `T=100`이면 약 1초를 커버한다.
 - 같은 bin/channel에 여러 event가 들어오면 현재 구현은 count가 아니라 binary `1.0`으로 저장한다.
+
+Validation split:
+
+- When validation is enabled, the original SHD training set is split into train/validation subsets.
+- Current split for `val_fraction=0.1`, `val_seed=42`: train `7340`, validation `816`, test `2264`.
+- `val_acc` is used for best checkpoint selection and topology freeze/rollback decisions.
+- `test_acc` may be logged every epoch but must remain reporting-only.
 
 ---
 
@@ -425,3 +615,31 @@ LSM 학습 안정화 장치:
 - `learned_lowrank`는 dense edge-wise theta를 대체하는 구조이므로, 기존 `theta_*` 해석을 그대로 적용하면 안 된다.
 - 평가 CLI는 LSM이면 `cfg.liquid.n_liquid > 0 and not cfg.architecture.hidden_layers` 조건으로 모델을 고른다.
 
+
+
+
+### Main validation-rollback policy command template
+
+Use `m50p10` as the main adaptive policy. The `m60p10` and `m60p15` follow-ups are closed and should not be treated as current targets.
+
+```bash
+python scripts/train_lsm.py configs/lsm_shd_baseline.yaml \
+  liquid.recurrent_mode=learned_lowrank \
+  liquid.theta_rank=16 \
+  liquid.theta_lowrank_init_std=0.30 \
+  liquid.train_w_raw=false \
+  liquid.w_raw_init_mean=-2.25 \
+  liquid.w_raw_max=-2.0 \
+  liquid.theta_init_mean=-1.0 \
+  liquid.theta_lr_scale=0.3 \
+  liquid.topology_adaptive_freeze=true \
+  liquid.topology_freeze_metric=val_acc \
+  liquid.topology_freeze_min_epoch=50 \
+  liquid.topology_freeze_patience=10 \
+  liquid.topology_freeze_min_delta=0.0 \
+  liquid.topology_freeze_rollback_best=true \
+  val_fraction=0.1 \
+  val_seed=42 \
+  seed=<SEED> \
+  experiment_name=lsm_shd_lowrank_r16_valrollback_m50p10_s<SEED>
+```

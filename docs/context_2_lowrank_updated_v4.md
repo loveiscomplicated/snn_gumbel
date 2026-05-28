@@ -1,5 +1,137 @@
 ---
 
+> **Update 2026-05-09 — same-density random controls closed**  
+> Density-matched `random_sparse` controls around the learned-lowrank regime are now complete: `p ∈ {0.040, 0.045, 0.050}` across seeds `42/43/44/45`, with `train_w_raw=false`, `w_raw_init_mean=-2.25`, `w_raw_max=-2.0`, `val_fraction=0.1`, and `val_seed=42`. The controls reached only test@best-val mean `0.5257` with best single run `0.5406`, below the no-recurrence baseline `0.5490` and far below `learned_lowrank + validation rollback m50p10` mean `0.5919` / worst `0.5826`. Density-only explanation is now rejected; next phase is topology diagnostics, graph-structure analysis, and paper-claim/table cleanup.
+
+> **Update 2026-05-08 — adaptive freeze policy closed**  
+> Validation split and `learned_lowrank` topology snapshot/rollback are implemented. The validation-rollback policy search is now closed: `m50p10` is the main proposed policy, `m60p10` is redundant because all `m50p10` freeze events already occurred after epoch 60, and `m60p15` is rejected because it lowers mean and worst-seed generalization. At that point, the next phase was same-density random controls, topology diagnostics, and paper-claim/table cleanup; the density-control part is now closed by the 2026-05-09 update.
+
+
+## Adaptive Freeze Policy Closure — 2026-05-08
+
+This section closes the validation-based adaptive topology freeze search for `learned_lowrank`.
+
+### Final policy decision
+
+| Policy | Config | Result | Decision |
+|---|---|---|---|
+| `m50p10` | `topology_freeze_min_epoch=50`, `topology_freeze_patience=10` | test@best-val mean `0.5919`, median `0.5857`, worst `0.5826` | **main proposed validation-rollback result** |
+| `m60p10` | `topology_freeze_min_epoch=60`, `topology_freeze_patience=10` | not effectively different from `m50p10`; all `m50p10` freeze epochs were already after epoch 60 | **redundant / not distinct** |
+| `m60p15` | `topology_freeze_min_epoch=60`, `topology_freeze_patience=15` | test@best-val mean `0.5834`, median `0.5808`, worst `0.5574` | **rejected** |
+
+### m60p15 completed result
+
+| Seed | Topology rollback epoch | Freeze epoch | Best val epoch | Best val | Test @ best val | Comparison vs m50p10 |
+|---:|---:|---:|---:|---:|---:|---:|
+| 42 | 78 | 93 | 78 | 0.6238 | 0.5852 | -0.0005 |
+| 43 | 54 | 69 | 90 | 0.6654 | 0.6144 | +0.0009 |
+| 44 | 65 | 80 | 97 | 0.6299 | 0.5764 | -0.0093 |
+| 45 | 77 | 92 | 96 | 0.6164 | 0.5574 | -0.0252 |
+
+Aggregate comparison:
+
+| Policy | Mean | Median | Worst | Best |
+|---|---:|---:|---:|---:|
+| `m50p10` | **0.5919** | **0.5857** | **0.5826** | 0.6135 |
+| `m60p15` | 0.5834 | 0.5808 | 0.5574 | **0.6144** |
+
+Interpretation:
+
+- Increasing patience from 10 to 15 does not reliably improve topology quality.
+- The small seed43 gain is not worth the seed44/seed45 degradation.
+- Seed45 is decisive: `m60p15` drops from `0.5826` to `0.5574`, indicating late topology drift or validation over-selection.
+- The adaptive-freeze policy search should stop here to avoid post-hoc policy mining.
+
+Final claim:
+
+> `learned_lowrank + validation rollback m50p10` is the fair main-table result. It is not the absolute peak-search upper bound, but it is the strongest test-leakage-free adaptive policy currently validated across seeds 42/43/44/45. Further gains should come from density controls, topology diagnostics, or a new pre-registered protocol, not additional manual policy search.
+
+### Next phase after closure
+
+| Status / Priority | Work item | Purpose |
+|---:|---|---|
+| **Closed** | same-density random controls around learned_lowrank densities | block density-only explanation; completed at test@best-val mean `0.5257`, best single `0.5406` |
+| 1 | topology diagnostics for `learned`, `grad_r`, and `learned_lowrank` | explain why latent role topology changes seed behavior |
+| 2 | main table cleanup using `test @ best val` | avoid test leakage and post-hoc peak selection |
+| 3 | graph-structure analysis: E/I degree, loop count/length, clustering, path length | support mechanism-level claims |
+| 4 | prediction auxiliary / e-prop / predictive coding | defer until topology-selection claims are defended |
+
+
+## Same-Density Random Control Closure — 2026-05-09
+
+This section closes the density-matched `random_sparse` control batch for the `learned_lowrank` regime.
+
+Common setting:
+
+```text
+recurrent_mode=random_sparse
+recurrent_sparsity ∈ {0.040, 0.045, 0.050}
+seed ∈ {42, 43, 44, 45}
+train_w_raw=false
+w_raw_init_mean=-2.25
+w_raw_max=-2.0
+val_fraction=0.1
+val_seed=42
+train / val / test = 7340 / 816 / 2264
+selection metric = validation-best checkpoint
+```
+
+### Individual density-control results
+
+| Density `p` | Seed | Best val_acc | Best epoch | Test acc @ best val | Run name |
+|---:|---:|---:|---:|---:|---|
+| 0.040 | 42 | 0.5956 | 72 | 0.5190 | `p040_s42` |
+| 0.040 | 43 | 0.5895 | 93 | 0.5327 | `p040_s43` |
+| 0.040 | 44 | 0.5968 | 87 | 0.5336 | `p040_s44` |
+| 0.040 | 45 | 0.5564 | 75 | 0.5340 | `p040_s45` |
+| 0.045 | 42 | 0.5846 | 83 | 0.5230 | `p045_s42` |
+| 0.045 | 43 | 0.5821 | 70 | 0.5243 | `p045_s43` |
+| 0.045 | 44 | **0.6066** | 76 | 0.5265 | `p045_s44` |
+| 0.045 | 45 | 0.5686 | 82 | 0.5283 | `p045_s45` |
+| 0.050 | 42 | 0.5895 | 83 | 0.5159 | `p050_s42` |
+| 0.050 | 43 | 0.5895 | 99 | **0.5406** | `p050_s43` |
+| 0.050 | 44 | 0.5870 | 68 | 0.5177 | `p050_s44` |
+| 0.050 | 45 | 0.5662 | 81 | 0.5133 | `p050_s45` |
+
+### Density-level aggregation
+
+| Density `p` | Mean val_acc | Val std | Mean test acc | Test std | Best single test |
+|---:|---:|---:|---:|---:|---:|
+| 0.040 | 0.5846 | 0.0191 | **0.5298** | 0.0072 | 0.5340 |
+| 0.045 | **0.5855** | 0.0157 | 0.5255 | **0.0023** | 0.5283 |
+| 0.050 | 0.5831 | **0.0113** | 0.5219 | 0.0126 | **0.5406** |
+
+### Seed-level aggregation
+
+| Seed | Mean test acc | Test range | Mean val_acc | Interpretation |
+|---:|---:|---:|---:|---|
+| 42 | 0.5193 | 0.5159–0.5230 | 0.5899 | low but stable test generalization |
+| 43 | **0.5325** | 0.5243–0.5406 | 0.5870 | strongest random-control seed |
+| 44 | 0.5259 | 0.5177–0.5336 | **0.5968** | strong validation, only mid test generalization |
+| 45 | 0.5252 | 0.5133–0.5340 | 0.5637 | weak validation, occasional acceptable test |
+
+### Aggregate decision
+
+| Condition | Mean / Best | Decision |
+|---|---:|---|
+| no-recurrence baseline | `0.5490` | stronger than density-matched random recurrence |
+| random_sparse density-control batch | mean `0.5257 ± 0.0084`, best single `0.5406` | **reject as performance explanation** |
+| learned_lowrank validation rollback `m50p10` | mean `0.5919`, worst `0.5826` | main proposed test-leakage-free result |
+
+Interpretation:
+
+- Increasing fixed random recurrent density from `0.040` to `0.045` to `0.050` does not improve test performance.
+- The best density by mean test accuracy is `p=0.040`, but even this reaches only `0.5298`.
+- The best single random-control run is `p=0.050, seed=43` with test@best-val `0.5406`, still below the no-recurrence baseline `0.5490`.
+- Validation accuracy and test accuracy are weakly aligned for fixed random topologies: `p045_s44` gives the highest validation accuracy `0.6066` but only test `0.5265`.
+- This closes the density-only counterargument. Matching the learned-lowrank density regime is not sufficient; the learned topology advantage must come from edge placement, latent role structure, or downstream representation geometry rather than recurrent density alone.
+
+Final claim:
+
+> Density-matched fixed random recurrence fails to match even the no-recurrence baseline, while `learned_lowrank + validation rollback m50p10` remains substantially higher. Therefore the learned-lowrank gain is not explained by edge density alone; it requires learned edge placement / latent neuron role topology.
+
+
+
 ## 1. 연구 비전 및 핵심 문제
 
 ### 1.1 궁극적 목표: 뇌를 닮은 Interconnected SNN
@@ -48,7 +180,7 @@ LSM은 뇌의 피질 미세회로를 모방한 reservoir computing 모델로, �
 
 ### 1.5 현재 실험 업데이트: Gradient-Based Topology Learning에서 Latent Topology Parameterization으로 확장
 
-최근 SHD LSM 결과는 초기 프레이밍을 다시 한 단계 확장한다. Gumbel-Sigmoid learned C는 일부 seed에서 no-recurrence baseline을 넘었지만 seed 44에서 불안정했다. 이후 corrected Grad R-STE + adaptive freeze가 강한 4-seed baseline이 되었고, topology stabilization의 중요성을 확인했다. 그러나 최신 `learned_lowrank` 결과는 더 중요한 전환점을 만든다.
+최근 SHD LSM 결과는 초기 프레이밍을 다시 한 단계 확장한다. Gumbel-Sigmoid learned C는 일부 seed에서 no-recurrence baseline을 넘었지만 seed 44에서 불안정했다. 이후 corrected Grad R-STE + adaptive freeze가 강한 hard-threshold baseline이 되었고, topology stabilization의 중요성을 확인했다. 그러나 최신 `learned_lowrank` 결과는 더 중요한 전환점을 만든다.
 
 `learned_lowrank`는 edge마다 독립적인 `theta_ij`를 두지 않는다. 대신 각 뉴런에 source embedding과 destination embedding을 두고, edge logit을 다음처럼 materialize한다.
 
@@ -63,17 +195,20 @@ topology_logit_ij = src_embed_i · dst_embed_j + theta_bias
 | 조건 | seed 42 | seed 43 | seed 44 | seed 45 | mean | median | 해석 |
 |---|---:|---:|---:|---:|---:|---:|---|
 | no recurrence | - | - | - | - | 0.5490 | 0.5490 | baseline |
+| random_sparse density controls | - | - | - | - | **0.5257** | - | density-only control; below no-recurrence |
 | learned C original | 0.5689 | 0.5751 | 0.5331 | 0.5587 | 0.5590 | 0.5638 | seed-sensitive |
-| Grad R-STE non-freeze | 0.6038 | 0.5711 | 0.5587 | 0.5486 | 0.5706 | 0.5649 | strong hard-threshold baseline |
-| Grad R-STE + adaptive freeze | 0.6051 | 0.5808 | 0.5866 | 0.5486 | 0.5803 | 0.5837 | strongest 4-seed stabilized baseline so far |
-| learned_lowrank r16, no-freeze/tau0.05 | 0.5941 | 0.5861 | **0.6444** | n/a | **0.6082** | **0.5941** | strongest observed topology learner; seed 45 pending |
-| learned_lowrank r16, ramp10+bias0.05+tau0.2+freeze64 | **0.5989** | n/a | n/a | n/a | n/a | n/a | stabilized seed-42 validation |
+| Grad R-STE non-freeze | 0.6038 | 0.5711 | 0.5587 | 0.5486 | 0.5706 | 0.5649 | strong hard-threshold learner |
+| Grad R-STE + adaptive freeze | 0.6051 | 0.5808 | 0.5866 | 0.5486 | 0.5803 | 0.5837 | strongest hard-threshold baseline |
+| learned_lowrank r16, no-freeze/tau0.05 | 0.5941 | 0.5861 | **0.6444** | 0.5751 | **0.5999** | 0.5901 | strongest peak-search setting |
+| learned_lowrank r16, ramp10+bias0.05+tau0.2+freeze64 | 0.5989 | 0.5932 | 0.6334 | 0.5605 | **0.5965** | **0.5961** | stable fixed-freeze setting |
+| learned_lowrank r16, best stable schedule upper bound | 0.5989 | 0.5932 | 0.6334 | **0.5751** | **0.6002** | **0.5961** | oracle/topology-selection upper bound |
+| learned_lowrank r16, validation rollback m50p10 | 0.5857 | **0.6135** | 0.5857 | 0.5826 | **0.5919** | 0.5857 | first test-leakage-free adaptive policy |
 
 따라서 현재 중심 주장은 다음처럼 업데이트한다.
 
-> 랜덤 recurrent topology는 충분하지 않다. 핵심은 recurrent topology를 gradient로 학습하는 것이며, 더 나아가 edge-wise independent parameterization보다 **latent neuron role 기반 topology parameterization**이 더 강한 inductive bias가 될 수 있다. Grad R-STE + adaptive freeze는 현재 가장 안전한 4-seed stabilized baseline이고, learned_lowrank는 현재 가장 강한 성능 후보이자 seed-44 failure를 가장 크게 뒤집은 방법이다.
+> 랜덤 recurrent topology는 충분하지 않다. 핵심은 recurrent topology를 gradient로 학습하는 것이며, 더 나아가 edge-wise independent parameterization보다 **latent neuron role 기반 topology parameterization**이 더 강한 inductive bias가 될 수 있다. `learned_lowrank`는 4-seed 기준으로 Grad R-STE + adaptive freeze보다 강하며, seed44 failure를 강하게 뒤집었다. 다만 seed45 freeze72 결과가 보여주듯, 마지막 남은 문제는 topology parameterization 자체가 아니라 **좋은 topology를 validation 기반으로 언제 freeze할 것인가**이다.
 
-이 업데이트는 “Gumbel trick 하나”에서 “gradient-based recurrent topology learning”으로, 다시 “edge-wise topology search vs latent role-based topology search”로 연구 질문이 정교화되었음을 의미한다. 현재 논문의 가장 강한 포인트는 **연결을 독립 edge가 아니라 뉴런 role interaction으로 parameterize했을 때 topology formation이 달라지고, 기존 failure seed가 최고 성능 seed로 반전될 수 있다**는 것이다.
+이 업데이트는 “Gumbel trick 하나”에서 “gradient-based recurrent topology learning”으로, 다시 “edge-wise topology search vs latent role-based topology search vs adaptive topology selection”으로 연구 질문이 정교화되었음을 의미한다. 현재 논문의 가장 강한 포인트는 **연결을 독립 edge가 아니라 뉴런 role interaction으로 parameterize했을 때 topology formation이 달라지고, 기존 failure seed가 최고 성능 seed로 반전될 수 있다**는 것이다.
 
 ---
 
@@ -317,7 +452,7 @@ Grad R (Chen et al., 2021)은 본 연구와 가장 가까운 경쟁자이다. �
 - Grad R-STE: deterministic hard-threshold topology learner.
 - learned_lowrank: latent neuron role-based topology parameterization.
 
-현재 관측상 learned_lowrank는 seed 44에서 `0.6444`를 기록하여 가장 강한 단일 run을 만들었다. 다만 seed 45와 stabilized multi-seed가 아직 없으므로, 최종 주장은 “current strongest candidate”로 제한한다.
+현재 관측상 learned_lowrank는 seed 44에서 `0.6444`를 기록하여 가장 강한 단일 run을 만들었고, 4-seed no-freeze mean `0.5999`, stabilized mean `0.5965`로 Grad R-STE + adaptive freeze를 넘어섰다. 다만 seed45 freeze72가 보여주듯 수동 freeze epoch 선택은 post-hoc이므로, 최종 주장은 validation-based adaptive freeze/rollback을 적용한 결과로 방어해야 한다.
 
 
 ### 학습된 구조의 패턴 분석: LSNN+DEEP R과의 비교
@@ -562,11 +697,12 @@ PGExplainer의 설계를 따라, **마스크를 시뮬레이션 전에 한 번 �
 
 현재 SHD 실험 결과를 반영하면, 핵심 기여는 다음처럼 재정렬된다.
 
-1. **랜덤 recurrence의 한계 확인**: no-recurrence `0.5490`, best random recurrent `0.5499`, same-density random `0.5216`으로, 단순 recurrent density는 충분하지 않음.
-2. **Gradient-based topology learning의 효과 확인**: Gumbel learned C와 Grad R-STE 모두 random topology보다 강한 결과를 보임.
-3. **Grad R-STE + adaptive freeze의 강한 성능**: seed 42/43/44/45에서 mean `0.5803`, median `0.5837`로 현재 strongest recipe.
-4. **Topology stabilization의 중요성**: fixed epoch freeze보다 gradient-triggered adaptive freeze가 Grad R-STE에 더 적합함.
-5. **Local prediction signal로의 자연스러운 확장**: seed 45처럼 gradient explosion 없이 낮은 성능을 보이는 bad-but-stable topology를 개선하기 위해 prediction auxiliary loss를 다음 단계로 설정.
+1. **랜덤 recurrence의 한계 확인**: no-recurrence `0.5490`, best low-density random recurrent `0.5499`, and full same-density random control batch mean `0.5257 ± 0.0084` / best single `0.5406`으로, 단순 recurrent density는 충분하지 않음.
+2. **Gradient-based topology learning의 효과 확인**: Gumbel learned C, Grad R-STE, learned_lowrank 모두 random topology보다 강한 결과를 보임.
+3. **Latent neuron role parameterization의 우위**: learned_lowrank는 no-freeze/fixed-freeze upper-bound 기준으로 강한 잠재력을 보였고, validation rollback `m50p10` 기준으로도 Grad R-STE + adaptive freeze보다 높은 mean/worst를 보임.
+4. **Failure seed reversal**: edge-wise learned C에서 실패했던 seed44가 learned_lowrank에서 no-freeze `0.6444`, stabilized `0.6334`로 반전됨.
+5. **Topology selection/freeze timing의 중요성**: seed45는 no-freeze/freeze72에서 `0.5751`까지 도달하므로 residual weak seed가 아니라 unstable peak case임. 다음 단계는 validation-based adaptive topology freeze/rollback.
+6. **Validation-based adaptive freeze 검증 완료**: validation split과 topology snapshot/rollback이 구현되었고, `m50p10` 4-seed 결과는 test@best-val mean `0.5919`, worst `0.5826`이다. 이는 Grad R-STE + adaptive freeze보다 안정적이지만, no-freeze/fixed-freeze low-rank peak를 완전히 복구하지는 못한다. `m60p10`은 redundant로 판정됐고, `m60p15`는 mean/worst 기준 악화되어 reject한다.
 
 
 
@@ -716,6 +852,91 @@ Gumbel-Softmax LSM (학습된 희소 구조):
 - **입력→리퀴드 연결까지 학습**: 현재는 리퀴드 내부만 학습 → 입력 연결도 학습하면 “리퀴드”와 “입력층”의 경계가 흐려짐
 - **리드아웃을 네트워크에 통합**: 별도의 리드아웃 대신 효과기 뉴런(운동 뉴런) 방식으로 출력 → LSM의 3단 구조(입력-리퀴드-리드아웃)를 넘어 뇌에 더 가까운 통합 구조
 - **BPTT → Online Learning 전환**: 현재는 BPTT를 사용하지만, 더 큰 규모에서는 RTRL/e-prop 같은 online 방법으로 전환 필요. 학습된 희소 구조가 이 전환의 비용을 줄여줄 가능성
+
+
+
+### Validation rollback m50p10 completed result
+
+Common setting:
+
+```text
+learned_lowrank r16
+train_w_raw=false
+w_raw_init_mean=-2.25
+w_raw_max=-2.0
+theta_init_mean=-1.0
+theta_lr_scale=0.3
+val_fraction=0.1
+val_seed=42
+topology_freeze_metric=val_acc
+topology_freeze_min_epoch=50
+topology_freeze_patience=10
+topology_freeze_rollback_best=true
+```
+
+| Seed | Topology snapshot used for rollback | Freeze epoch | Best val epoch | Best val | Test @ best val | Final test | Oracle best test | Final density |
+|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| 42 | 58 | 68 | 81 | 0.6225 | 0.5857 | 0.5861 | 0.5875 | 0.041 |
+| 43 | 54 | 64 | 82 | 0.6654 | 0.6135 | 0.6109 | 0.6197 | 0.050 |
+| 44 | 65 | 75 | 65 | 0.6225 | 0.5857 | 0.5716 | 0.5919 | 0.047 |
+| 45 | 62 | 72 | 92 | 0.6213 | 0.5826 | 0.5813 | 0.5972 | 0.043 |
+
+Aggregate:
+
+| Metric | Value |
+|---|---:|
+| Test @ best validation mean | **0.5919** |
+| Test @ best validation median | **0.5857** |
+| Worst seed | **0.5826** |
+| Best seed | **0.6135** |
+| Final test mean | 0.5875 |
+| Oracle best-test mean | 0.5991 |
+| Mean freeze epoch | 69.75 |
+| Mean topology snapshot epoch | 59.75 |
+
+Interpretation:
+
+- This is the first **test-leakage-free** learned_lowrank topology-selection result.
+- It beats Grad R-STE + adaptive freeze on mean and worst-seed stability: `0.5919` mean vs `0.5803`, and `0.5826` worst vs `0.5486`.
+- It does not recover the full no-freeze/fixed-freeze low-rank upside: no-freeze mean `0.5999`, fixed freeze64/tau0.2 mean `0.5965`.
+- The policy is therefore valid and useful; after `m60p10` and `m60p15`, it is also the final preferred validation-rollback schedule for the current protocol.
+- The largest weakness is that seed44's previously observed high trajectory (`0.6444` no-freeze, `0.6334` stabilized) is not recovered.
+
+Policy follow-up status:
+
+```text
+m60p10 = redundant; not distinct from m50p10
+m60p15 = rejected; mean and worst seed degraded
+main adaptive policy = m50p10
+```
+
+No further validation-freeze policy search is recommended. Use `m50p10` for main-table reporting and move to density controls / topology diagnostics.
+
+### Main m50p10 command template
+
+```bash
+python scripts/train_lsm.py configs/lsm_shd_baseline.yaml \
+  liquid.recurrent_mode=learned_lowrank \
+  liquid.theta_rank=16 \
+  liquid.theta_lowrank_init_std=0.30 \
+  liquid.train_w_raw=false \
+  liquid.w_raw_init_mean=-2.25 \
+  liquid.w_raw_max=-2.0 \
+  liquid.theta_init_mean=-1.0 \
+  liquid.theta_lr_scale=0.3 \
+  liquid.topology_adaptive_freeze=true \
+  liquid.topology_freeze_metric=val_acc \
+  liquid.topology_freeze_min_epoch=50 \
+  liquid.topology_freeze_patience=10 \
+  liquid.topology_freeze_min_delta=0.0 \
+  liquid.topology_freeze_rollback_best=true \
+  val_fraction=0.1 \
+  val_seed=42 \
+  seed=<SEED> \
+  experiment_name=lsm_shd_lowrank_r16_valrollback_m50p10_s<SEED>
+```
+
+Completed seeds: `42, 43, 44, 45`.
 
 ---
 
