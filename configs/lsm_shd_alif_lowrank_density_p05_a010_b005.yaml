@@ -1,0 +1,7 @@
+base: lsm_shd_alif_lowrank_lifmatched_a010_b005.yaml
+
+experiment_name: lsm_shd_alif_lowrank_density_p05_a010_b005
+
+liquid:
+  # Keep the LIF lowrank std, but move the bias to start near 5% hard density.
+  theta_init_mean: -0.6

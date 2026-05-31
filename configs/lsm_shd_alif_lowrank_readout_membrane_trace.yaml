@@ -1,0 +1,7 @@
+base: lsm_shd_alif_lowrank_lifmatched_a010_b005.yaml
+
+experiment_name: lsm_shd_alif_lowrank_readout_membrane_trace
+
+liquid:
+  # Read the time-averaged pre-reset membrane potential instead of spike count.
+  readout_mode: membrane_trace

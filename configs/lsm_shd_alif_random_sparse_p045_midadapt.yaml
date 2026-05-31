@@ -1,0 +1,7 @@
+base: lsm_shd_alif_random_sparse_p045_fixed.yaml
+
+experiment_name: lsm_shd_alif_random_sparse_p045_midadapt
+
+liquid:
+  alif_beta_init: 0.20
+  alif_adapt_increment: 0.50

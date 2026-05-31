@@ -1,0 +1,16 @@
+base: lsm_shd_C_valrollback_m50p10.yaml
+
+experiment_name: lsm_shd_random_sparse_p045_lif_control
+
+liquid:
+  neuron_type: lif
+  recurrent_mode: random_sparse
+  recurrent_sparsity: 0.045
+
+  train_w_raw: false
+  w_raw_init_mean: -2.25
+  w_raw_max: -2.0
+
+  theta_warmup_epochs: 0
+  theta_adaptive_freeze: false
+  topology_adaptive_freeze: false

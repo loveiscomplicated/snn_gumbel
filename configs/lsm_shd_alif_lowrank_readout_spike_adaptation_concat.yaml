@@ -1,0 +1,7 @@
+base: lsm_shd_alif_lowrank_lifmatched_a010_b005.yaml
+
+experiment_name: lsm_shd_alif_lowrank_readout_spike_adaptation_concat
+
+liquid:
+  # Read [time-averaged spike rate, time-averaged ALIF adaptation trace].
+  readout_mode: spike_adaptation_concat

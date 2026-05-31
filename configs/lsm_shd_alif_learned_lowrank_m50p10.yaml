@@ -1,0 +1,20 @@
+base: lsm_shd_C_valrollback_m50p10.yaml
+
+experiment_name: lsm_shd_alif_learned_lowrank_m50p10
+
+liquid:
+  recurrent_mode: learned_lowrank
+  neuron_type: alif
+  alif_rho_init: 0.85
+  alif_beta_init: 0.15
+  alif_learn_rho: false
+  alif_learn_beta: false
+  theta_init_mean: -1.08
+  theta_lowrank_init_std: 0.35
+  theta_warmup_epochs: 15
+  theta_lr_ramp_epochs: 20
+  theta_lr_scale: 0.015
+  theta_bias_lr_scale: 0.005
+  noise_scale: 0.02
+  topology_freeze_min_epoch: 35
+  topology_freeze_patience: 8
