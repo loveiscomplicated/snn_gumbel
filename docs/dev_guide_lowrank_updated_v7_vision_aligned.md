@@ -1,10 +1,54 @@
 # 개발 가이드: Gumbel-Softmax SNN / LSM 코드베이스
 
+> **Update 2026-05-17 — vision alignment / research_vision_roadmap_v0.2**  
+> This document is now aligned to the project-level roadmap: the long-term target is a **modular cognitive system** whose core is **LSNN + topology learning + SSM**, and whose expression path is **adapter + decoder**. SHD/LSM topology learning is Phase A: it validates whether learned recurrent topology can create useful dynamics, but it is not the final architecture. The forward roadmap is **Phase B: ALIF 이식 → Phase C: e-prop 구현 → Phase D: 자연어 태스크, GPT-2 distillation, decoder 연결, SSM 탐색**. Biological inspiration remains an existence proof only; implementation choices are judged engineering-first.
+
+
+> **Update 2026-05-17 — related-work / novelty repositioning**  
+> A new literature pass narrows the novelty claim. Broad claims that *recurrent SNN topology learning*, *sparse rewiring*, or *LSM liquid-structure optimization* are novel are no longer safe: e-prop/LSNN/DEEP R, Grad R, ESL-SNNs, dynamic pruning with DEEP R+RigL on Heidelberg-style speech data, adaptive/evolutionary LSMs, EONS, and low-rank recurrent network theory already cover major parts of that space. The defensible contribution is narrower: in an SHD LSM setting, compare **edge-wise Gumbel/STE**, **Grad R-STE**, **learned_lowrank latent source/destination role parameterization**, and **validation-based topology selection** to test whether gains come from recurrent density, edge placement, topology parameterization, or freeze timing.
+
+> **Claim hygiene rule**  
+> Do not write: “first SNN topology learning method”, “first recurrent SNN structure learning method”, or “e-prop/LSNN did not address topology learning.” Safe wording: “This project studies topology *parameterization and selection* in recurrent SNN/LSM topology learning, building on prior sparse rewiring, LSNN/e-prop, and LSM structure-optimization work.”
+
+> **Update 2026-05-17 — internal documentation lock / paper deferral**  
+> The current findings are now locked as an internal research asset rather than a paper-ready final claim. There is no publication-pressure assumption for this project. The purpose of the current documents is to preserve the corrected related-work framing, the validated experimental facts, the claim-evidence boundary, and the next diagnostic roadmap so later experiments can build from a stable base. Paper writing is deferred until a visibly stronger result appears: broader seed/dataset robustness, causal mechanism evidence, readout/temporal separability evidence, successful ALIF/e-prop transfer, or a task where learned recurrent topology shows a clear advantage over structured alternatives.
+
+> **Operating rule after this lock**  
+> Treat the present result as a checkpoint in a longer research program. Do not inflate it into an external novelty claim. Use it to guide the next experiments: topology diagnostics, activity/readout diagnostics, causal graph interventions, and then Phase B/C/D extensions: ALIF integration, e-prop for long sequences, and SSM/NLP adapter-decoder experiments.
+
+
 > **Update 2026-05-09 — same-density random controls closed**  
-> Density-matched `random_sparse` controls around the learned-lowrank regime are now complete: `p ∈ {0.040, 0.045, 0.050}` across seeds `42/43/44/45`, with `train_w_raw=false`, `w_raw_init_mean=-2.25`, `w_raw_max=-2.0`, `val_fraction=0.1`, and `val_seed=42`. The controls reached only test@best-val mean `0.5257` with best single run `0.5406`, below the no-recurrence baseline `0.5490` and far below `learned_lowrank + validation rollback m50p10` mean `0.5919` / worst `0.5826`. Density-only explanation is now rejected; next phase is topology diagnostics, graph-structure analysis, and paper-claim/table cleanup.
+> Density-matched `random_sparse` controls around the learned-lowrank regime are now complete: `p ∈ {0.040, 0.045, 0.050}` across seeds `42/43/44/45`, with `train_w_raw=false`, `w_raw_init_mean=-2.25`, `w_raw_max=-2.0`, `val_fraction=0.1`, and `val_seed=42`. The controls reached only test@best-val mean `0.5257` with best single run `0.5406`, below the no-recurrence baseline `0.5490` and far below `learned_lowrank + validation rollback m50p10` mean `0.5919` / worst `0.5826`. Density-only explanation is now rejected; next phase is topology diagnostics, graph-structure analysis, and internal claim/table cleanup.
 
 > **Update 2026-05-08 — adaptive freeze policy closed**  
-> Validation split and `learned_lowrank` topology snapshot/rollback are implemented. The validation-rollback policy search is now closed: `m50p10` is the main proposed policy, `m60p10` is redundant because all `m50p10` freeze events already occurred after epoch 60, and `m60p15` is rejected because it lowers mean and worst-seed generalization. At that point, the next phase was same-density random controls, topology diagnostics, and paper-claim/table cleanup; the density-control part is now closed by the 2026-05-09 update.
+> Validation split and `learned_lowrank` topology snapshot/rollback are implemented. The validation-rollback policy search is now closed: `m50p10` is the main proposed policy, `m60p10` is redundant because all `m50p10` freeze events already occurred after epoch 60, and `m60p15` is rejected because it lowers mean and worst-seed generalization. At that point, the next phase was same-density random controls, topology diagnostics, and internal claim/table cleanup; the density-control part is now closed by the 2026-05-09 update.
+
+
+
+## Research-positioning scope note — 2026-05-17
+
+This implementation document should be read under the updated novelty scope. The codebase is not claiming the first trainable recurrent SNN topology or the first LSM structure-optimization method. The implementation supports a narrower experiment: compare `learned`, `grad_r`, `learned_lowrank`, and density-matched `random_sparse` under a validation-selected protocol, then diagnose whether performance differences are explained by density, edge placement, graph structure, activity geometry, or topology freeze timing.
+
+Implementation priorities after this update:
+
+| Priority | Item | Reason |
+|---:|---|---|
+| 1 | topology diagnostics for `random_sparse`, `grad_r`, `learned`, `learned_lowrank` | required to support any mechanism claim |
+| 2 | activity geometry diagnostics | link graph differences to representation/readout separability |
+| 3 | main table cleanup with `test@best-val` | avoid post-hoc selection and test leakage |
+| 4 | ALIF branch, then e-prop, then SSM/NLP adapter path | roadmap Phase B/C/D; proceed after Phase A evidence semantics are stable |
+
+## Development Rule After Internal Lock — 2026-05-17
+
+The development priority is now reproducibility and diagnostic support, not rapid paper packaging.
+
+Code changes should follow three rules:
+
+1. Preserve validation-selected result semantics. Historical best-test or manually selected freeze results may be logged, but should not be promoted to main results.
+2. Keep diagnostics method-comparable. `R1`, `R2/R2v`, `R4/R4v`, and `R8` should be evaluated with matched batch, seed, checkpoint, and metric protocols whenever possible.
+3. Avoid claim-driving code. New utilities should expose evidence, not hard-code desired interpretations.
+
+Paper-oriented utilities should wait until the project meets a paper-readiness trigger: robust multi-seed/dataset results, causal graph evidence, readout/temporal mechanism evidence, or successful ALIF/e-prop transfer.
 
 
 ## Adaptive Freeze Policy Closure — 2026-05-08
@@ -54,7 +98,7 @@ Final claim:
 | 1 | topology diagnostics for `learned`, `grad_r`, and `learned_lowrank` | explain why latent role topology changes seed behavior |
 | 2 | main table cleanup using `test @ best val` | avoid test leakage and post-hoc peak selection |
 | 3 | graph-structure analysis: E/I degree, loop count/length, clustering, path length | support mechanism-level claims |
-| 4 | prediction auxiliary / e-prop / predictive coding | defer until topology-selection claims are defended |
+| 4 | ALIF/e-prop/SSM language-path preparation | Phase B/C/D after Phase A evidence lock; predictive coding remains optional side track |
 
 
 ## Same-Density Random Control Closure — 2026-05-09
@@ -131,6 +175,24 @@ Final claim:
 > Density-matched fixed random recurrence fails to match even the no-recurrence baseline, while `learned_lowrank + validation rollback m50p10` remains substantially higher. Therefore the learned-lowrank gain is not explained by edge density alone; it requires learned edge placement / latent neuron role topology.
 
 
+
+
+## Vision-aligned implementation roadmap — 2026-05-17
+
+This codebase now serves two layers:
+
+| Layer | Scope | Implementation meaning |
+|---|---|---|
+| Phase A evidence platform | SHD/LSM topology learning, graph/activity diagnostics, validation-selected comparison | Keep reproducible and claim-safe |
+| Long-term cognitive-core path | ALIF → e-prop → NLP distillation/adapter/decoder → SSM | Add as separate branches without breaking Phase A result semantics |
+
+Implementation order after the current evidence lock:
+
+1. finish/maintain Phase A diagnostics needed for claim hygiene,
+2. create an ALIF branch compatible with existing `LiquidLayer` semantics,
+3. design e-prop as a separate learning-rule path rather than mixing it into the ALIF migration,
+4. only after e-prop is stable, add token-as-time/GPT-2 distillation and adapter-decoder code,
+5. treat SSM integration as Phase D, not as an immediate modification to the current LSM trainer.
 
 ## 0. 목적
 

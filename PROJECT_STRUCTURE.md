@@ -2,13 +2,11 @@
 
 ## .DS_Store `unknown`
 
-## .claude/settings.local.json `JSON`
-
 ## .gitignore `unknown`
 
 ## LICENSE `unknown`
 
-## _legacy/checkpoint.pt `PT`
+## PROJECT_STRUCTURE.md `MD`
 
 ## _legacy/config.py `Python`
 
@@ -48,16 +46,6 @@
 ) torch.Tensor` (L47)
   Bernoulli Gumbel-Softmax relaxation (PGExplainer style).
 
-## _legacy/resources/input_receptive_field.png `PNG`
-
-## _legacy/resources/theta_distribution.png `PNG`
-
-## _legacy/resources/threshold_distribution.png `PNG`
-
-## _legacy/resources/topology.png `PNG`
-
-## _legacy/resources/training_curves.png `PNG`
-
 ## _legacy/train.py `Python`
 
 ### 함수
@@ -82,9 +70,9 @@
   For each hidden neuron, count how many input pixels it receives.
 - `run_all(checkpoint_path: str = None)` (L179)
 
-## agent-data/sessions.db `DB`
-
 ## commands.txt `TXT`
+
+## configs/.DS_Store `unknown`
 
 ## configs/ablation_full.yaml `YAML`
 
@@ -98,3102 +86,287 @@
 
 ## configs/fashion_mnist_baseline.yaml `YAML`
 
+## configs/lsm_shd_C_valrollback_m50p10.yaml `YAML`
+
+## configs/lsm_shd_alif_learned_lowrank_m50p10.yaml `YAML`
+
+## configs/lsm_shd_alif_random_sparse_p045_fixed.yaml `YAML`
+
+## configs/lsm_shd_alif_random_sparse_p045_midadapt.yaml `YAML`
+
 ## configs/lsm_shd_baseline.yaml `YAML`
+
+## configs/lsm_shd_grad_r_valrollback_m50p10.yaml `YAML`
 
 ## configs/mnist_baseline.yaml `YAML`
 
-## data/.DS_Store `unknown`
+## docs/.DS_Store `unknown`
 
-## data/DVSGesture/.DS_Store `unknown`
+## docs/alif_phase_b_implementation.md `MD`
 
-## data/DVSGesture/ibmGestureTest/user24_fluorescent/0.npy `NPY`
+## docs/context_2_lowrank_updated_v7_vision_aligned.md `MD`
 
-## data/DVSGesture/ibmGestureTest/user24_fluorescent/1.npy `NPY`
+## docs/context_lowrank_updated_v7_vision_aligned.md `MD`
 
-## data/DVSGesture/ibmGestureTest/user24_fluorescent/10.npy `NPY`
+## docs/dev_guide_lowrank_updated_v7_vision_aligned.md `MD`
 
-## data/DVSGesture/ibmGestureTest/user24_fluorescent/2.npy `NPY`
+## docs/lsm_implementation_plan_lowrank_updated_v7_vision_aligned.md `MD`
 
-## data/DVSGesture/ibmGestureTest/user24_fluorescent/3.npy `NPY`
+## docs/research_memo_v_0_5_kr_vision_aligned.md `MD`
 
-## data/DVSGesture/ibmGestureTest/user24_fluorescent/4.npy `NPY`
+## docs/research_vision_roadmap_v0_2_kr.md `MD`
 
-## data/DVSGesture/ibmGestureTest/user24_fluorescent/5.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user24_fluorescent/6.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user24_fluorescent/7.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user24_fluorescent/8.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user24_fluorescent/9.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user24_fluorescent_led/0.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user24_fluorescent_led/1.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user24_fluorescent_led/10.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user24_fluorescent_led/2.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user24_fluorescent_led/3.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user24_fluorescent_led/4.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user24_fluorescent_led/5.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user24_fluorescent_led/6.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user24_fluorescent_led/7.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user24_fluorescent_led/8.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user24_fluorescent_led/9.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user24_led/0.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user24_led/1.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user24_led/10.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user24_led/2.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user24_led/3.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user24_led/4.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user24_led/5.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user24_led/6.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user24_led/7.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user24_led/8.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user24_led/9.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user25_fluorescent/0.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user25_fluorescent/1.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user25_fluorescent/10.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user25_fluorescent/2.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user25_fluorescent/3.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user25_fluorescent/4.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user25_fluorescent/5.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user25_fluorescent/6.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user25_fluorescent/7.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user25_fluorescent/8.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user25_fluorescent/9.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user25_led/0.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user25_led/1.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user25_led/10.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user25_led/2.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user25_led/3.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user25_led/4.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user25_led/5.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user25_led/6.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user25_led/7.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user25_led/8.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user25_led/9.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user26_fluorescent/0.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user26_fluorescent/1.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user26_fluorescent/10.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user26_fluorescent/2.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user26_fluorescent/3.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user26_fluorescent/4.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user26_fluorescent/5.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user26_fluorescent/6.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user26_fluorescent/7.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user26_fluorescent/8.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user26_fluorescent/9.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user26_fluorescent_led/0.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user26_fluorescent_led/1.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user26_fluorescent_led/10.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user26_fluorescent_led/2.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user26_fluorescent_led/3.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user26_fluorescent_led/4.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user26_fluorescent_led/5.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user26_fluorescent_led/6.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user26_fluorescent_led/7.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user26_fluorescent_led/8.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user26_fluorescent_led/9.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user26_lab/0.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user26_lab/1.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user26_lab/10.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user26_lab/2.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user26_lab/3.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user26_lab/4.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user26_lab/5.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user26_lab/6.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user26_lab/7.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user26_lab/8.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user26_lab/9.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user26_led/0.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user26_led/1.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user26_led/10.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user26_led/2.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user26_led/3.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user26_led/4.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user26_led/5.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user26_led/6.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user26_led/7.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user26_led/8.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user26_led/9.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user26_natural/0.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user26_natural/1.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user26_natural/10.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user26_natural/2.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user26_natural/3.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user26_natural/4.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user26_natural/5.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user26_natural/6.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user26_natural/7.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user26_natural/8.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user26_natural/9.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user27_fluorescent/0.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user27_fluorescent/1.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user27_fluorescent/10.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user27_fluorescent/2.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user27_fluorescent/3.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user27_fluorescent/4.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user27_fluorescent/5.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user27_fluorescent/6.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user27_fluorescent/7.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user27_fluorescent/8.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user27_fluorescent/9.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user27_fluorescent_led/0.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user27_fluorescent_led/1.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user27_fluorescent_led/10.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user27_fluorescent_led/2.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user27_fluorescent_led/3.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user27_fluorescent_led/4.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user27_fluorescent_led/5.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user27_fluorescent_led/6.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user27_fluorescent_led/7.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user27_fluorescent_led/8.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user27_fluorescent_led/9.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user27_led/0.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user27_led/1.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user27_led/10.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user27_led/2.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user27_led/3.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user27_led/4.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user27_led/5.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user27_led/6.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user27_led/7.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user27_led/8.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user27_led/9.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user27_natural/0.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user27_natural/1.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user27_natural/10.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user27_natural/2.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user27_natural/3.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user27_natural/4.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user27_natural/5.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user27_natural/6.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user27_natural/7.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user27_natural/8.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user27_natural/9.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user28_fluorescent/0.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user28_fluorescent/1.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user28_fluorescent/10.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user28_fluorescent/2.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user28_fluorescent/3.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user28_fluorescent/4.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user28_fluorescent/5.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user28_fluorescent/6.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user28_fluorescent/7.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user28_fluorescent/8.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user28_fluorescent/9.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user28_fluorescent_led/0.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user28_fluorescent_led/1.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user28_fluorescent_led/10.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user28_fluorescent_led/2.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user28_fluorescent_led/3.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user28_fluorescent_led/4.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user28_fluorescent_led/5.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user28_fluorescent_led/6.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user28_fluorescent_led/7.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user28_fluorescent_led/8.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user28_fluorescent_led/9.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user28_lab/0.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user28_lab/1.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user28_lab/10.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user28_lab/2.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user28_lab/3.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user28_lab/4.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user28_lab/5.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user28_lab/6.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user28_lab/7.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user28_lab/8.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user28_lab/9.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user28_led/0.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user28_led/1.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user28_led/10.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user28_led/2.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user28_led/3.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user28_led/4.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user28_led/5.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user28_led/6.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user28_led/7.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user28_led/8.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user28_led/9.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user28_natural/0.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user28_natural/1.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user28_natural/10.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user28_natural/2.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user28_natural/3.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user28_natural/4.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user28_natural/5.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user28_natural/6.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user28_natural/7.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user28_natural/8.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user28_natural/9.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user29_fluorescent/0.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user29_fluorescent/1.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user29_fluorescent/10.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user29_fluorescent/2.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user29_fluorescent/3.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user29_fluorescent/4.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user29_fluorescent/5.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user29_fluorescent/6.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user29_fluorescent/7.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user29_fluorescent/8.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user29_fluorescent/9.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user29_fluorescent_led/0.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user29_fluorescent_led/1.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user29_fluorescent_led/10.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user29_fluorescent_led/2.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user29_fluorescent_led/3.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user29_fluorescent_led/4.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user29_fluorescent_led/5.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user29_fluorescent_led/6.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user29_fluorescent_led/7.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user29_fluorescent_led/8.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user29_fluorescent_led/9.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user29_lab/0.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user29_lab/1.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user29_lab/10.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user29_lab/2.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user29_lab/3.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user29_lab/4.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user29_lab/5.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user29_lab/6.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user29_lab/7.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user29_lab/8.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user29_lab/9.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user29_led/0.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user29_led/1.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user29_led/10.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user29_led/2.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user29_led/3.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user29_led/4.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user29_led/5.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user29_led/6.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user29_led/7.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user29_led/8.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user29_led/9.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user29_natural/0.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user29_natural/1.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user29_natural/10.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user29_natural/2.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user29_natural/3.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user29_natural/4.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user29_natural/5.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user29_natural/6.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user29_natural/7.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user29_natural/8.npy `NPY`
-
-## data/DVSGesture/ibmGestureTest/user29_natural/9.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user01_fluorescent/0.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user01_fluorescent/1.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user01_fluorescent/10.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user01_fluorescent/2.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user01_fluorescent/3.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user01_fluorescent/4.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user01_fluorescent/5.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user01_fluorescent/6.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user01_fluorescent/7.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user01_fluorescent/8.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user01_fluorescent/9.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user01_fluorescent_led/0.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user01_fluorescent_led/1.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user01_fluorescent_led/10.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user01_fluorescent_led/2.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user01_fluorescent_led/3.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user01_fluorescent_led/4.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user01_fluorescent_led/5.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user01_fluorescent_led/6.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user01_fluorescent_led/7.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user01_fluorescent_led/8.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user01_fluorescent_led/9.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user01_lab/0.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user01_lab/1.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user01_lab/10.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user01_lab/2.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user01_lab/3.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user01_lab/4.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user01_lab/5.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user01_lab/6.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user01_lab/7.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user01_lab/8.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user01_lab/9.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user01_led/0.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user01_led/1.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user01_led/10.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user01_led/2.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user01_led/3.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user01_led/4.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user01_led/5.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user01_led/6.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user01_led/7.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user01_led/8.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user01_led/9.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user01_natural/0.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user01_natural/1.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user01_natural/10.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user01_natural/2.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user01_natural/3.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user01_natural/4.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user01_natural/5.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user01_natural/6.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user01_natural/7.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user01_natural/8.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user01_natural/9.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user02_fluorescent/0.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user02_fluorescent/1.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user02_fluorescent/10.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user02_fluorescent/2.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user02_fluorescent/3.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user02_fluorescent/4.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user02_fluorescent/5.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user02_fluorescent/6.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user02_fluorescent/7.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user02_fluorescent/8.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user02_fluorescent/9.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user02_fluorescent_led/0.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user02_fluorescent_led/1.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user02_fluorescent_led/10.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user02_fluorescent_led/2.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user02_fluorescent_led/3.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user02_fluorescent_led/4.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user02_fluorescent_led/5.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user02_fluorescent_led/6.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user02_fluorescent_led/7.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user02_fluorescent_led/8.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user02_fluorescent_led/9.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user02_lab/1.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user02_lab/10.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user02_lab/2.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user02_lab/3.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user02_lab/4.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user02_lab/5.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user02_lab/6.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user02_lab/7.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user02_lab/8.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user02_lab/9.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user02_led/0.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user02_led/1.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user02_led/10.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user02_led/2.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user02_led/3.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user02_led/4.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user02_led/5.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user02_led/6.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user02_led/7.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user02_led/8.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user02_led/9.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user02_natural/0.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user02_natural/1.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user02_natural/10.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user02_natural/2.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user02_natural/3.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user02_natural/4.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user02_natural/5.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user02_natural/6.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user02_natural/7.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user02_natural/8.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user02_natural/9.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user03_fluorescent/0.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user03_fluorescent/1.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user03_fluorescent/10.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user03_fluorescent/2.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user03_fluorescent/3.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user03_fluorescent/4.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user03_fluorescent/5.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user03_fluorescent/6.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user03_fluorescent/7.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user03_fluorescent/8.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user03_fluorescent/9.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user03_fluorescent_led/0.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user03_fluorescent_led/1.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user03_fluorescent_led/10.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user03_fluorescent_led/2.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user03_fluorescent_led/3.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user03_fluorescent_led/4.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user03_fluorescent_led/5.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user03_fluorescent_led/6.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user03_fluorescent_led/7.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user03_fluorescent_led/8.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user03_fluorescent_led/9.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user03_led/0.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user03_led/1.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user03_led/10.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user03_led/2.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user03_led/3.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user03_led/4.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user03_led/5.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user03_led/6.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user03_led/7.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user03_led/8.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user03_led/9.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user03_natural/0.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user03_natural/1.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user03_natural/10.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user03_natural/2.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user03_natural/3.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user03_natural/4.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user03_natural/5.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user03_natural/6.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user03_natural/7.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user03_natural/8.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user03_natural/9.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user04_fluorescent/0.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user04_fluorescent/1.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user04_fluorescent/10.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user04_fluorescent/2.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user04_fluorescent/3.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user04_fluorescent/4.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user04_fluorescent/5.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user04_fluorescent/6.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user04_fluorescent/7.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user04_fluorescent/8.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user04_fluorescent/9.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user04_fluorescent_led/0.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user04_fluorescent_led/1.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user04_fluorescent_led/10.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user04_fluorescent_led/2.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user04_fluorescent_led/3.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user04_fluorescent_led/4.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user04_fluorescent_led/5.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user04_fluorescent_led/6.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user04_fluorescent_led/7.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user04_fluorescent_led/8.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user04_fluorescent_led/9.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user04_led/0.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user04_led/1.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user04_led/10.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user04_led/2.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user04_led/3.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user04_led/4.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user04_led/5.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user04_led/6.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user04_led/7.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user04_led/8.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user04_led/9.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user04_natural/0.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user04_natural/1.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user04_natural/10.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user04_natural/2.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user04_natural/3.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user04_natural/4.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user04_natural/5.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user04_natural/6.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user04_natural/7.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user04_natural/8.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user04_natural/9.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user05_fluorescent/0.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user05_fluorescent/1.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user05_fluorescent/10.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user05_fluorescent/2.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user05_fluorescent/3.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user05_fluorescent/4.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user05_fluorescent/5.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user05_fluorescent/6.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user05_fluorescent/7.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user05_fluorescent/8.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user05_fluorescent/9.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user05_fluorescent_led/0.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user05_fluorescent_led/1.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user05_fluorescent_led/10.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user05_fluorescent_led/2.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user05_fluorescent_led/3.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user05_fluorescent_led/4.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user05_fluorescent_led/5.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user05_fluorescent_led/6.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user05_fluorescent_led/7.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user05_fluorescent_led/8.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user05_fluorescent_led/9.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user05_lab/0.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user05_lab/1.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user05_lab/10.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user05_lab/2.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user05_lab/3.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user05_lab/4.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user05_lab/5.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user05_lab/6.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user05_lab/7.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user05_lab/8.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user05_lab/9.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user05_led/0.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user05_led/1.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user05_led/10.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user05_led/2.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user05_led/3.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user05_led/4.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user05_led/5.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user05_led/6.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user05_led/7.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user05_led/8.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user05_led/9.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user05_natural/0.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user05_natural/1.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user05_natural/10.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user05_natural/2.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user05_natural/3.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user05_natural/4.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user05_natural/5.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user05_natural/6.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user05_natural/7.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user05_natural/8.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user05_natural/9.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user06_fluorescent/0.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user06_fluorescent/1.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user06_fluorescent/10.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user06_fluorescent/2.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user06_fluorescent/3.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user06_fluorescent/4.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user06_fluorescent/5.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user06_fluorescent/6.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user06_fluorescent/7.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user06_fluorescent/8.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user06_fluorescent/9.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user06_fluorescent_led/0.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user06_fluorescent_led/1.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user06_fluorescent_led/10.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user06_fluorescent_led/2.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user06_fluorescent_led/3.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user06_fluorescent_led/4.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user06_fluorescent_led/5.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user06_fluorescent_led/6.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user06_fluorescent_led/7.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user06_fluorescent_led/8.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user06_fluorescent_led/9.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user06_lab/0.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user06_lab/1.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user06_lab/10.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user06_lab/2.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user06_lab/3.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user06_lab/4.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user06_lab/5.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user06_lab/6.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user06_lab/7.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user06_lab/8.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user06_lab/9.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user06_led/0.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user06_led/1.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user06_led/10.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user06_led/2.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user06_led/3.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user06_led/4.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user06_led/5.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user06_led/6.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user06_led/7.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user06_led/8.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user06_led/9.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user06_natural/0.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user06_natural/1.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user06_natural/10.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user06_natural/2.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user06_natural/3.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user06_natural/4.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user06_natural/5.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user06_natural/6.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user06_natural/7.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user06_natural/8.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user06_natural/9.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user07_fluorescent/0.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user07_fluorescent/1.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user07_fluorescent/10.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user07_fluorescent/2.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user07_fluorescent/3.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user07_fluorescent/4.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user07_fluorescent/5.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user07_fluorescent/6.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user07_fluorescent/7.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user07_fluorescent/8.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user07_fluorescent/9.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user07_fluorescent_led/0.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user07_fluorescent_led/1.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user07_fluorescent_led/10.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user07_fluorescent_led/2.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user07_fluorescent_led/3.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user07_fluorescent_led/4.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user07_fluorescent_led/5.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user07_fluorescent_led/6.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user07_fluorescent_led/7.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user07_fluorescent_led/8.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user07_fluorescent_led/9.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user07_lab/0.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user07_lab/1.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user07_lab/10.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user07_lab/2.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user07_lab/3.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user07_lab/4.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user07_lab/5.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user07_lab/6.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user07_lab/7.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user07_lab/8.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user07_lab/9.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user07_led/0.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user07_led/1.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user07_led/10.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user07_led/2.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user07_led/3.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user07_led/4.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user07_led/5.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user07_led/6.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user07_led/7.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user07_led/8.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user07_led/9.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user08_fluorescent/0.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user08_fluorescent/1.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user08_fluorescent/10.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user08_fluorescent/2.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user08_fluorescent/3.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user08_fluorescent/4.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user08_fluorescent/5.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user08_fluorescent/6.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user08_fluorescent/7.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user08_fluorescent/8.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user08_fluorescent/9.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user08_fluorescent_led/0.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user08_fluorescent_led/1.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user08_fluorescent_led/10.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user08_fluorescent_led/2.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user08_fluorescent_led/3.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user08_fluorescent_led/4.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user08_fluorescent_led/5.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user08_fluorescent_led/6.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user08_fluorescent_led/7.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user08_fluorescent_led/8.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user08_fluorescent_led/9.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user08_lab/0.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user08_lab/1.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user08_lab/10.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user08_lab/2.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user08_lab/3.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user08_lab/4.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user08_lab/5.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user08_lab/6.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user08_lab/7.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user08_lab/8.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user08_lab/9.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user08_led/0.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user08_led/1.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user08_led/10.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user08_led/2.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user08_led/3.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user08_led/4.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user08_led/5.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user08_led/6.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user08_led/7.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user08_led/8.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user08_led/9.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user09_fluorescent/0.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user09_fluorescent/1.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user09_fluorescent/10.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user09_fluorescent/2.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user09_fluorescent/3.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user09_fluorescent/4.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user09_fluorescent/5.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user09_fluorescent/6.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user09_fluorescent/7.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user09_fluorescent/8.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user09_fluorescent/9.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user09_fluorescent_led/0.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user09_fluorescent_led/1.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user09_fluorescent_led/10.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user09_fluorescent_led/2.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user09_fluorescent_led/3.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user09_fluorescent_led/4.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user09_fluorescent_led/5.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user09_fluorescent_led/6.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user09_fluorescent_led/7.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user09_fluorescent_led/8.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user09_fluorescent_led/9.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user09_lab/0.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user09_lab/1.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user09_lab/10.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user09_lab/2.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user09_lab/3.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user09_lab/4.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user09_lab/5.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user09_lab/6.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user09_lab/7.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user09_lab/8.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user09_lab/9.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user09_led/0.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user09_led/1.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user09_led/10.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user09_led/2.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user09_led/3.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user09_led/4.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user09_led/5.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user09_led/6.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user09_led/7.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user09_led/8.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user09_led/9.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user09_natural/0.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user09_natural/1.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user09_natural/10.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user09_natural/2.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user09_natural/3.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user09_natural/4.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user09_natural/5.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user09_natural/6.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user09_natural/7.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user09_natural/8.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user09_natural/9.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user10_fluorescent/0.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user10_fluorescent/1.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user10_fluorescent/10.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user10_fluorescent/2.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user10_fluorescent/3.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user10_fluorescent/4.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user10_fluorescent/5.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user10_fluorescent/6.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user10_fluorescent/7.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user10_fluorescent/8.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user10_fluorescent/9.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user10_fluorescent_led/0.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user10_fluorescent_led/1.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user10_fluorescent_led/10.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user10_fluorescent_led/2.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user10_fluorescent_led/3.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user10_fluorescent_led/4.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user10_fluorescent_led/5.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user10_fluorescent_led/6.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user10_fluorescent_led/7.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user10_fluorescent_led/8.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user10_fluorescent_led/9.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user10_lab/0.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user10_lab/1.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user10_lab/10.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user10_lab/2.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user10_lab/3.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user10_lab/4.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user10_lab/5.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user10_lab/6.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user10_lab/7.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user10_lab/8.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user10_lab/9.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user10_led/0.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user10_led/1.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user10_led/10.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user10_led/2.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user10_led/3.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user10_led/4.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user10_led/5.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user10_led/6.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user10_led/7.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user10_led/8.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user10_led/9.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user11_fluorescent/0.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user11_fluorescent/1.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user11_fluorescent/10.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user11_fluorescent/2.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user11_fluorescent/3.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user11_fluorescent/4.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user11_fluorescent/5.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user11_fluorescent/6.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user11_fluorescent/7.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user11_fluorescent/8.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user11_fluorescent/9.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user11_fluorescent_led/0.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user11_fluorescent_led/1.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user11_fluorescent_led/10.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user11_fluorescent_led/2.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user11_fluorescent_led/3.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user11_fluorescent_led/4.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user11_fluorescent_led/5.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user11_fluorescent_led/6.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user11_fluorescent_led/7.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user11_fluorescent_led/8.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user11_fluorescent_led/9.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user11_natural/0.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user11_natural/1.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user11_natural/10.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user11_natural/2.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user11_natural/3.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user11_natural/4.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user11_natural/5.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user11_natural/6.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user11_natural/7.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user11_natural/8.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user11_natural/9.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user12_fluorescent_led/0.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user12_fluorescent_led/1.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user12_fluorescent_led/10.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user12_fluorescent_led/2.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user12_fluorescent_led/3.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user12_fluorescent_led/4.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user12_fluorescent_led/5.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user12_fluorescent_led/6.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user12_fluorescent_led/7.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user12_fluorescent_led/8.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user12_fluorescent_led/9.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user12_led/0.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user12_led/1.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user12_led/10.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user12_led/2.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user12_led/3.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user12_led/4.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user12_led/5.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user12_led/6.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user12_led/7.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user12_led/8.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user12_led/9.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user13_fluorescent/0.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user13_fluorescent/1.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user13_fluorescent/10.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user13_fluorescent/2.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user13_fluorescent/3.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user13_fluorescent/4.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user13_fluorescent/5.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user13_fluorescent/6.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user13_fluorescent/7.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user13_fluorescent/8.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user13_fluorescent/9.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user13_fluorescent_led/0.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user13_fluorescent_led/1.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user13_fluorescent_led/10.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user13_fluorescent_led/2.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user13_fluorescent_led/3.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user13_fluorescent_led/4.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user13_fluorescent_led/5.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user13_fluorescent_led/6.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user13_fluorescent_led/7.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user13_fluorescent_led/8.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user13_fluorescent_led/9.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user13_lab/0.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user13_lab/1.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user13_lab/10.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user13_lab/2.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user13_lab/3.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user13_lab/4.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user13_lab/5.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user13_lab/6.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user13_lab/7.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user13_lab/8.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user13_lab/9.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user13_led/0.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user13_led/1.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user13_led/10.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user13_led/2.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user13_led/3.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user13_led/4.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user13_led/5.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user13_led/6.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user13_led/7.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user13_led/8.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user13_led/9.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user13_natural/0.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user13_natural/1.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user13_natural/10.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user13_natural/2.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user13_natural/3.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user13_natural/4.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user13_natural/5.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user13_natural/6.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user13_natural/7.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user13_natural/8.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user13_natural/9.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user14_fluorescent/0.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user14_fluorescent/1.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user14_fluorescent/10.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user14_fluorescent/2.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user14_fluorescent/3.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user14_fluorescent/4.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user14_fluorescent/5.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user14_fluorescent/6.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user14_fluorescent/7.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user14_fluorescent/8.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user14_fluorescent/9.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user14_fluorescent_led/0.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user14_fluorescent_led/1.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user14_fluorescent_led/10.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user14_fluorescent_led/2.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user14_fluorescent_led/3.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user14_fluorescent_led/4.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user14_fluorescent_led/5.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user14_fluorescent_led/6.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user14_fluorescent_led/7.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user14_fluorescent_led/8.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user14_fluorescent_led/9.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user14_led/0.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user14_led/1.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user14_led/10.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user14_led/2.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user14_led/3.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user14_led/4.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user14_led/5.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user14_led/6.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user14_led/7.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user14_led/8.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user14_led/9.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user14_natural/0.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user14_natural/1.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user14_natural/10.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user14_natural/2.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user14_natural/3.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user14_natural/4.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user14_natural/5.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user14_natural/6.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user14_natural/7.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user14_natural/8.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user14_natural/9.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user15_fluorescent/0.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user15_fluorescent/1.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user15_fluorescent/10.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user15_fluorescent/2.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user15_fluorescent/3.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user15_fluorescent/4.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user15_fluorescent/5.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user15_fluorescent/6.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user15_fluorescent/7.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user15_fluorescent/8.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user15_fluorescent/9.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user15_fluorescent_led/0.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user15_fluorescent_led/1.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user15_fluorescent_led/10.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user15_fluorescent_led/2.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user15_fluorescent_led/3.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user15_fluorescent_led/4.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user15_fluorescent_led/5.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user15_fluorescent_led/6.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user15_fluorescent_led/7.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user15_fluorescent_led/8.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user15_fluorescent_led/9.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user15_lab/0.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user15_lab/1.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user15_lab/10.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user15_lab/2.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user15_lab/3.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user15_lab/4.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user15_lab/5.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user15_lab/6.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user15_lab/7.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user15_lab/8.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user15_lab/9.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user15_led/0.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user15_led/1.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user15_led/10.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user15_led/2.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user15_led/3.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user15_led/4.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user15_led/5.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user15_led/6.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user15_led/7.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user15_led/8.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user15_led/9.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user15_natural/0.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user15_natural/1.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user15_natural/10.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user15_natural/2.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user15_natural/3.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user15_natural/4.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user15_natural/5.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user15_natural/6.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user15_natural/7.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user15_natural/8.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user15_natural/9.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user16_fluorescent/0.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user16_fluorescent/1.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user16_fluorescent/10.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user16_fluorescent/2.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user16_fluorescent/3.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user16_fluorescent/4.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user16_fluorescent/5.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user16_fluorescent/6.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user16_fluorescent/7.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user16_fluorescent/8.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user16_fluorescent/9.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user16_lab/0.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user16_lab/1.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user16_lab/10.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user16_lab/2.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user16_lab/3.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user16_lab/4.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user16_lab/5.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user16_lab/6.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user16_lab/7.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user16_lab/8.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user16_lab/9.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user16_led/0.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user16_led/1.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user16_led/10.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user16_led/2.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user16_led/3.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user16_led/4.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user16_led/5.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user16_led/6.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user16_led/7.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user16_led/8.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user16_led/9.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user16_natural/0.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user16_natural/1.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user16_natural/10.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user16_natural/2.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user16_natural/3.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user16_natural/4.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user16_natural/5.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user16_natural/6.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user16_natural/7.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user16_natural/8.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user16_natural/9.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user17_fluorescent/0.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user17_fluorescent/1.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user17_fluorescent/10.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user17_fluorescent/2.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user17_fluorescent/3.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user17_fluorescent/4.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user17_fluorescent/5.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user17_fluorescent/6.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user17_fluorescent/7.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user17_fluorescent/8.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user17_fluorescent/9.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user17_fluorescent_led/0.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user17_fluorescent_led/1.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user17_fluorescent_led/10.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user17_fluorescent_led/2.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user17_fluorescent_led/3.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user17_fluorescent_led/4.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user17_fluorescent_led/5.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user17_fluorescent_led/6.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user17_fluorescent_led/7.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user17_fluorescent_led/8.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user17_fluorescent_led/9.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user17_lab/0.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user17_lab/1.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user17_lab/10.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user17_lab/2.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user17_lab/3.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user17_lab/4.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user17_lab/5.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user17_lab/6.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user17_lab/7.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user17_lab/8.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user17_lab/9.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user17_led/0.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user17_led/1.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user17_led/10.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user17_led/2.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user17_led/3.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user17_led/4.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user17_led/5.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user17_led/6.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user17_led/7.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user17_led/8.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user17_led/9.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user17_natural/0.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user17_natural/1.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user17_natural/10.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user17_natural/2.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user17_natural/3.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user17_natural/4.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user17_natural/5.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user17_natural/6.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user17_natural/7.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user17_natural/8.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user17_natural/9.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user18_fluorescent/0.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user18_fluorescent/1.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user18_fluorescent/10.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user18_fluorescent/2.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user18_fluorescent/3.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user18_fluorescent/4.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user18_fluorescent/5.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user18_fluorescent/6.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user18_fluorescent/7.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user18_fluorescent/8.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user18_fluorescent/9.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user18_fluorescent_led/0.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user18_fluorescent_led/1.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user18_fluorescent_led/10.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user18_fluorescent_led/2.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user18_fluorescent_led/3.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user18_fluorescent_led/4.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user18_fluorescent_led/5.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user18_fluorescent_led/6.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user18_fluorescent_led/7.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user18_fluorescent_led/8.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user18_fluorescent_led/9.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user18_lab/0.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user18_lab/1.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user18_lab/10.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user18_lab/2.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user18_lab/3.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user18_lab/4.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user18_lab/5.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user18_lab/6.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user18_lab/7.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user18_lab/8.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user18_lab/9.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user18_led/0.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user18_led/1.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user18_led/10.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user18_led/2.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user18_led/3.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user18_led/4.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user18_led/5.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user18_led/6.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user18_led/7.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user18_led/8.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user18_led/9.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user19_fluorescent/0.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user19_fluorescent/1.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user19_fluorescent/10.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user19_fluorescent/2.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user19_fluorescent/3.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user19_fluorescent/4.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user19_fluorescent/5.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user19_fluorescent/6.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user19_fluorescent/7.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user19_fluorescent/8.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user19_fluorescent/9.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user19_fluorescent_led/0.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user19_fluorescent_led/1.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user19_fluorescent_led/10.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user19_fluorescent_led/2.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user19_fluorescent_led/3.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user19_fluorescent_led/4.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user19_fluorescent_led/5.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user19_fluorescent_led/6.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user19_fluorescent_led/7.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user19_fluorescent_led/8.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user19_fluorescent_led/9.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user19_lab/0.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user19_lab/1.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user19_lab/10.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user19_lab/2.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user19_lab/3.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user19_lab/4.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user19_lab/5.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user19_lab/6.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user19_lab/7.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user19_lab/8.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user19_lab/9.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user19_led/0.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user19_led/1.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user19_led/10.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user19_led/2.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user19_led/3.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user19_led/4.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user19_led/5.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user19_led/6.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user19_led/7.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user19_led/8.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user19_led/9.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user19_natural/0.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user19_natural/1.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user19_natural/10.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user19_natural/2.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user19_natural/3.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user19_natural/4.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user19_natural/5.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user19_natural/6.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user19_natural/7.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user19_natural/8.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user19_natural/9.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user20_fluorescent/0.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user20_fluorescent/1.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user20_fluorescent/10.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user20_fluorescent/2.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user20_fluorescent/3.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user20_fluorescent/4.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user20_fluorescent/5.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user20_fluorescent/6.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user20_fluorescent/7.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user20_fluorescent/8.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user20_fluorescent/9.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user20_fluorescent_led/0.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user20_fluorescent_led/1.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user20_fluorescent_led/10.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user20_fluorescent_led/2.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user20_fluorescent_led/3.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user20_fluorescent_led/4.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user20_fluorescent_led/5.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user20_fluorescent_led/6.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user20_fluorescent_led/7.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user20_fluorescent_led/8.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user20_fluorescent_led/9.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user20_led/0.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user20_led/1.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user20_led/10.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user20_led/2.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user20_led/3.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user20_led/4.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user20_led/5.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user20_led/6.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user20_led/7.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user20_led/8.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user20_led/9.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user21_fluorescent/0.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user21_fluorescent/1.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user21_fluorescent/10.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user21_fluorescent/2.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user21_fluorescent/3.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user21_fluorescent/4.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user21_fluorescent/5.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user21_fluorescent/6.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user21_fluorescent/7.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user21_fluorescent/8.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user21_fluorescent/9.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user21_fluorescent_led/0.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user21_fluorescent_led/1.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user21_fluorescent_led/10.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user21_fluorescent_led/2.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user21_fluorescent_led/3.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user21_fluorescent_led/4.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user21_fluorescent_led/5.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user21_fluorescent_led/6.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user21_fluorescent_led/7.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user21_fluorescent_led/8.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user21_fluorescent_led/9.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user21_lab/0.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user21_lab/1.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user21_lab/10.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user21_lab/2.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user21_lab/3.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user21_lab/4.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user21_lab/5.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user21_lab/6.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user21_lab/7.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user21_lab/8.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user21_lab/9.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user21_natural/0.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user21_natural/1.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user21_natural/10.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user21_natural/2.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user21_natural/3.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user21_natural/4.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user21_natural/5.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user21_natural/6.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user21_natural/7.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user21_natural/8.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user21_natural/9.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user22_fluorescent/0.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user22_fluorescent/1.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user22_fluorescent/10.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user22_fluorescent/2.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user22_fluorescent/3.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user22_fluorescent/4.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user22_fluorescent/5.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user22_fluorescent/6.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user22_fluorescent/7.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user22_fluorescent/8.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user22_fluorescent/9.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user22_fluorescent_led/0.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user22_fluorescent_led/1.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user22_fluorescent_led/10.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user22_fluorescent_led/2.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user22_fluorescent_led/3.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user22_fluorescent_led/4.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user22_fluorescent_led/5.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user22_fluorescent_led/6.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user22_fluorescent_led/7.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user22_fluorescent_led/8.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user22_fluorescent_led/9.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user22_lab/0.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user22_lab/1.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user22_lab/10.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user22_lab/2.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user22_lab/3.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user22_lab/4.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user22_lab/5.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user22_lab/6.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user22_lab/7.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user22_lab/8.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user22_lab/9.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user22_led/0.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user22_led/1.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user22_led/10.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user22_led/2.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user22_led/3.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user22_led/4.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user22_led/5.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user22_led/6.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user22_led/7.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user22_led/8.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user22_led/9.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user22_natural/0.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user22_natural/1.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user22_natural/10.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user22_natural/2.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user22_natural/3.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user22_natural/4.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user22_natural/5.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user22_natural/6.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user22_natural/7.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user22_natural/8.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user22_natural/9.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user23_fluorescent/0.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user23_fluorescent/1.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user23_fluorescent/10.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user23_fluorescent/2.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user23_fluorescent/3.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user23_fluorescent/4.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user23_fluorescent/5.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user23_fluorescent/6.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user23_fluorescent/7.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user23_fluorescent/8.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user23_fluorescent/9.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user23_fluorescent_led/0.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user23_fluorescent_led/1.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user23_fluorescent_led/10.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user23_fluorescent_led/2.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user23_fluorescent_led/3.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user23_fluorescent_led/4.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user23_fluorescent_led/5.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user23_fluorescent_led/6.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user23_fluorescent_led/7.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user23_fluorescent_led/8.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user23_fluorescent_led/9.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user23_lab/0.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user23_lab/1.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user23_lab/10.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user23_lab/2.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user23_lab/3.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user23_lab/4.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user23_lab/5.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user23_lab/6.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user23_lab/7.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user23_lab/8.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user23_lab/9.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user23_led/0.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user23_led/1.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user23_led/10.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user23_led/2.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user23_led/3.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user23_led/4.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user23_led/5.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user23_led/6.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user23_led/7.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user23_led/8.npy `NPY`
-
-## data/DVSGesture/ibmGestureTrain/user23_led/9.npy `NPY`
-
-## data/NMNIST/.DS_Store `unknown`
-
-## data/SHD/shd_test.h5 `H5`
-
-## data/SHD/shd_test.h5.zip `ZIP`
-
-## data/SHD/shd_train.h5 `H5`
-
-## data/SHD/shd_train.h5.zip `ZIP`
-
-## docs/context.md `MD`
-
-## docs/context_2.md `MD`
-
-## docs/dev_guide.md `MD`
-
-## docs/lsm_current_baseline.md `MD`
-
-## docs/lsm_implementation_plan.md `MD`
-
-## docs/text.txt `TXT`
-
-## experiments/.DS_Store `unknown`
-
-## experiments/ablation_full_2603231910/checkpoints/best.pt `PT`
-
-## experiments/ablation_full_2603231910/config.yaml `YAML`
-
-## experiments/ablation_full_2603231910/logs/best.txt `TXT`
-
-## experiments/ablation_full_2603231910/logs/train.jsonl `JSONL`
-
-## experiments/ablation_random_sparse_2603231910/checkpoints/best.pt `PT`
-
-## experiments/ablation_random_sparse_2603231910/config.yaml `YAML`
-
-## experiments/ablation_random_sparse_2603231910/logs/best.txt `TXT`
-
-## experiments/ablation_random_sparse_2603231910/logs/train.jsonl `JSONL`
-
-## experiments/ablation_transfer_2603232014/checkpoints/best.pt `PT`
-
-## experiments/ablation_transfer_2603232014/config.yaml `YAML`
-
-## experiments/ablation_transfer_2603232014/logs/train.jsonl `JSONL`
-
-## experiments/dvs_gesture_baseline_2604031312/.DS_Store `unknown`
-
-## experiments/dvs_gesture_baseline_2604031312/checkpoints/best.pt `PT`
-
-## experiments/dvs_gesture_baseline_2604031312/config.yaml `YAML`
-
-## experiments/dvs_gesture_baseline_2604031312/figures/input_receptive_field.png `PNG`
-
-## experiments/dvs_gesture_baseline_2604031312/figures/theta_distribution.png `PNG`
-
-## experiments/dvs_gesture_baseline_2604031312/figures/threshold_distribution.png `PNG`
-
-## experiments/dvs_gesture_baseline_2604031312/figures/topology.png `PNG`
-
-## experiments/dvs_gesture_baseline_2604031312/figures/training_curves.png `PNG`
-
-## experiments/dvs_gesture_baseline_2604031312/logs/train.jsonl `JSONL`
-
-## experiments/fashion_1024_mnist_baseline_2603231941/checkpoints/best.pt `PT`
-
-## experiments/fashion_1024_mnist_baseline_2603231941/config.yaml `YAML`
-
-## experiments/fashion_1024_mnist_baseline_2603231941/logs/best.txt `TXT`
-
-## experiments/fashion_1024_mnist_baseline_2603231941/logs/train.jsonl `JSONL`
-
-## experiments/fashion_512_mnist_baseline_2603231918/.DS_Store `unknown`
-
-## experiments/fashion_512_mnist_baseline_2603231918/checkpoints/best.pt `PT`
-
-## experiments/fashion_512_mnist_baseline_2603231918/config.yaml `YAML`
-
-## experiments/fashion_512_mnist_baseline_2603231918/logs/best.txt `TXT`
-
-## experiments/fashion_512_mnist_baseline_2603231918/logs/train.jsonl `JSONL`
-
-## experiments/lsm_shd_260403221250_baseline_A/checkpoints/best.pt `PT`
-
-## experiments/lsm_shd_260403221250_baseline_A/config.yaml `YAML`
-
-## experiments/lsm_shd_260403221250_baseline_A/logs/train.jsonl `JSONL`
-
-## experiments/lsm_shd_260403221253_baseline_B/checkpoints/best.pt `PT`
-
-## experiments/lsm_shd_260403221253_baseline_B/config.yaml `YAML`
-
-## experiments/lsm_shd_260403221253_baseline_B/logs/train.jsonl `JSONL`
-
-## experiments/lsm_shd_B_p01_260405113256/checkpoints/best.pt `PT`
-
-## experiments/lsm_shd_B_p01_260405113256/config.yaml `YAML`
-
-## experiments/lsm_shd_B_p01_260405113256/logs/train.jsonl `JSONL`
-
-## experiments/lsm_shd_B_p02_260405113305/checkpoints/best.pt `PT`
-
-## experiments/lsm_shd_B_p02_260405113305/config.yaml `YAML`
-
-## experiments/lsm_shd_B_p02_260405113305/logs/train.jsonl `JSONL`
-
-## experiments/lsm_shd_B_p03_260405113343/checkpoints/best.pt `PT`
-
-## experiments/lsm_shd_B_p03_260405113343/config.yaml `YAML`
-
-## experiments/lsm_shd_B_p03_260405113343/logs/train.jsonl `JSONL`
-
-## experiments/lsm_shd_B_p05_260405113400/checkpoints/best.pt `PT`
-
-## experiments/lsm_shd_B_p05_260405113400/config.yaml `YAML`
-
-## experiments/lsm_shd_B_p05_260405113400/logs/train.jsonl `JSONL`
-
-## experiments/lsm_shd_C_freeze_w_260429113640/checkpoints/best.pt `PT`
-
-## experiments/lsm_shd_C_freeze_w_260429113640/config.yaml `YAML`
-
-## experiments/lsm_shd_C_freeze_w_260429113640/logs/train.jsonl `JSONL`
-
-## experiments/lsm_shd_C_freeze_w_dynwarm_260429115051/checkpoints/best.pt `PT`
-
-## experiments/lsm_shd_C_freeze_w_dynwarm_260429115051/config.yaml `YAML`
-
-## experiments/lsm_shd_C_freeze_w_dynwarm_260429115051/logs/train.jsonl `JSONL`
-
-## experiments/lsm_shd_C_freeze_w_dynwarm_slope_260429122127/checkpoints/best.pt `PT`
-
-## experiments/lsm_shd_C_freeze_w_dynwarm_slope_260429122127/config.yaml `YAML`
-
-## experiments/lsm_shd_C_freeze_w_dynwarm_slope_260429122127/logs/train.jsonl `JSONL`
-
-## experiments/lsm_shd_C_freeze_w_theta080_std030_w225_260429160413/checkpoints/best.pt `PT`
-
-## experiments/lsm_shd_C_freeze_w_theta080_std030_w225_260429160413/config.yaml `YAML`
-
-## experiments/lsm_shd_C_freeze_w_theta080_std030_w225_260429160413/logs/train.jsonl `JSONL`
-
-## experiments/lsm_shd_C_freeze_w_theta100_w225_260429122610/checkpoints/best.pt `PT`
-
-## experiments/lsm_shd_C_freeze_w_theta100_w225_260429122610/config.yaml `YAML`
-
-## experiments/lsm_shd_C_freeze_w_theta100_w225_260429122610/logs/train.jsonl `JSONL`
-
-## experiments/lsm_shd_C_freeze_w_theta100_w225_s43_260429141323/checkpoints/best.pt `PT`
-
-## experiments/lsm_shd_C_freeze_w_theta100_w225_s43_260429141323/config.yaml `YAML`
-
-## experiments/lsm_shd_C_freeze_w_theta100_w225_s43_260429141323/logs/train.jsonl `JSONL`
-
-## experiments/lsm_shd_C_freeze_w_theta100_w225_s44_260429141328/checkpoints/best.pt `PT`
-
-## experiments/lsm_shd_C_freeze_w_theta100_w225_s44_260429141328/config.yaml `YAML`
-
-## experiments/lsm_shd_C_freeze_w_theta100_w225_s44_260429141328/logs/train.jsonl `JSONL`
-
-## experiments/lsm_shd_C_freeze_w_theta100_w225_s45_260429155902/checkpoints/best.pt `PT`
-
-## experiments/lsm_shd_C_freeze_w_theta100_w225_s45_260429155902/config.yaml `YAML`
-
-## experiments/lsm_shd_C_freeze_w_theta100_w225_s45_260429155902/logs/train.jsonl `JSONL`
-
-## experiments/lsm_shd_C_freeze_w_theta100_w225_s45_260429160420/checkpoints/best.pt `PT`
-
-## experiments/lsm_shd_C_freeze_w_theta100_w225_s45_260429160420/config.yaml `YAML`
-
-## experiments/lsm_shd_C_freeze_w_theta100_w225_s45_260429160420/logs/train.jsonl `JSONL`
-
-## experiments/lsm_shd_C_freeze_w_theta100_w225_tau020_freeze60_s43_260429194121/checkpoints/best.pt `PT`
-
-## experiments/lsm_shd_C_freeze_w_theta100_w225_tau020_freeze60_s43_260429194121/config.yaml `YAML`
-
-## experiments/lsm_shd_C_freeze_w_theta100_w225_tau020_freeze60_s43_260429194121/logs/train.jsonl `JSONL`
-
-## experiments/lsm_shd_C_freeze_w_theta100_w225_tau020_s42_260429164913/config.yaml `YAML`
-
-## experiments/lsm_shd_C_freeze_w_theta100_w225_tau020_s42_260429164913/logs/train.jsonl `JSONL`
-
-## experiments/lsm_shd_C_freeze_w_theta100_w225_tau020_s42_260429164959/checkpoints/best.pt `PT`
-
-## experiments/lsm_shd_C_freeze_w_theta100_w225_tau020_s42_260429164959/config.yaml `YAML`
-
-## experiments/lsm_shd_C_freeze_w_theta100_w225_tau020_s42_260429164959/logs/train.jsonl `JSONL`
-
-## experiments/lsm_shd_C_freeze_w_theta100_w225_tau020_s43_260429173225/checkpoints/best.pt `PT`
-
-## experiments/lsm_shd_C_freeze_w_theta100_w225_tau020_s43_260429173225/config.yaml `YAML`
-
-## experiments/lsm_shd_C_freeze_w_theta100_w225_tau020_s43_260429173225/logs/train.jsonl `JSONL`
-
-## experiments/lsm_shd_C_freeze_w_theta100_w225_tau020_tlr005_s43_260429181501/checkpoints/best.pt `PT`
-
-## experiments/lsm_shd_C_freeze_w_theta100_w225_tau020_tlr005_s43_260429181501/config.yaml `YAML`
-
-## experiments/lsm_shd_C_freeze_w_theta100_w225_tau020_tlr005_s43_260429181501/logs/train.jsonl `JSONL`
-
-## experiments/lsm_shd_C_freeze_w_theta100_w225_tau020_tlr0075_s43_260429190443/checkpoints/best.pt `PT`
-
-## experiments/lsm_shd_C_freeze_w_theta100_w225_tau020_tlr0075_s43_260429190443/config.yaml `YAML`
-
-## experiments/lsm_shd_C_freeze_w_theta100_w225_tau020_tlr0075_s43_260429190443/logs/train.jsonl `JSONL`
-
-## experiments/lsm_shd_C_freeze_w_theta100_w225_tau020_tlr030_freeze64_s42_260429212915/checkpoints/best.pt `PT`
-
-## experiments/lsm_shd_C_freeze_w_theta100_w225_tau020_tlr030_freeze64_s42_260429212915/config.yaml `YAML`
-
-## experiments/lsm_shd_C_freeze_w_theta100_w225_tau020_tlr030_freeze64_s42_260429212915/logs/train.jsonl `JSONL`
-
-## experiments/lsm_shd_C_freeze_w_theta100_w225_tau020_tlr030_freeze64_s43_260429201447/checkpoints/best.pt `PT`
-
-## experiments/lsm_shd_C_freeze_w_theta100_w225_tau020_tlr030_freeze64_s43_260429201447/config.yaml `YAML`
-
-## experiments/lsm_shd_C_freeze_w_theta100_w225_tau020_tlr030_freeze64_s43_260429201447/logs/train.jsonl `JSONL`
-
-## experiments/lsm_shd_C_freeze_w_theta100_w225_tau020_tlr030_freeze64_s43_260429225102/checkpoints/best.pt `PT`
-
-## experiments/lsm_shd_C_freeze_w_theta100_w225_tau020_tlr030_freeze64_s43_260429225102/config.yaml `YAML`
-
-## experiments/lsm_shd_C_freeze_w_theta100_w225_tau020_tlr030_freeze64_s43_260429225102/logs/train.jsonl `JSONL`
-
-## experiments/lsm_shd_C_freeze_w_theta100_w225_tau020_tlr030_freeze64_s44_260429234301/checkpoints/best.pt `PT`
-
-## experiments/lsm_shd_C_freeze_w_theta100_w225_tau020_tlr030_freeze64_s44_260429234301/config.yaml `YAML`
-
-## experiments/lsm_shd_C_freeze_w_theta100_w225_tau020_tlr030_freeze64_s44_260429234301/logs/train.jsonl `JSONL`
-
-## experiments/lsm_shd_C_freeze_w_theta110_w225_260429155907/checkpoints/best.pt `PT`
-
-## experiments/lsm_shd_C_freeze_w_theta110_w225_260429155907/config.yaml `YAML`
-
-## experiments/lsm_shd_C_freeze_w_theta110_w225_260429155907/logs/train.jsonl `JSONL`
-
-## experiments/lsm_shd_C_freeze_w_theta120_w225_260429150522/checkpoints/best.pt `PT`
-
-## experiments/lsm_shd_C_freeze_w_theta120_w225_260429150522/config.yaml `YAML`
-
-## experiments/lsm_shd_C_freeze_w_theta120_w225_260429150522/logs/train.jsonl `JSONL`
-
-## experiments/lsm_shd_C_freeze_w_theta150_w225_260429122446/checkpoints/best.pt `PT`
-
-## experiments/lsm_shd_C_freeze_w_theta150_w225_260429122446/config.yaml `YAML`
-
-## experiments/lsm_shd_C_freeze_w_theta150_w225_260429122446/logs/train.jsonl `JSONL`
-
-## experiments/lsm_shd_c_p01_260406131637/checkpoints/best.pt `PT`
-
-## experiments/lsm_shd_c_p01_260406131637/config.yaml `YAML`
-
-## experiments/lsm_shd_c_p01_260406131637/logs/train.jsonl `JSONL`
-
-## experiments/lsm_shd_grad_r_w_theta100_w225_s44_260430154057/checkpoints/best.pt `PT`
-
-## experiments/lsm_shd_grad_r_w_theta100_w225_s44_260430154057/config.yaml `YAML`
-
-## experiments/lsm_shd_grad_r_w_theta100_w225_s44_260430154057/logs/train.jsonl `JSONL`
-
-## experiments/lsm_shd_grad_r_w_theta100_w225_s44_260430165404/checkpoints/best.pt `PT`
-
-## experiments/lsm_shd_grad_r_w_theta100_w225_s44_260430165404/config.yaml `YAML`
-
-## experiments/lsm_shd_grad_r_w_theta100_w225_s44_260430165404/logs/train.jsonl `JSONL`
-
-## experiments/lsm_shd_rs_p000_260428165253/checkpoints/best.pt `PT`
-
-## experiments/lsm_shd_rs_p000_260428165253/config.yaml `YAML`
-
-## experiments/lsm_shd_rs_p000_260428165253/logs/train.jsonl `JSONL`
-
-## experiments/lsm_shd_rs_p002_w225_260428201309/checkpoints/best.pt `PT`
-
-## experiments/lsm_shd_rs_p002_w225_260428201309/config.yaml `YAML`
-
-## experiments/lsm_shd_rs_p002_w225_260428201309/logs/train.jsonl `JSONL`
-
-## experiments/lsm_shd_rs_p002_w225_freeze_w_260428231428/checkpoints/best.pt `PT`
-
-## experiments/lsm_shd_rs_p002_w225_freeze_w_260428231428/config.yaml `YAML`
-
-## experiments/lsm_shd_rs_p002_w225_freeze_w_260428231428/logs/train.jsonl `JSONL`
-
-## experiments/lsm_shd_rs_p003_w250_260428212005/checkpoints/best.pt `PT`
-
-## experiments/lsm_shd_rs_p003_w250_260428212005/config.yaml `YAML`
-
-## experiments/lsm_shd_rs_p003_w250_260428212005/logs/train.jsonl `JSONL`
-
-## experiments/lsm_shd_rs_p003_w250_freeze_w_260429011258/checkpoints/best.pt `PT`
-
-## experiments/lsm_shd_rs_p003_w250_freeze_w_260429011258/config.yaml `YAML`
-
-## experiments/lsm_shd_rs_p003_w250_freeze_w_260429011258/logs/train.jsonl `JSONL`
-
-## experiments/lsm_shd_rs_p0041_w225_freeze_w_260429150530/checkpoints/best.pt `PT`
-
-## experiments/lsm_shd_rs_p0041_w225_freeze_w_260429150530/config.yaml `YAML`
-
-## experiments/lsm_shd_rs_p0041_w225_freeze_w_260429150530/logs/train.jsonl `JSONL`
-
-## experiments/lsm_shd_rs_p005_w350_cap300_260429011341/checkpoints/best.pt `PT`
-
-## experiments/lsm_shd_rs_p005_w350_cap300_260429011341/config.yaml `YAML`
-
-## experiments/lsm_shd_rs_p005_w350_cap300_260429011341/logs/train.jsonl `JSONL`
-
-## experiments/lsm_shd_rs_p02_w225_260428163253/checkpoints/best.pt `PT`
-
-## experiments/lsm_shd_rs_p02_w225_260428163253/config.yaml `YAML`
-
-## experiments/lsm_shd_rs_p02_w225_260428163253/logs/train.jsonl `JSONL`
-
-## experiments/lsm_shd_rs_p03_w250_260428163303/checkpoints/best.pt `PT`
-
-## experiments/lsm_shd_rs_p03_w250_260428163303/config.yaml `YAML`
-
-## experiments/lsm_shd_rs_p03_w250_260428163303/logs/train.jsonl `JSONL`
-
-## experiments/mnist_snn_2603231917/checkpoints/best.pt `PT`
-
-## experiments/mnist_snn_2603231917/config.yaml `YAML`
-
-## experiments/mnist_snn_2603231917/figures/input_receptive_field.png `PNG`
-
-## experiments/mnist_snn_2603231917/figures/theta_distribution.png `PNG`
-
-## experiments/mnist_snn_2603231917/figures/threshold_distribution.png `PNG`
-
-## experiments/mnist_snn_2603231917/figures/topology.png `PNG`
-
-## experiments/mnist_snn_2603231917/figures/training_curves.png `PNG`
-
-## experiments/mnist_snn_2603231917/logs/best.txt `TXT`
-
-## experiments/mnist_snn_2603231917/logs/train.jsonl `JSONL`
-
-## experiments/nmnist_baseline_2604030928/.DS_Store `unknown`
-
-## experiments/nmnist_baseline_2604030928/checkpoints/best.pt `PT`
-
-## experiments/nmnist_baseline_2604030928/config.yaml `YAML`
-
-## experiments/nmnist_baseline_2604030928/figures/input_receptive_field.png `PNG`
-
-## experiments/nmnist_baseline_2604030928/figures/theta_distribution.png `PNG`
-
-## experiments/nmnist_baseline_2604030928/figures/threshold_distribution.png `PNG`
-
-## experiments/nmnist_baseline_2604030928/figures/topology.png `PNG`
-
-## experiments/nmnist_baseline_2604030928/figures/training_curves.png `PNG`
-
-## experiments/nmnist_baseline_2604030928/logs/train.jsonl `JSONL`
-
-## experiments/smoke_dynwarm_slope_260429120437/checkpoints/best.pt `PT`
-
-## experiments/smoke_dynwarm_slope_260429120437/config.yaml `YAML`
-
-## experiments/smoke_dynwarm_slope_260429120437/logs/train.jsonl `JSONL`
-
-## experiments/smoke_freeze_w_260428231204/checkpoints/best.pt `PT`
-
-## experiments/smoke_freeze_w_260428231204/config.yaml `YAML`
-
-## experiments/smoke_freeze_w_260428231204/logs/train.jsonl `JSONL`
+## experiments_manifest.csv `CSV`
 
 ## requirements.txt `TXT`
+
+## scripts/analyze_topology.py `Python`
+
+### 함수
+- `parse_args()` (L70)
+- `tensor_summary(x: torch.Tensor) str` (L92)
+- `pearson_corr(a: torch.Tensor, b: torch.Tensor) float` (L103)
+- `print_header(title: str) None` (L116)
+- `infer_label(exp_dir: Path, cfg) str` (L133)
+- `load_experiment(exp_dir: Path, device: torch.device) ExperimentTopology` (L143)
+- `topk_pairs(values: torch.Tensor, k: int) str` (L181)
+- `sign_masks(dale_sign: torch.Tensor) tuple[torch.Tensor, torch.Tensor]` (L189)
+- `subset_summary(mask: torch.Tensor, neuron_mask: torch.Tensor) str` (L195)
+- `reciprocal_counts(
+    mask: torch.Tensor, exc: torch.Tensor, inh: torch.Tensor
+) dict[str, int]` (L200)
+- `directed_3cycle_count(mask: torch.Tensor) int` (L217)
+- `feedforward_triplet_count(mask: torch.Tensor) int` (L223)
+- `print_single_experiment_report(exp: ExperimentTopology, topk: int) None` (L233)
+- `jaccard(mask_a: torch.Tensor, mask_b: torch.Tensor) tuple[float, int, int, int]` (L292)
+- `shared_topk_fraction(a: torch.Tensor, b: torch.Tensor, k: int) float` (L301)
+- `print_cross_seed_report(
+    experiments: list[ExperimentTopology], topk: int, compare_seed: str
+) None` (L308)
+- `main()` (L370)
+
+## scripts/build_performance_table.py `Python`
+
+### 함수
+- `parse_args() argparse.Namespace` (L66)
+- `read_jsonl(path: Path) list[dict[str, Any]]` (L79)
+- `finite_float(value: Any) float` (L90)
+- `has_metric(row: dict[str, Any], metric: str) bool` (L96)
+- `choose_by_metric(
+    rows: list[dict[str, Any]], metric: str, realized_rule: str
+) tuple[dict[str, Any], str]` (L101)
+- `select_row(
+    log_rows: list[dict[str, Any]], selection_rule: str
+) tuple[dict[str, Any], str]` (L114)
+- `build_run_row(manifest_row: dict[str, str]) dict[str, Any]` (L129)
+- `summarize(rows: list[dict[str, Any]]) list[dict[str, Any]]` (L167)
+- `write_csv(path: Path, rows: list[dict[str, Any]], columns: list[str]) None` (L206)
+- `main() None` (L214)
+
+## scripts/diagnose_input_projection.py `Python`
+
+### 함수
+- `parse_args()` (L42)
+- `_pairwise_corr(x: torch.Tensor, y: torch.Tensor) float` (L81)
+- `compute_projection_matrix_stats(model) dict` (L92)
+- `collect_nonzero_timestep_inputs(
+    batches: list[tuple[torch.Tensor, torch.Tensor]], max_samples: int
+) torch.Tensor` (L150)
+- `compute_projection_geometry_stats(
+    model,
+    batches: list[tuple[torch.Tensor, torch.Tensor]],
+    max_samples: int,
+) dict` (L164)
+- `compute_projected_current_stats(model, batches, device) dict` (L228)
+- `print_projection_matrix_stats(stats: dict) None` (L253)
+- `print_projection_geometry_stats(stats: dict) None` (L304)
+- `print_projected_current_stats(stats: dict) None` (L333)
+- `_json_default(obj)` (L349)
+- `save_json(path: str, payload: dict) None` (L357)
+- `main()` (L365)
 
 ## scripts/diagnose_liquid.py `Python`
 
 ### 클래스 / 타입
-- **RunningStats** (L34)
+- **RunningStats** (L36)
   Streaming scalar stats for tensor values.
   - `__init__`
   - `update`
   - `as_dict`
 
 ### 함수
-- `parse_args()` (L69)
-- `load_checkpoint_if_requested(model, checkpoint_path: str | None, device) None` (L106)
-- `fmt_stats(stats: dict[str, float]) str` (L119)
-- `print_header(title: str) None` (L126)
-- `print_config_summary(cfg, model, checkpoint_path: str | None) None` (L130)
-- `print_parameter_sanity(cfg, model) None` (L151)
-- `print_recurrent_sparsity(model, tau: float) None` (L178)
-- `tensor_summary(x: torch.Tensor) str` (L197)
-- `print_recurrent_weight_stats(model, binary_mask: torch.Tensor) None` (L208)
-- `collect_batches(loader, n_batches: int) list[tuple[torch.Tensor, torch.Tensor]]` (L252)
-- `print_input_spike_stats(batches: list[tuple[torch.Tensor, torch.Tensor]]) None` (L261)
-- `run_liquid_diagnostics(model, batches, device, tau: float) dict` (L289)
-- `print_current_and_firing_stats(diag: dict) None` (L342)
+- `parse_args()` (L71)
+- `load_checkpoint_if_requested(model, checkpoint_path: str | None, device) None` (L136)
+- `fmt_stats(stats: dict[str, float]) str` (L149)
+- `print_header(title: str) None` (L156)
+- `print_config_summary(cfg, model, checkpoint_path: str | None) None` (L160)
+- `print_parameter_sanity(cfg, model) None` (L181)
+- `print_recurrent_sparsity(
+    model, tau: float, skip_cycle_metrics: bool = False, skip_clustering: bool = False
+) dict` (L227)
+- `tensor_summary(x: torch.Tensor) str` (L276)
+- `print_recurrent_weight_stats(model, binary_mask: torch.Tensor) None` (L287)
+- `connected_component_sizes(mask: torch.Tensor) list[int]` (L331)
+  Weakly connected component sizes on the undirected version of the graph.
+- `gini(x: torch.Tensor) float` (L356)
+  Gini coefficient for a non-negative vector; all-zero vectors return 0.
+- `_adjacency_without_self_loops(mask: torch.Tensor) torch.Tensor` (L372)
+- `ei_block_counts(mask: torch.Tensor, dale_sign: torch.Tensor) dict[str, float]` (L380)
+- `reciprocity_metrics(mask: torch.Tensor) dict[str, float]` (L407)
+- `directed_3cycle_count(mask: torch.Tensor) int` (L417)
+- `average_undirected_clustering(mask: torch.Tensor) float` (L426)
+- `compute_graph_metrics(
+    mask: torch.Tensor,
+    dale_sign: torch.Tensor,
+    skip_cycle_metrics: bool = False,
+    skip_clustering: bool = False,
+) dict[str, float]` (L447)
+- `_sanity_check_graph_metrics() None` (L468)
+  Small checks documenting expected graph metric behavior.
+- `print_graph_topology_metrics(metrics: dict[str, float]) None` (L493)
+- `print_graph_structure_stats(mask: torch.Tensor) dict` (L523)
+- `collect_batches(loader, n_batches: int) list[tuple[torch.Tensor, torch.Tensor]]` (L562)
+- `print_input_spike_stats(batches: list[tuple[torch.Tensor, torch.Tensor]]) None` (L571)
+- `run_liquid_diagnostics(model, batches, device, tau: float) dict` (L599)
+- `print_current_and_firing_stats(diag: dict) dict` (L652)
 - `collect_samples_by_class(
     loader, n_classes: int, samples_per_class: int
-) dict[int, list]` (L384)
-- `liquid_mean_rate(model, batch: torch.Tensor, device, tau: float) torch.Tensor` (L404)
+) dict[int, list]` (L712)
+- `liquid_mean_rate(model, batch: torch.Tensor, device, tau: float) torch.Tensor` (L732)
 - `print_class_separation(
     model, loader, device, tau: float, n_classes: int, samples_per_class: int
-) None` (L425)
-- `main()` (L488)
+) tuple[dict[int, list], dict]` (L753)
+- `readout_logits_mean(model, batch: torch.Tensor, device, tau: float) torch.Tensor` (L826)
+- `print_readout_separation(
+    model,
+    samples_by_class: dict[int, list],
+    device,
+    tau: float,
+    n_classes: int,
+    samples_per_class: int,
+) dict` (L832)
+- `diagnostic_batch_readout_stats(model, batches, device, tau: float) dict` (L902)
+  Compute readout accuracy and margins on the diagnostic batches.
+- `_save_json(path: str, data: dict) None` (L939)
+- `_append_csv(path: str, row: dict) None` (L953)
+- `_save_embeddings(path: str, class_vecs: dict) None` (L979)
+- `main()` (L993)
 
 ## scripts/evaluate.py `Python`
 
 ### 함수
 - `main()` (L23)
+
+## scripts/fill_activity_metrics.py `Python`
+
+### 함수
+- `parse_args() argparse.Namespace` (L39)
+- `read_csv(path: Path) list[dict[str, str]]` (L59)
+- `write_csv(path: Path, rows: list[dict[str, Any]], columns: list[str]) None` (L64)
+- `as_float(value: Any) float` (L71)
+- `config_experiment_name(experiment_dir: str) str` (L80)
+- `dedupe_activity_rows(rows: list[dict[str, str]]) list[dict[str, str]]` (L87)
+- `populated_row(
+    placeholder: dict[str, str],
+    activity: dict[str, str] | None,
+    num_batches: int,
+) dict[str, Any]` (L99)
+- `main() None` (L134)
+
+## scripts/run_activity_diagnostics.py `Python`
+
+### 함수
+- `parse_args() argparse.Namespace` (L16)
+- `read_manifest(path: Path, groups: set[str]) list[dict[str, str]]` (L39)
+- `main() None` (L48)
+
+## scripts/run_topology_diagnostics_from_manifest.py `Python`
+
+### 함수
+- `parse_args() argparse.Namespace` (L12)
+- `selected_experiments(manifest_path: Path, groups: set[str]) list[str]` (L32)
+- `main() None` (L48)
+
+## scripts/summarize_activity_diagnostics.py `Python`
+
+### 함수
+- `parse_args() argparse.Namespace` (L37)
+- `read_csv(path: Path) list[dict[str, str]]` (L57)
+- `to_float(value: Any) float` (L62)
+- `mean_std(rows: list[dict[str, str]], metric: str) tuple[float, float]` (L71)
+- `dedupe_exact_repeated_runs(rows: list[dict[str, str]]) list[dict[str, str]]` (L81)
+  Drop exact repeated rows for the same experiment.
+- `main() None` (L99)
+
+## scripts/summarize_diagnostics.py `Python`
+
+### 함수
+- `parse_args() argparse.Namespace` (L39)
+- `read_csv(path: Path) list[dict[str, str]]` (L51)
+- `exp_key(path_or_name: str) str` (L56)
+- `to_float(value: Any) float` (L60)
+- `mean_std(values: list[float]) tuple[float, float]` (L69)
+- `write_csv(path: Path, rows: list[dict[str, Any]], columns: list[str]) None` (L78)
+- `main() None` (L86)
+
+## scripts/topology_diagnostics.ipynb `IPYNB`
+
+## scripts/topology_diagnostics.py `Python`
+
+### 함수
+- `parse_args() argparse.Namespace` (L181)
+- `select_device(device_arg: str) torch.device` (L217)
+  Select device with explicit auto semantics: CUDA > MPS > CPU.
+- `resolve_experiment_specs(args: argparse.Namespace) list[dict[str, str | None]]` (L236)
+  Resolve CLI inputs into normalized experiment specs.
+- `load_config_and_model(
+    config_path: str, checkpoint_path: str, device: torch.device
+) tuple[Any, torch.nn.Module]` (L281)
+  Load config, instantiate the model, and restore checkpoint state.
+- `infer_method_label(exp_dir: str | None, cfg: Any) str` (L309)
+  Infer a paper-facing method label from experiment name and config.
+- `extract_recurrent_mask(model: torch.nn.Module) torch.Tensor` (L339)
+  Extract the deterministic recurrent adjacency as a CPU bool tensor.
+- `safe_float(x: Any) float` (L368)
+  Convert scalar-like values to a Python float, preserving NaN.
+- `safe_pearson_corr(x: torch.Tensor, y: torch.Tensor) float` (L383)
+  Pearson correlation with NaN on size mismatch or zero variance.
+- `_adjacency_without_self_loops(mask: torch.Tensor) torch.Tensor` (L397)
+- `_possible_edges(mask: torch.Tensor, model: torch.nn.Module) int` (L403)
+- `_dale_sign_vector(model: torch.nn.Module, cfg: Any, n_nodes: int) torch.Tensor` (L410)
+- `_edge_type_metrics(mask: torch.Tensor, dale_sign: torch.Tensor) dict[str, float]` (L423)
+- `_reciprocity_metrics(mask: torch.Tensor) dict[str, float]` (L446)
+- `_strong_component_sizes(mask: torch.Tensor) list[int]` (L457)
+- `_path_metrics(mask: torch.Tensor) dict[str, float]` (L505)
+- `compute_core_graph_metrics(
+    mask: torch.Tensor,
+    model: torch.nn.Module,
+    cfg: Any,
+    *,
+    skip_path_metrics: bool,
+    use_networkx: bool,
+) dict[str, float]` (L557)
+  Compute core graph metrics from a deterministic recurrent mask.
+- `compute_lowrank_metrics(model: torch.nn.Module, mask: torch.Tensor) dict[str, float]` (L636)
+  Compute learned-lowrank-specific embedding/logit diagnostics.
+- `compute_readout_topology_metrics(
+    model: torch.nn.Module, mask: torch.Tensor
+) dict[str, float]` (L702)
+  Correlate readout importance with topology centrality.
+- `make_activity_placeholder(row_meta: dict[str, Any]) dict[str, Any]` (L726)
+  Create the Phase 1 placeholder row for activity metrics.
+- `build_summary_row(graph_row: dict[str, Any], activity_row: dict[str, Any]) dict[str, Any]` (L750)
+  Merge the report rows into the compact summary schema.
+- `write_outputs(
+    graph_rows: list[dict[str, Any]],
+    activity_rows: list[dict[str, Any]],
+    summary_rows: list[dict[str, Any]],
+    metadata: dict[str, Any],
+    output_dir: Path,
+) None` (L756)
+  Write standardized CSV and JSON outputs.
+- `_selection_metadata(spec: dict[str, str | None], cfg: Any) dict[str, Any]` (L783)
+- `main() None` (L801)
 
 ## scripts/train.py `Python`
 
@@ -3222,30 +395,6 @@
 
 ## src/__init__.py `Python`
 
-## src/data/__init__.py `Python`
-
-## src/data/loaders.py `Python`
-
-### 클래스 / 타입
-- **_TonicDataset** (L22)
-  Generic tonic dataset wrapper: events → [T, C*H*W] float spike tensor.
-  - `__init__`
-  - `__len__`
-  - `__getitem__`
-- **_SHDDataset** (L66)
-  SHD dataset: spike events → (T, 700) binned tensor.
-  - `__init__`
-  - `__len__`
-  - `__getitem__`
-
-### 함수
-- `_flat_normalized_transform(mean: float, std: float)` (L11)
-- `_make_nmnist(root: str, train: bool, T: int)` (L39)
-- `_make_dvs_gesture(root: str, train: bool, T: int)` (L50)
-- `_make_shd(root: str, train: bool, T: int)` (L94)
-- `get_dataloaders(cfg) tuple` (L100)
-  Return (train_loader, test_loader) for the dataset specified in cfg.
-
 ## src/evaluation/__init__.py `Python`
 
 ## src/evaluation/evaluate.py `Python`
@@ -3266,30 +415,39 @@
 - `plot_threshold_distribution(model, save_path: str)` (L90)
 - `plot_input_connectivity(model, save_path: str)` (L111)
   Visualise first layer's input→hidden connectivity as a 28×28 heatmap.
-- `lsm_plot_training_curves(history: list, save_path: str)` (L132)
-- `lsm_plot_topology(model, save_path: str)` (L184)
+- `_history_metric(row: dict, new_key: str, old_key: str, default=0)` (L132)
+- `lsm_plot_training_curves(history: list, save_path: str)` (L138)
+- `lsm_plot_topology(model, save_path: str)` (L203)
   Visualise liquid recurrent connectivity mask.
-- `lsm_plot_theta_distribution(model, save_path: str)` (L217)
+- `lsm_plot_theta_distribution(model, save_path: str)` (L236)
   Visualise sigma(theta) distribution for the liquid layer.
-- `lsm_plot_threshold_distribution(model, save_path: str)` (L235)
+- `lsm_plot_threshold_distribution(model, save_path: str)` (L254)
   Visualise learned neuron thresholds and beta (membrane decay).
-- `lsm_plot_weight_distribution(model, save_path: str)` (L255)
+- `lsm_plot_weight_distribution(model, save_path: str)` (L274)
   Visualise effective weight magnitude distribution.
-- `run_all(checkpoint_path: str, cfg, figures_dir: str | None = None)` (L278)
+- `run_all(checkpoint_path: str, cfg, figures_dir: str | None = None)` (L297)
 
 ## src/lsm/__init__.py `Python`
 
 ## src/lsm/model.py `Python`
 
 ### 클래스 / 타입
-- **InputProjection** (L26)
+- **InputProjection** (L25)
   Fixed random sparse connections from input to liquid. Mixed excitatory/inhibitory.
   - `__init__`
   - `forward`
-- **LiquidLayer** (L50)
+- **LiquidLayer** (L49)
   Recurrent liquid layer with topology learning.
   - `__init__`
   - `beta`
+  - `alif_rho`
+  - `alif_beta`
+  - `get_theta`
+  - `topology_parameters`
+  - `set_topology_requires_grad`
+  - `topology_state_dict`
+  - `load_topology_state_dict`
+  - `freeze_topology`
   - `sample_epoch_mask`
   - `unlock_epoch_mask`
   - `sample_mask`
@@ -3297,13 +455,16 @@
   - `forward`
   - `sparsity`
   - `get_binary_mask`
-- **LSMModel** (L234)
+- **LSMModel** (L374)
   - `__init__`
   - `forward`
   - `sparsity_loss`
   - `commitment_loss`
   - `sparsity_info`
   - `firing_rate_info`
+  - `adaptation_info`
+  - `prediction_loss`
+  - `prediction_info`
 
 ## src/lsm/trainer.py `Python`
 
@@ -3312,15 +473,21 @@
 - `get_tau(epoch: int, cfg: Config, warmup_epochs: int | None = None) float` (L38)
 - `_make_experiment_dir(cfg: Config) Path` (L52)
 - `build_model(cfg: Config, device: torch.device) LSMModel` (L67)
-- `_compute_loss(rates, labels, model, cfg)` (L95)
-- `_evaluate(model: LSMModel, loader, device: torch.device, tau: float) float` (L102)
+- `_compute_loss(rates, labels, model, cfg)` (L105)
+- `_evaluate_metrics(
+    model: LSMModel, loader, device: torch.device, tau: float
+) tuple[float, float]` (L113)
+- `_evaluate(model: LSMModel, loader, device: torch.device, tau: float) float` (L131)
 - `_metric_improved(
     metric_name: str, value: float, best_value: float | None, min_delta: float
-) bool` (L115)
-- `_select_warmup_metric(metric_name: str, row: dict) float` (L125)
-- `_warmup_score(metric_name: str, value: float) float` (L134)
-- `_warmup_slope(scores: list[float], window: int) float | None` (L138)
-- `train(cfg: Config) tuple` (L145)
+) bool` (L136)
+- `_select_warmup_metric(metric_name: str, row: dict) float` (L146)
+- `_warmup_score(metric_name: str, value: float) float` (L160)
+- `_warmup_slope(scores: list[float], window: int) float | None` (L164)
+- `_grad_norm(params: list[torch.nn.Parameter]) float` (L171)
+- `_param_group_lr(optimizer: optim.Optimizer, name: str) float` (L179)
+- `_selection_state(val_loader) str` (L186)
+- `train(cfg: Config) tuple` (L190)
 
 ## src/models/__init__.py `Python`
 
@@ -3382,15 +549,15 @@
 ## src/utils/config.py `Python`
 
 ### 함수
-- `_deep_merge(base: dict, override: dict) dict` (L147)
+- `_deep_merge(base: dict, override: dict) dict` (L176)
   Recursively merge override into base (in-place on a copy).
-- `_load_yaml(path: str | Path) dict` (L158)
-- `_resolve_inheritance(yaml_path: str | Path) dict` (L163)
+- `_load_yaml(path: str | Path) dict` (L187)
+- `_resolve_inheritance(yaml_path: str | Path) dict` (L192)
   Load a YAML file, resolving a `base:` key by merging parent first.
-- `_apply_cli_overrides(d: dict, overrides: List[str]) dict` (L177)
+- `_apply_cli_overrides(d: dict, overrides: List[str]) dict` (L206)
   Apply overrides of the form "key=value" or "section.key=value".
 - `load_config(
     config_path: str | Path | None = None,
     overrides: List[str] | None = None,
-) Config` (L205)
+) Config` (L234)
   Load config with optional YAML file and CLI overrides.

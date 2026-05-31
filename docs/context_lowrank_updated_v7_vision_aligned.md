@@ -1,10 +1,27 @@
 # Learnable SNN Topology via Gumbel-Softmax — 프로젝트 전체 정리
 
+> **Update 2026-05-17 — vision alignment / research_vision_roadmap_v0.2**  
+> This document is now aligned to the project-level roadmap: the long-term target is a **modular cognitive system** whose core is **LSNN + topology learning + SSM**, and whose expression path is **adapter + decoder**. SHD/LSM topology learning is Phase A: it validates whether learned recurrent topology can create useful dynamics, but it is not the final architecture. The forward roadmap is **Phase B: ALIF 이식 → Phase C: e-prop 구현 → Phase D: 자연어 태스크, GPT-2 distillation, decoder 연결, SSM 탐색**. Biological inspiration remains an existence proof only; implementation choices are judged engineering-first.
+
+
+> **Update 2026-05-17 — related-work / novelty repositioning**  
+> A new literature pass narrows the novelty claim. Broad claims that *recurrent SNN topology learning*, *sparse rewiring*, or *LSM liquid-structure optimization* are novel are no longer safe: e-prop/LSNN/DEEP R, Grad R, ESL-SNNs, dynamic pruning with DEEP R+RigL on Heidelberg-style speech data, adaptive/evolutionary LSMs, EONS, and low-rank recurrent network theory already cover major parts of that space. The defensible contribution is narrower: in an SHD LSM setting, compare **edge-wise Gumbel/STE**, **Grad R-STE**, **learned_lowrank latent source/destination role parameterization**, and **validation-based topology selection** to test whether gains come from recurrent density, edge placement, topology parameterization, or freeze timing.
+
+> **Claim hygiene rule**  
+> Do not write: “first SNN topology learning method”, “first recurrent SNN structure learning method”, or “e-prop/LSNN did not address topology learning.” Safe wording: “This project studies topology *parameterization and selection* in recurrent SNN/LSM topology learning, building on prior sparse rewiring, LSNN/e-prop, and LSM structure-optimization work.”
+
+> **Update 2026-05-17 — internal documentation lock / paper deferral**  
+> The current findings are now locked as an internal research asset rather than a paper-ready final claim. There is no publication-pressure assumption for this project. The purpose of the current documents is to preserve the corrected related-work framing, the validated experimental facts, the claim-evidence boundary, and the next diagnostic roadmap so later experiments can build from a stable base. Paper writing is deferred until a visibly stronger result appears: broader seed/dataset robustness, causal mechanism evidence, readout/temporal separability evidence, successful ALIF/e-prop transfer, or a task where learned recurrent topology shows a clear advantage over structured alternatives.
+
+> **Operating rule after this lock**  
+> Treat the present result as a checkpoint in a longer research program. Do not inflate it into an external novelty claim. Use it to guide the next experiments: topology diagnostics, activity/readout diagnostics, causal graph interventions, and then Phase B/C/D extensions: ALIF integration, e-prop for long sequences, and SSM/NLP adapter-decoder experiments.
+
+
 > **Update 2026-05-09 — same-density random controls closed**  
-> Density-matched `random_sparse` controls around the learned-lowrank regime are now complete: `p ∈ {0.040, 0.045, 0.050}` across seeds `42/43/44/45`, with `train_w_raw=false`, `w_raw_init_mean=-2.25`, `w_raw_max=-2.0`, `val_fraction=0.1`, and `val_seed=42`. The controls reached only test@best-val mean `0.5257` with best single run `0.5406`, below the no-recurrence baseline `0.5490` and far below `learned_lowrank + validation rollback m50p10` mean `0.5919` / worst `0.5826`. Density-only explanation is now rejected; next phase is topology diagnostics, graph-structure analysis, and paper-claim/table cleanup.
+> Density-matched `random_sparse` controls around the learned-lowrank regime are now complete: `p ∈ {0.040, 0.045, 0.050}` across seeds `42/43/44/45`, with `train_w_raw=false`, `w_raw_init_mean=-2.25`, `w_raw_max=-2.0`, `val_fraction=0.1`, and `val_seed=42`. The controls reached only test@best-val mean `0.5257` with best single run `0.5406`, below the no-recurrence baseline `0.5490` and far below `learned_lowrank + validation rollback m50p10` mean `0.5919` / worst `0.5826`. Density-only explanation is now rejected; next phase is topology diagnostics, graph-structure analysis, and internal claim/table cleanup.
 
 > **Update 2026-05-08 — adaptive freeze policy closed**  
-> Validation split and `learned_lowrank` topology snapshot/rollback are implemented. The validation-rollback policy search is now closed: `m50p10` is the main proposed policy, `m60p10` is redundant because all `m50p10` freeze events already occurred after epoch 60, and `m60p15` is rejected because it lowers mean and worst-seed generalization. At that point, the next phase was same-density random controls, topology diagnostics, and paper-claim/table cleanup; the density-control part is now closed by the 2026-05-09 update.
+> Validation split and `learned_lowrank` topology snapshot/rollback are implemented. The validation-rollback policy search is now closed: `m50p10` is the main proposed policy, `m60p10` is redundant because all `m50p10` freeze events already occurred after epoch 60, and `m60p15` is rejected because it lowers mean and worst-seed generalization. At that point, the next phase was same-density random controls, topology diagnostics, and internal claim/table cleanup; the density-control part is now closed by the 2026-05-09 update.
 
 
 ## Adaptive Freeze Policy Closure — 2026-05-08
@@ -54,7 +71,7 @@ Final claim:
 | 1 | topology diagnostics for `learned`, `grad_r`, and `learned_lowrank` | explain why latent role topology changes seed behavior |
 | 2 | main table cleanup using `test @ best val` | avoid test leakage and post-hoc peak selection |
 | 3 | graph-structure analysis: E/I degree, loop count/length, clustering, path length | support mechanism-level claims |
-| 4 | prediction auxiliary / e-prop / predictive coding | defer until topology-selection claims are defended |
+| 4 | ALIF/e-prop/SSM language-path preparation | Phase B/C/D after Phase A evidence lock; predictive coding remains optional side track |
 
 
 ## Same-Density Random Control Closure — 2026-05-09
@@ -134,6 +151,41 @@ Final claim:
 
 ---
 
+
+## Related-work repositioning — 2026-05-17
+
+The project should no longer be framed as introducing SNN topology learning itself. That broader space is already occupied by several lines of work: e-prop and LSNN establish trainable recurrent SNNs and adaptive neurons; DEEP R, Grad R, RigL-style rewiring, and ESL-SNNs address sparse connection learning; EONS and adaptive/evolutionary LSM work address reservoir/liquid structure optimization; low-rank recurrent network theory connects structured connectivity to low-dimensional dynamics.
+
+The project's safer position is narrower and more specific:
+
+> Recurrent SNN topology learning is not only a sparsification problem. In SHD-LSM, the central question is whether learned performance depends on **edge placement**, **topology parameterization**, and **topology selection timing**, rather than recurrent density alone. `learned_lowrank` is therefore not claimed as the first trainable topology method; it is a latent neuron-role parameterization to compare against edge-wise Gumbel/STE and Grad R-STE.
+
+Immediate writing consequence:
+
+| Old framing | Updated framing |
+|---|---|
+| Gumbel-Softmax × SNN connection learning has no prior work | Gumbel/STE for neuron-pair SNN masks appears less explored, but SNN structure learning and rewiring are established |
+| We introduce trainable recurrent SNN topology | We compare topology parameterizations and topology-selection rules in recurrent SHD-LSM |
+| e-prop is a future add-on only | e-prop/LSNN/DEEP R are closest priors; e-prop remains a future online-learning extension |
+| learned_lowrank is biologically better | learned_lowrank is a structural inductive bias; biological plausibility requires separate E/I and motif evidence |
+
+## Internal Research Program Status — 2026-05-17
+
+The project is now framed as a long-horizon research program rather than an immediate paper project. The current findings remain valuable because they establish a stable intermediate checkpoint:
+
+```text
+broad first-claim discarded
+  -> related-work-aware topology parameterization problem retained
+  -> density-only explanation rejected
+  -> learned_lowrank selected as current main candidate
+  -> diagnostics, interventions, and ALIF/e-prop transfer become the next gates
+```
+
+The positive interpretation is that the existence of e-prop, LSNN, DEEP R, Grad R, RigL-style rewiring, LSM structure optimization, and low-rank recurrent theory creates leverage. The project does not need to rebuild the field from scratch. It can instead ask a narrower follow-up question: **what unit of recurrent topology should be learned and selected if the long-term target is cognition-like recurrent computation?**
+
+Current documents should therefore be used as internal memory: they lock what has been learned, what should not be claimed, and what must be tested next.
+
+
 ## 0. 현재 코드베이스 상태
 
 현재 저장소는 두 축으로 구성되어 있다.
@@ -157,37 +209,38 @@ Feedforward 쪽은 기존 실험 결과를 만든 검증된 코드이며, LSM �
 
 ## 1. 문제 의식
 
-### 1.1 출발점: 뇌와 인공 신경망의 구조적 괴리
+### 1.1 출발점: 인지와 발현의 분리
 
-현재의 딥러닝은 입력→은닉→출력이라는 고정된 레이어 구조 위에서 작동한다. 연결 방향은 단방향이고, 어떤 뉴런이 어떤 뉴런과 연결되는지는 사람이 설계한다.
+초기 문제의식은 뇌와 인공신경망의 구조적 괴리에서 출발했다. 다만 최신 기준에서 이 프로젝트는 “출력 레이어가 없는 뇌형 SNN”을 직접 구현하려는 것이 아니다. 핵심은 **인지 코어와 발현부의 분리**다.
 
-뇌는 다르다. 뉴런들은 사방으로 연결되어 있고, "출력 레이어"라는 것이 따로 없다. 신호가 네트워크를 순환하다가 특정 패턴으로 수렴하는 것 자체가 곧 결과이며, 그 수렴 상태가 운동 뉴런 등의 효과기를 통해 행동으로 이어진다.
+```text
+인지 코어:
+  LSNN + topology learning + SSM
+  → 입력을 받아 recurrent latent state를 갱신
+  → 기억, 상태 유지, 간섭 억제, 반복적 사유 담당
 
-이 프로젝트는 이 차이를 좁히는 첫 번째 단계로, **네트워크의 연결 구조(토폴로지) 자체를 학습 가능하게 만든 SNN**을 구축한다.
+발현부:
+  representation adapter + decoder
+  → SNN state를 언어/행동/분류/제어로 번역
+  → decoder는 GPT-2 등 기존 모델을 freeze하거나 교체 가능
+```
+
+뇌는 existence proof로만 사용한다. 구현은 **bio-inspired, engineering-first** 기준을 따른다. 생물학적 타당성은 현재 main claim이 아니라 후순위 해석이다.
 
 ### 1.2 핵심 질문의 흐름
 
-이 프로젝트는 하나의 일관된 질문에서 출발한다:
+이 프로젝트의 질문은 다음처럼 재정렬된다.
 
-> "사방으로 연결된 신경망에서 출력값은 어떻게 나오는가?"
-
-이 질문이 다음과 같이 전개되었다:
-
-1. **뇌의 신호 처리 이해** — 뉴런들의 신호를 뇌는 어떻게 리드아웃하는가?
-2. **출력 경로 이해** — 처리된 결과 신호는 어떻게 전달되는가?
-3. **리드아웃의 본질** — 리드아웃이 별도로 존재하지 않는다는 것 확인
-4. **판단과 출력의 연결** — 판단이 내려지는 시점에서 결과값은 어떻게 출력되는가?
-5. **SNN으로 확장** — 이걸 SNN에서 피드포워드 없이 구현하면 출력을 어떻게 정의할 수 있는가?
-6. **최적 방법 탐색** — 가장 뇌에 가까운 방식은 무엇인가?
+1. **Phase A:** recurrent topology가 random density 이상의 dynamics를 만드는가?
+2. **Phase B:** ALIF가 이 topology-learning 구조와 안전하게 결합되는가?
+3. **Phase C:** e-prop으로 긴 시퀀스를 BPTT 없이 학습할 수 있는가?
+4. **Phase D:** SNN cognitive core가 GPT-2류 언어 표현공간을 근사하고, adapter-decoder 구조로 발현될 수 있는가?
 
 도달한 통찰:
 
-```
-DNN의 질문: "어떤 레이어가 출력인가?"
-       ↓
-뇌의 답: "출력 레이어는 없다, 수렴이 곧 출력이다"
-       ↓
-SNN의 과제: "그 수렴을 어떻게 학습시킬 것인가?"
+```text
+초기 질문: 사방 연결된 SNN에서 출력은 어떻게 정의되는가?
+현재 답: SNN core가 latent state를 만들고, adapter + decoder가 그 state를 발현한다.
 ```
 
 ### 1.3 기존 SNN 학습의 한계
@@ -204,7 +257,7 @@ SNN에서 스파이크(발화/비발화)는 이산적이라 직접 역전파가 
 2. **수렴을 유도하는 학습 규칙** — 역전파는 출력 레이어의 오차를 기준으로 삼는데, 출력 레이어가 없으면 오차 신호를 어디서 주입할 것인가
 3. **수렴 패턴의 해석** — 수렴된 상태를 외부에서 읽어내는 것이 다시 "리드아웃"이 되는 순환 문제
 
-출력 방식은 **운동 뉴런(효과기) 방식**을 채택했다. 뇌도 완전히 리드아웃이 없는 게 아니라 운동 뉴런이라는 지정된 출력 경로가 있되, 그 뉴런이 고립된 출력 레이어가 아니라 네트워크에 완전히 통합되어 있다는 점이 핵심이다.
+이 절은 초기 사고 과정의 기록이다. 최신 구조에서는 “출력 레이어 제거”가 아니라 **SNN cognitive core와 adapter-decoder 발현부의 분리**를 채택한다. 즉 SNN은 latent state를 만들고, 표현공간 어댑터와 decoder가 그 state를 외부 출력으로 번역한다.
 
 ### 1.5 GNN 기반 접근의 검토와 폐기
 
@@ -221,9 +274,16 @@ surrogate gradient을 쓰는 경우:
 
 surrogate gradient으로 역전파가 가능하면 GNN 없이 SNN을 직접 최적화할 수 있다. 두 접근을 동시에 쓰는 것은 구조적으로 모순이므로, GNN을 제외하고 SNN 직접 학습으로 방향을 확정했다.
 
-### 1.6 unroll 문제와 단방향 우선 검증
+### 1.6 역사적 우선 검증과 현재 위치
 
-사방 연결은 순환성 때문에 역전파 시 시간 축으로 unroll(순환을 시간 순서대로 펼침)이 필요하다. 수렴까지 T 타임스텝이 걸리면 네트워크 복사본이 T개 필요하여 메모리가 폭발한다. 이 문제는 뉴로모듈레이션 기반 로컬 학습 규칙 등 별도의 연구가 필요하므로, 현재 단계에서는 **단방향(feedforward) SNN에서 토폴로지 학습이 작동하는지를 먼저 검증**한다.
+초기에는 unroll 메모리 부담 때문에 feedforward SNN에서 topology learning을 먼저 검증했다. 그 단계는 역사적 출발점이다. 현재 프로젝트의 중심은 이미 **SHD 기반 recurrent LSM/LSNN 계열**로 이동했다.
+
+현재 위치:
+- feedforward Gumbel-SNN: 초기 proof-of-concept 및 코드 인프라
+- SHD/LSM learned_lowrank: Phase A main result
+- ALIF: Phase B의 다음 architecture step
+- e-prop: Phase C에서 긴 시퀀스 학습을 위한 핵심 구현
+- GPT-2 distillation + adapter-decoder: Phase D의 자연어 검증 경로
 
 ---
 
@@ -441,7 +501,7 @@ SHD LSM 실험의 중심 결론은 다음처럼 업데이트한다.
 - `m60p10`은 redundant, `m60p15`는 reject로 닫았다.
 - `m50p10`을 main-table 후보로 고정하고, same-density random controls와 topology diagnostics로 주장 방어를 진행한다.
 - same-density random control과 topology diagnostics로 density-only explanation을 배제한다.
-- prediction auxiliary / e-prop / predictive coding은 topology freeze timing 문제가 정리된 뒤 후속 연구로 둔다.
+- ALIF / e-prop / SSM language-path work은 topology freeze timing 문제가 정리된 뒤 후속 연구로 둔다.
 
 ## 5. 누적된 주장의 구조
 
@@ -477,8 +537,18 @@ SHD LSM 실험의 중심 결론은 다음처럼 업데이트한다.
 
 - **SHD (현재 LSM 기준 데이터셋)**: 700채널 음성 spike stream, 20클래스. `src/data/loaders.py`와 `configs/lsm_shd_baseline.yaml`에 구현되어 있다.
 - **SSC (확장 후보)**: SHD보다 큰 speech command spike dataset. SHD에서 방법론이 안정화된 뒤 확장 후보.
-- **NMNIST / DVS128 Gesture**: feedforward 이벤트 데이터 실험 인프라는 존재하지만, LSM 논문 방향에서는 보조 비교 또는 확장 실험 후보.
+- **NMNIST / DVS128 Gesture**: feedforward 이벤트 데이터 실험 인프라는 존재하지만, Phase A LSM/SHD 방향에서는 보조 비교 또는 확장 실험 후보.
 
 ### 6.3 장기 비전
 
-현재 코드베이스는 recurrent SNN으로의 1차 확장을 이미 시작했다. 다만 학습은 아직 BPTT 기반이므로, 더 긴 시퀀스와 더 큰 네트워크로 확장하려면 e-prop/RTRL 계열 online learning 또는 gradient checkpointing이 필요할 수 있다. 장기적으로는 LSM의 입력/리퀴드/리드아웃 분리를 약화시키고, 효과기 뉴런이 네트워크에 통합된 interconnected SNN으로 확장하는 것이 목표다.
+장기 비전은 LSM 내부 연결 학습을 넘어서, **LSNN + topology learning + SSM cognitive core**를 만들고 이를 **adapter + decoder 발현부**와 연결하는 것이다.
+
+```text
+토큰 인코더(GPT-2 등, freeze)
+  → SNN 입력 어댑터
+  → SNN cognitive core(LSNN + topology learning + SSM)
+  → 표현공간 어댑터
+  → decoder(GPT-2 등, freeze 또는 교체)
+```
+
+현재 LSM/SHD 결과는 이 비전의 Phase A evidence다. 다음 순서는 ALIF 이식, e-prop 구현, GPT-2 hidden-state distillation, 다지선다 자연어 태스크 검증, decoder 연결, SSM 접목이다. 직접 from-scratch LLM을 만드는 것이 아니라, 기존 encoder/decoder를 재사용하고 **어댑터와 SNN core만 학습**하는 전략을 기본값으로 둔다.
