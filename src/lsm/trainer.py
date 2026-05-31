@@ -98,6 +98,10 @@ def build_model(cfg: Config, device: torch.device) -> LSMModel:
         bptt_truncate=liq.bptt_truncate,
         noise_scale=liq.noise_scale,
         readout_mode=liq.readout_mode,
+        motor_beta=liq.motor_beta,
+        motor_threshold=liq.motor_threshold,
+        motor_mem_clamp=liq.motor_mem_clamp,
+        motor_logit_scale=liq.motor_logit_scale,
         pred_aux_enabled=liq.pred_aux_enabled,
         pred_trace_decay=liq.pred_trace_decay,
     ).to(device)
@@ -566,6 +570,7 @@ def train(cfg: Config) -> tuple:
             sparsity = model.sparsity_info()
             fr_info = model.firing_rate_info()
             adapt_info = model.adaptation_info()
+            motor_info = model.motor_info()
             topology_rollback_applied_epoch = False
 
             if (
@@ -699,6 +704,10 @@ def train(cfg: Config) -> tuple:
                 max_firing_rate=fr_info["max"],
                 mean_adaptation=adapt_info["mean"],
                 max_adaptation=adapt_info["max"],
+                mean_motor_firing_rate=motor_info["mean_rate"],
+                max_motor_firing_rate=motor_info["max_rate"],
+                mean_motor_spike_count=motor_info["mean_count"],
+                max_motor_spike_count=motor_info["max_count"],
                 pred_loss=model.prediction_info(),
                 warmup_epoch=warmup if is_learned else 0,
                 warmup_dynamic=dynamic_warmup,
@@ -758,6 +767,12 @@ def train(cfg: Config) -> tuple:
                 if has_theta
                 else ""
             )
+            motor_detail = (
+                f"  motor_fr={motor_info['mean_rate']:.3f}/{motor_info['max_rate']:.3f}"
+                f"  motor_count={motor_info['mean_count']:.2f}/{motor_info['max_count']:.2f}"
+                if cfg.liquid.readout_mode == "motor_lif"
+                else ""
+            )
             tau_str = f"  tau={tau:.3f}" if is_learned else ""
             tqdm.write(
                 f"[{epoch+1:03d}/{cfg.epochs}|{phase_label}] "
@@ -777,6 +792,7 @@ def train(cfg: Config) -> tuple:
                 f"adapt={adapt_info['mean']:.3f}/{adapt_info['max']:.3f}  "
                 f"logit={topology_logit_mean:.3f}±{topology_logit_std:.3f}  "
                 f"sig={topology_sigmoid_mean:.3f}±{topology_sigmoid_std:.3f}"
+                + motor_detail
                 + grad_detail
                 + lr_detail
             )

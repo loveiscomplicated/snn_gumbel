@@ -1,0 +1,10 @@
+base: lsm_shd_alif_random_sparse_p045_a010_b005.yaml
+
+experiment_name: lsm_shd_alif_random_sparse_p045_readout_motor_lif
+
+liquid:
+  readout_mode: motor_lif
+  motor_beta: 0.9
+  motor_threshold: 1.0
+  motor_mem_clamp: 5.0
+  motor_logit_scale: 1.0
