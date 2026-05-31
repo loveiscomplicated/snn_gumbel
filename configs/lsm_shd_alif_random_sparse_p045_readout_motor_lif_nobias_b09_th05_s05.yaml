@@ -1,0 +1,9 @@
+base: lsm_shd_alif_random_sparse_p045_readout_motor_lif.yaml
+
+experiment_name: lsm_shd_alif_random_sparse_p045_readout_motor_lif_nobias_b09_th05_s05
+
+liquid:
+  motor_beta: 0.9
+  motor_threshold: 0.5
+  motor_logit_scale: 0.5
+  motor_final_bias: true
