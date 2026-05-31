@@ -58,6 +58,7 @@ class LiquidLayer(nn.Module):
         self,
         n_liquid: int,
         exc_ratio: float = 0.8,
+        neuron_type: str = "lif",
         mode: str = "learned",
         target_sparsity: float = 0.2,
         self_connection: bool = False,
@@ -73,13 +74,29 @@ class LiquidLayer(nn.Module):
         beta_max: float = 0.95,
         threshold_min: float = 0.8,
         threshold_max: float = 1.5,
+        alif_rho_init: float = 0.9,
+        alif_beta_init: float = 0.4,
+        alif_adapt_increment: float = 1.0,
+        alif_learn_rho: bool = False,
+        alif_learn_beta: bool = False,
         noise_scale: float = 0.1,
     ):
         super().__init__()
         self.n_liquid = n_liquid
+        self.neuron_type = neuron_type
         self.mode = mode
         self.w_raw_max = w_raw_max
         self.noise_scale = noise_scale
+
+        if neuron_type not in {"lif", "alif"}:
+            raise ValueError(f"Unknown neuron_type: {neuron_type}")
+        if not 0.0 <= alif_rho_init < 1.0:
+            raise ValueError(f"alif_rho_init must be in [0, 1), got {alif_rho_init}")
+        if alif_adapt_increment < 0.0:
+            raise ValueError(
+                "alif_adapt_increment must be non-negative, "
+                f"got {alif_adapt_increment}"
+            )
 
         # --- learnable parameters ---
         weight_trainable = mode != "fixed"
@@ -119,6 +136,31 @@ class LiquidLayer(nn.Module):
         thr_vals = thr_vals[torch.randperm(n_liquid)]
         self.threshold = nn.Parameter(thr_vals, requires_grad=weight_trainable)
 
+        if neuron_type == "alif":
+            self.register_buffer(
+                "alif_adapt_increment", torch.tensor(float(alif_adapt_increment))
+            )
+            if alif_learn_rho:
+                rho_init = torch.full((n_liquid,), float(alif_rho_init))
+                rho_init = torch.clamp(rho_init, 1e-6, 1.0 - 1e-6)
+                self.alif_rho_param = nn.Parameter(torch.logit(rho_init))
+            else:
+                self.register_buffer(
+                    "alif_rho_buffer", torch.tensor(float(alif_rho_init))
+                )
+                self.alif_rho_param = None
+            if alif_learn_beta:
+                beta_init = torch.full((n_liquid,), float(alif_beta_init))
+                self.alif_beta_param = nn.Parameter(beta_init)
+            else:
+                self.register_buffer(
+                    "alif_beta_buffer", torch.tensor(float(alif_beta_init))
+                )
+                self.alif_beta_param = None
+        else:
+            self.alif_rho_param = None
+            self.alif_beta_param = None
+
         # --- Dale's Law: exc (+1) / inh (-1) sign buffer ---
         n_exc = int(exc_ratio * n_liquid)
         dale_sign = torch.ones(n_liquid, 1)
@@ -152,6 +194,22 @@ class LiquidLayer(nn.Module):
     @property
     def beta(self):
         return torch.sigmoid(self.logit_beta)
+
+    @property
+    def alif_rho(self):
+        if self.neuron_type != "alif":
+            raise RuntimeError("ALIF rho requested for non-ALIF liquid layer")
+        if self.alif_rho_param is not None:
+            return torch.sigmoid(self.alif_rho_param)
+        return self.alif_rho_buffer
+
+    @property
+    def alif_beta(self):
+        if self.neuron_type != "alif":
+            raise RuntimeError("ALIF beta requested for non-ALIF liquid layer")
+        if self.alif_beta_param is not None:
+            return self.alif_beta_param.clamp(min=0.0)
+        return self.alif_beta_buffer.clamp(min=0.0)
 
     def get_theta(self) -> torch.Tensor:
         if self.mode == "learned":
@@ -250,7 +308,9 @@ class LiquidLayer(nn.Module):
                 # noise_scale controls exploration radius:
                 #   0.1 → only edges with |theta| < 0.18 can flip (~0.3% of all edges)
                 #   1.0 → standard Gumbel, ~33% flip regardless of theta magnitude
-                noisy_logits = theta / self._epoch_tau + self.noise_scale * self._epoch_noise
+                noisy_logits = (
+                    theta / self._epoch_tau + self.noise_scale * self._epoch_noise
+                )
                 soft = torch.sigmoid(noisy_logits)
                 hard_mask = (soft >= 0.5).float()
                 self.current_mask = hard_mask - soft.detach() + soft
@@ -319,6 +379,7 @@ class LSMModel(nn.Module):
         n_output: int = 20,
         T: int = 100,
         exc_ratio: float = 0.8,
+        neuron_type: str = "lif",
         beta_min: float = 0.7,
         beta_max: float = 0.95,
         threshold_min: float = 0.8,
@@ -337,7 +398,13 @@ class LSMModel(nn.Module):
         train_w_raw: bool = True,
         w_raw_max: float = -1.0,
         bptt_truncate: int = 0,
+        alif_rho_init: float = 0.9,
+        alif_beta_init: float = 0.4,
+        alif_adapt_increment: float = 1.0,
+        alif_learn_rho: bool = False,
+        alif_learn_beta: bool = False,
         noise_scale: float = 0.1,
+        readout_mode: str = "spike_count",
         pred_aux_enabled: bool = False,
         pred_trace_decay: float = 0.9,
     ):
@@ -346,6 +413,16 @@ class LSMModel(nn.Module):
         self.bptt_truncate = bptt_truncate
         self.n_liquid = n_liquid
         self.n_output = n_output
+        self.neuron_type = neuron_type
+        if readout_mode not in {
+            "spike_count",
+            "membrane_trace",
+            "spike_adaptation_concat",
+        }:
+            raise ValueError(f"Unknown readout_mode: {readout_mode}")
+        if readout_mode == "spike_adaptation_concat" and neuron_type != "alif":
+            raise ValueError("spike_adaptation_concat readout requires ALIF neurons")
+        self.readout_mode = readout_mode
 
         self.input_proj = InputProjection(
             n_input,
@@ -356,6 +433,7 @@ class LSMModel(nn.Module):
         self.liquid = LiquidLayer(
             n_liquid,
             exc_ratio=exc_ratio,
+            neuron_type=neuron_type,
             mode=recurrent_mode,
             target_sparsity=recurrent_sparsity,
             self_connection=self_connection,
@@ -371,9 +449,17 @@ class LSMModel(nn.Module):
             beta_max=beta_max,
             threshold_min=threshold_min,
             threshold_max=threshold_max,
+            alif_rho_init=alif_rho_init,
+            alif_beta_init=alif_beta_init,
+            alif_adapt_increment=alif_adapt_increment,
+            alif_learn_rho=alif_learn_rho,
+            alif_learn_beta=alif_learn_beta,
             noise_scale=noise_scale,
         )
-        self.readout = nn.Linear(n_liquid, n_output)
+        readout_dim = (
+            n_liquid * 2 if readout_mode == "spike_adaptation_concat" else n_liquid
+        )
+        self.readout = nn.Linear(readout_dim, n_output)
 
         self.pred_aux_enabled = pred_aux_enabled
         self.pred_trace_decay = pred_trace_decay
@@ -400,10 +486,19 @@ class LSMModel(nn.Module):
         # 2. init states
         liquid_mem = torch.zeros(batch_size, self.n_liquid, device=device)
         liquid_spike = torch.zeros(batch_size, self.n_liquid, device=device)
+        liquid_a = None
+        if self.neuron_type == "alif":
+            liquid_a = torch.zeros(batch_size, self.n_liquid, device=device)
         readout_mem = torch.zeros(batch_size, self.n_output, device=device)
 
         # track firing rates for monitoring
         spike_sum = torch.zeros(batch_size, self.n_liquid, device=device)
+        membrane_sum = None
+        adaptation_sum = None
+        if self.readout_mode == "membrane_trace":
+            membrane_sum = torch.zeros(batch_size, self.n_liquid, device=device)
+        elif self.readout_mode == "spike_adaptation_concat":
+            adaptation_sum = torch.zeros(batch_size, self.n_liquid, device=device)
 
         # filtered trace and accumulator for prediction auxiliary loss
         if self.pred_aux_enabled:
@@ -424,6 +519,8 @@ class LSMModel(nn.Module):
             if t == grad_start and t > 0:
                 liquid_mem = liquid_mem.detach()
                 liquid_spike = liquid_spike.detach()
+                if liquid_a is not None:
+                    liquid_a = liquid_a.detach()
                 if self.pred_aux_enabled:
                     liquid_trace = liquid_trace.detach()
 
@@ -435,7 +532,22 @@ class LSMModel(nn.Module):
                 self.liquid.beta * liquid_mem + input_current + recurrent_current
             )
             liquid_mem = torch.clamp(liquid_mem, -3.0, 3.0)
-            liquid_spike = spike_fn(liquid_mem - self.liquid.threshold.clamp(min=0.01))
+            if membrane_sum is not None:
+                membrane_sum = membrane_sum + liquid_mem
+
+            if self.neuron_type == "alif":
+                liquid_a = (
+                    self.liquid.alif_rho * liquid_a
+                    + self.liquid.alif_adapt_increment * liquid_spike
+                )
+                if adaptation_sum is not None:
+                    adaptation_sum = adaptation_sum + liquid_a
+                theta_eff = self.liquid.threshold + self.liquid.alif_beta * liquid_a
+                liquid_spike = spike_fn(liquid_mem - theta_eff.clamp(min=0.01))
+            else:
+                liquid_spike = spike_fn(
+                    liquid_mem - self.liquid.threshold.clamp(min=0.01)
+                )
             liquid_mem = liquid_mem * (1.0 - liquid_spike)  # reset fired neurons
 
             if self.pred_aux_enabled:
@@ -451,18 +563,34 @@ class LSMModel(nn.Module):
                     )
                     pred_count += 1
 
-            readout_mem = readout_mem + self.readout(liquid_spike)
+            if self.readout_mode == "spike_count":
+                readout_mem = readout_mem + self.readout(liquid_spike)
             spike_sum = spike_sum + liquid_spike
+
+        if self.readout_mode == "membrane_trace":
+            readout_input = membrane_sum / self.T
+            logits = self.readout(readout_input)
+        elif self.readout_mode == "spike_adaptation_concat":
+            readout_input = torch.cat(
+                [spike_sum / self.T, adaptation_sum / self.T], dim=1
+            )
+            logits = self.readout(readout_input)
+        else:
+            logits = readout_mem / self.T
 
         # store for monitoring (detached)
         self._last_spike_rates = (spike_sum / self.T).detach()
+        if liquid_a is not None:
+            self._last_liquid_adaptation = liquid_a.detach()
+        else:
+            self._last_liquid_adaptation = None
 
         if self.pred_aux_enabled and pred_count > 0:
             self._last_pred_loss = pred_loss_acc / pred_count
         else:
             self._last_pred_loss = torch.zeros((), device=device)
 
-        return readout_mem / self.T
+        return logits
 
     # ------------------------------------------------------------------
     # losses — scoped to liquid theta only
@@ -498,6 +626,16 @@ class LSMModel(nn.Module):
         return {
             "mean": rates.mean().item(),
             "max": rates.mean(dim=0).max().item(),
+        }
+
+    def adaptation_info(self) -> dict:
+        """Return ALIF adaptation stats from the last forward pass."""
+        if getattr(self, "_last_liquid_adaptation", None) is None:
+            return {"mean": 0.0, "max": 0.0}
+        adaptation = self._last_liquid_adaptation
+        return {
+            "mean": adaptation.mean().item(),
+            "max": adaptation.max().item(),
         }
 
     def prediction_loss(self) -> torch.Tensor:

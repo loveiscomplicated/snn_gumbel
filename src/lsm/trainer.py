@@ -72,10 +72,16 @@ def build_model(cfg: Config, device: torch.device) -> LSMModel:
         n_output=cfg.n_output,
         T=cfg.T,
         exc_ratio=liq.exc_ratio,
+        neuron_type=liq.neuron_type,
         beta_min=liq.beta_min,
         beta_max=liq.beta_max,
         threshold_min=liq.threshold_min,
         threshold_max=liq.threshold_max,
+        alif_rho_init=liq.alif_rho_init,
+        alif_beta_init=liq.alif_beta_init,
+        alif_adapt_increment=liq.alif_adapt_increment,
+        alif_learn_rho=liq.alif_learn_rho,
+        alif_learn_beta=liq.alif_learn_beta,
         p_input=liq.p_input,
         input_weight_scale=liq.input_weight_scale,
         recurrent_mode=liq.recurrent_mode,
@@ -91,6 +97,7 @@ def build_model(cfg: Config, device: torch.device) -> LSMModel:
         w_raw_max=liq.w_raw_max,
         bptt_truncate=liq.bptt_truncate,
         noise_scale=liq.noise_scale,
+        readout_mode=liq.readout_mode,
         pred_aux_enabled=liq.pred_aux_enabled,
         pred_trace_decay=liq.pred_trace_decay,
     ).to(device)
@@ -378,6 +385,7 @@ def train(cfg: Config) -> tuple:
         topology_frozen_epoch = epoch_idx + 1
 
     epoch_bar = tqdm(range(cfg.epochs), desc="Epochs", unit="ep")
+    alif_batch_debug_logged = False
 
     with open(log_path, "a") as log_f:
         for epoch in epoch_bar:
@@ -452,6 +460,14 @@ def train(cfg: Config) -> tuple:
                     return history, exp_dir
 
                 loss.backward()
+
+                if cfg.liquid.neuron_type == "alif" and not alif_batch_debug_logged:
+                    adapt_info = model.adaptation_info()
+                    tqdm.write(
+                        "  [ALIF] first batch adaptation: "
+                        f"mean={adapt_info['mean']:.4f}  max={adapt_info['max']:.4f}"
+                    )
+                    alif_batch_debug_logged = True
 
                 # per-component grad norms (before clipping)
                 w_raw_g = model.liquid.w_raw.grad
@@ -549,6 +565,7 @@ def train(cfg: Config) -> tuple:
             selection_acc = val_acc if val_loader is not None else test_acc
             sparsity = model.sparsity_info()
             fr_info = model.firing_rate_info()
+            adapt_info = model.adaptation_info()
             topology_rollback_applied_epoch = False
 
             if (
@@ -649,6 +666,8 @@ def train(cfg: Config) -> tuple:
                 test_acc=test_acc,
                 selection_metric=selection_metric_name,
                 selection_acc=selection_acc,
+                neuron_type=cfg.liquid.neuron_type,
+                readout_mode=cfg.liquid.readout_mode,
                 sparsity=sparsity,
                 hard_density=sparsity,
                 topology_logit_mean=topology_logit_mean,
@@ -678,6 +697,8 @@ def train(cfg: Config) -> tuple:
                 topology_lr_scale_effective=topology_lr_scale,
                 mean_firing_rate=fr_info["mean"],
                 max_firing_rate=fr_info["max"],
+                mean_adaptation=adapt_info["mean"],
+                max_adaptation=adapt_info["max"],
                 pred_loss=model.prediction_info(),
                 warmup_epoch=warmup if is_learned else 0,
                 warmup_dynamic=dynamic_warmup,
@@ -753,6 +774,7 @@ def train(cfg: Config) -> tuple:
                 + f"topo_bad={topology_bad_count}  topo_frozen={str(topology_is_frozen).lower()}  "
                 f"sp={sparsity:.3f}  grad={avg_grad_norm:.1f}  "
                 f"fr={fr_info['mean']:.3f}/{fr_info['max']:.3f}  "
+                f"adapt={adapt_info['mean']:.3f}/{adapt_info['max']:.3f}  "
                 f"logit={topology_logit_mean:.3f}±{topology_logit_std:.3f}  "
                 f"sig={topology_sigmoid_mean:.3f}±{topology_sigmoid_std:.3f}"
                 + grad_detail

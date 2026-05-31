@@ -41,6 +41,7 @@ class TopologyConfig:
 class LiquidConfig:
     n_liquid: int = 200  # 리퀴드 뉴런 수
     exc_ratio: float = 0.8  # 흥분성 뉴런 비율
+    neuron_type: str = "lif"  # lif | alif
     p_input: float = 0.1  # 입력→리퀴드 연결 확률
     recurrent_mode: str = "learned"  # learned | learned_lowrank | random_sparse | fixed | grad_r
     recurrent_sparsity: float = 0.2  # random_sparse 모드 시 연결 확률
@@ -73,6 +74,11 @@ class LiquidConfig:
     beta_max: float = 0.95  # 뉴런별 LIF leak 범위 (상한)
     threshold_min: float = 0.8  # 뉴런별 발화 임계값 범위 (하한)
     threshold_max: float = 1.5  # 뉴런별 발화 임계값 범위 (상한)
+    alif_rho_init: float = 0.9  # ALIF adaptation decay 초기값
+    alif_beta_init: float = 0.4  # ALIF adaptation strength 초기값
+    alif_adapt_increment: float = 1.0  # ALIF spike-to-adaptation increment scale
+    alif_learn_rho: bool = False  # ALIF rho 학습 여부
+    alif_learn_beta: bool = False  # ALIF beta 학습 여부
     theta_warmup_epochs: int = (
         0  # Phase 1 길이: theta 고정, w_raw/readout만 학습 (0=비활성화)
     )
@@ -104,6 +110,9 @@ class LiquidConfig:
         0.1  # 에폭 단위 Gumbel noise 크기 (0=결정적, 1=표준 Gumbel std≈1.81)
     )
     # 작은 값 → 경계(theta≈0) 엣지만 뒤집힘, 확실한 ON/OFF는 유지
+    readout_mode: str = (
+        "spike_count"  # spike_count | membrane_trace | spike_adaptation_concat
+    )
     pred_aux_enabled: bool = False  # next-state prediction auxiliary loss 활성화
     pred_trace_decay: float = 0.9  # filtered trace EMA decay (spike → trace)
 
