@@ -102,6 +102,8 @@ def build_model(cfg: Config, device: torch.device) -> LSMModel:
         motor_threshold=liq.motor_threshold,
         motor_mem_clamp=liq.motor_mem_clamp,
         motor_logit_scale=liq.motor_logit_scale,
+        motor_membrane_logit_scale=liq.motor_membrane_logit_scale,
+        motor_final_bias=liq.motor_final_bias,
         pred_aux_enabled=liq.pred_aux_enabled,
         pred_trace_decay=liq.pred_trace_decay,
     ).to(device)
@@ -708,6 +710,8 @@ def train(cfg: Config) -> tuple:
                 max_motor_firing_rate=motor_info["max_rate"],
                 mean_motor_spike_count=motor_info["mean_count"],
                 max_motor_spike_count=motor_info["max_count"],
+                mean_motor_membrane_trace=motor_info["mean_membrane"],
+                max_motor_membrane_trace=motor_info["max_membrane"],
                 pred_loss=model.prediction_info(),
                 warmup_epoch=warmup if is_learned else 0,
                 warmup_dynamic=dynamic_warmup,
@@ -770,7 +774,9 @@ def train(cfg: Config) -> tuple:
             motor_detail = (
                 f"  motor_fr={motor_info['mean_rate']:.3f}/{motor_info['max_rate']:.3f}"
                 f"  motor_count={motor_info['mean_count']:.2f}/{motor_info['max_count']:.2f}"
-                if cfg.liquid.readout_mode == "motor_lif"
+                f"  motor_mem={motor_info['mean_membrane']:.2f}/{motor_info['max_membrane']:.2f}"
+                if cfg.liquid.readout_mode
+                in {"motor_lif", "motor_lif_count_membrane"}
                 else ""
             )
             tau_str = f"  tau={tau:.3f}" if is_learned else ""

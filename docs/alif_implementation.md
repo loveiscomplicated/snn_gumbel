@@ -182,13 +182,29 @@ readout_input = concat(mean_t z[t], mean_t a[t])
 liquid spike를 class별 output LIF neuron에 전달하고, 각 class motor neuron의 누적 spike count를 logits로 사용한다.
 
 ```text
-motor_current[t] = Linear(liquid_spike[t])
+motor_current[t] = Linear(liquid_spike[t], bias=False)
 motor_mem[t] = motor_beta * motor_mem[t-1] + motor_current[t]
 motor_spike[t] = spike_fn(motor_mem[t] - motor_threshold)
-logits = sum_t motor_spike[t] * motor_logit_scale
+logits = sum_t motor_spike[t] * motor_logit_scale + final_class_bias
 ```
 
 v0에서는 `logits = output_spike_count`를 기본으로 사용한다. `output_spike_count / T`는 CE logits 범위를 너무 작게 만들 수 있으므로 기본값으로 쓰지 않는다. 필요할 경우 `motor_logit_scale`로만 scale을 조정한다.
+
+v1에서는 liquid-to-motor current projection의 bias를 제거했다. 일반 `Linear` bias를 매 timestep motor current에 더하면 liquid spike 없이도 output neuron이 반복 발화할 수 있기 때문이다. class bias가 필요하면 `motor_final_bias=true`로 최종 logits에 한 번만 더한다.
+
+### motor_lif_count_membrane
+
+`motor_lif`와 같은 external output LIF layer를 사용하되, 최종 logit에 reset 전 motor membrane trace를 같이 넣는다.
+
+```text
+motor_mem_pre_spike[t] = clamp(motor_beta * motor_mem[t-1] + motor_current[t])
+motor_spike[t] = spike_fn(motor_mem_pre_spike[t] - motor_threshold)
+logits = sum_t motor_spike[t] * motor_logit_scale
+       + mean_t motor_mem_pre_spike[t] * motor_membrane_logit_scale
+       + final_class_bias
+```
+
+목적은 output spike count만 볼 때 사라지는 subthreshold class evidence를 보존하는 것이다. `motor_logit_scale`은 확실히 threshold를 넘은 증거를, `motor_membrane_logit_scale`은 threshold 아래 누적 증거를 조절한다.
 
 v0 제약:
 
@@ -228,6 +244,16 @@ v0 제약:
 | `configs/lsm_shd_alif_lowrank_readout_motor_lif.yaml` | ALIF lowrank motor LIF readout |
 | `configs/lsm_shd_lif_lowrank_readout_motor_lif.yaml` | LIF lowrank motor LIF control |
 | `configs/lsm_shd_alif_random_sparse_p045_readout_motor_lif.yaml` | random sparse motor LIF control |
+| `configs/lsm_shd_alif_random_sparse_p045_readout_motor_lif_nobias_b08_s05.yaml` | motor v1 random sparse, beta 0.8, logit scale 0.5 |
+| `configs/lsm_shd_alif_random_sparse_p045_readout_motor_lif_nobias_b09_s05.yaml` | motor v1 random sparse, beta 0.9, logit scale 0.5 |
+| `configs/lsm_shd_alif_random_sparse_p045_readout_motor_lif_nobias_b09_th075_s05.yaml` | motor v1 random sparse, lower threshold |
+| `configs/lsm_shd_alif_random_sparse_p045_readout_motor_lif_nobias_b09_th05_s05.yaml` | motor v1 random sparse, most permissive threshold |
+| `configs/lsm_shd_alif_lowrank_readout_motor_lif_nobias_b09_th075_s05_no_rollback.yaml` | motor v1 lowrank, no topology rollback |
+| `configs/lsm_shd_alif_lowrank_readout_motor_lif_nobias_b09_th075_s05_freeze80_no_rollback.yaml` | motor v1 lowrank, delayed freeze without rollback |
+| `configs/lsm_shd_alif_random_sparse_p045_readout_motor_lif_count_membrane_c1_m1.yaml` | motor count + membrane trace, count scale 1, membrane scale 1 |
+| `configs/lsm_shd_alif_random_sparse_p045_readout_motor_lif_count_membrane_c1_m2.yaml` | motor count + membrane trace, stronger membrane evidence |
+| `configs/lsm_shd_alif_random_sparse_p045_readout_motor_lif_count_membrane_c2_m1.yaml` | motor count + membrane trace, stronger spike count evidence |
+| `configs/lsm_shd_alif_lowrank_readout_motor_lif_count_membrane_c1_m1_no_rollback.yaml` | lowrank follow-up if random sparse count-membrane improves |
 
 ## 5. Experimental Results
 
@@ -499,6 +525,30 @@ uv run python scripts/train_lsm.py configs/lsm_shd_alif_random_sparse_p045_reado
 uv run python scripts/train_lsm.py configs/lsm_shd_alif_lowrank_readout_motor_lif.yaml seed=42
 uv run python scripts/train_lsm.py configs/lsm_shd_lif_lowrank_readout_motor_lif.yaml seed=42
 uv run python scripts/train_lsm.py configs/lsm_shd_alif_random_sparse_p045_readout_motor_lif.yaml seed=42
+```
+
+motor v1에서는 먼저 random sparse에서 bias 제거와 output hyperparameter 효과를 분리한다.
+
+```bash
+uv run python scripts/train_lsm.py configs/lsm_shd_alif_random_sparse_p045_readout_motor_lif_nobias_b08_s05.yaml seed=42
+uv run python scripts/train_lsm.py configs/lsm_shd_alif_random_sparse_p045_readout_motor_lif_nobias_b09_s05.yaml seed=42
+uv run python scripts/train_lsm.py configs/lsm_shd_alif_random_sparse_p045_readout_motor_lif_nobias_b09_th075_s05.yaml seed=42
+uv run python scripts/train_lsm.py configs/lsm_shd_alif_random_sparse_p045_readout_motor_lif_nobias_b09_th05_s05.yaml seed=42
+```
+
+random sparse에서 개선이 보이면 lowrank topology freeze/rollback을 조정한다.
+
+```bash
+uv run python scripts/train_lsm.py configs/lsm_shd_alif_lowrank_readout_motor_lif_nobias_b09_th075_s05_no_rollback.yaml seed=42
+uv run python scripts/train_lsm.py configs/lsm_shd_alif_lowrank_readout_motor_lif_nobias_b09_th075_s05_freeze80_no_rollback.yaml seed=42
+```
+
+motor spike count-only가 random sparse에서도 낮게 나오면, 다음은 count + membrane trace를 확인한다.
+
+```bash
+uv run python scripts/train_lsm.py configs/lsm_shd_alif_random_sparse_p045_readout_motor_lif_count_membrane_c1_m1.yaml seed=42
+uv run python scripts/train_lsm.py configs/lsm_shd_alif_random_sparse_p045_readout_motor_lif_count_membrane_c1_m2.yaml seed=42
+uv run python scripts/train_lsm.py configs/lsm_shd_alif_random_sparse_p045_readout_motor_lif_count_membrane_c2_m1.yaml seed=42
 ```
 
 ## 9. Evaluation Rules Going Forward

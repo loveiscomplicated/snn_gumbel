@@ -1,0 +1,11 @@
+base: lsm_shd_alif_random_sparse_p045_readout_motor_lif.yaml
+
+experiment_name: lsm_shd_alif_random_sparse_p045_readout_motor_lif_count_membrane_c1_m2
+
+liquid:
+  readout_mode: motor_lif_count_membrane
+  motor_beta: 0.9
+  motor_threshold: 1.0
+  motor_logit_scale: 1.0
+  motor_membrane_logit_scale: 2.0
+  motor_final_bias: true

@@ -92,7 +92,27 @@
 
 ## configs/lsm_shd_alif_lowrank_readout_motor_lif.yaml `YAML`
 
+## configs/lsm_shd_alif_lowrank_readout_motor_lif_count_membrane_c1_m1_no_rollback.yaml `YAML`
+
+## configs/lsm_shd_alif_lowrank_readout_motor_lif_nobias_b09_th075_s05_freeze80_no_rollback.yaml `YAML`
+
+## configs/lsm_shd_alif_lowrank_readout_motor_lif_nobias_b09_th075_s05_no_rollback.yaml `YAML`
+
 ## configs/lsm_shd_alif_random_sparse_p045_readout_motor_lif.yaml `YAML`
+
+## configs/lsm_shd_alif_random_sparse_p045_readout_motor_lif_count_membrane_c1_m1.yaml `YAML`
+
+## configs/lsm_shd_alif_random_sparse_p045_readout_motor_lif_count_membrane_c1_m2.yaml `YAML`
+
+## configs/lsm_shd_alif_random_sparse_p045_readout_motor_lif_count_membrane_c2_m1.yaml `YAML`
+
+## configs/lsm_shd_alif_random_sparse_p045_readout_motor_lif_nobias_b08_s05.yaml `YAML`
+
+## configs/lsm_shd_alif_random_sparse_p045_readout_motor_lif_nobias_b09_th05_s05.yaml `YAML`
+
+## configs/lsm_shd_alif_random_sparse_p045_readout_motor_lif_nobias_b09_th075_s05.yaml `YAML`
+
+## configs/lsm_shd_alif_random_sparse_p045_readout_motor_lif_nobias_b09_s05.yaml `YAML`
 
 ## configs/lsm_shd_alif_random_sparse_p045_fixed.yaml `YAML`
 

@@ -409,6 +409,8 @@ class LSMModel(nn.Module):
         motor_threshold: float = 1.0,
         motor_mem_clamp: float = 5.0,
         motor_logit_scale: float = 1.0,
+        motor_membrane_logit_scale: float = 1.0,
+        motor_final_bias: bool = True,
         pred_aux_enabled: bool = False,
         pred_trace_decay: float = 0.9,
     ):
@@ -423,15 +425,22 @@ class LSMModel(nn.Module):
             "membrane_trace",
             "spike_adaptation_concat",
             "motor_lif",
+            "motor_lif_count_membrane",
         }:
             raise ValueError(f"Unknown readout_mode: {readout_mode}")
         if readout_mode == "spike_adaptation_concat" and neuron_type != "alif":
             raise ValueError("spike_adaptation_concat readout requires ALIF neurons")
         self.readout_mode = readout_mode
+        self.is_motor_readout = readout_mode in {
+            "motor_lif",
+            "motor_lif_count_membrane",
+        }
         self.motor_beta = motor_beta
         self.motor_threshold = motor_threshold
         self.motor_mem_clamp = motor_mem_clamp
         self.motor_logit_scale = motor_logit_scale
+        self.motor_membrane_logit_scale = motor_membrane_logit_scale
+        self.motor_final_bias_enabled = motor_final_bias
 
         self.input_proj = InputProjection(
             n_input,
@@ -468,7 +477,16 @@ class LSMModel(nn.Module):
         readout_dim = (
             n_liquid * 2 if readout_mode == "spike_adaptation_concat" else n_liquid
         )
-        self.readout = nn.Linear(readout_dim, n_output)
+        self.readout = nn.Linear(
+            readout_dim,
+            n_output,
+            bias=not self.is_motor_readout,
+        )
+        self.motor_output_bias = (
+            nn.Parameter(torch.zeros(n_output))
+            if self.is_motor_readout and motor_final_bias
+            else None
+        )
 
         self.pred_aux_enabled = pred_aux_enabled
         self.pred_trace_decay = pred_trace_decay
@@ -501,9 +519,15 @@ class LSMModel(nn.Module):
         readout_mem = torch.zeros(batch_size, self.n_output, device=device)
         motor_mem = None
         motor_spike_count = None
-        if self.readout_mode == "motor_lif":
+        motor_membrane_sum = None
+        if self.is_motor_readout:
             motor_mem = torch.zeros(batch_size, self.n_output, device=device)
             motor_spike_count = torch.zeros(batch_size, self.n_output, device=device)
+            motor_membrane_sum = torch.zeros(
+                batch_size,
+                self.n_output,
+                device=device,
+            )
 
         # track firing rates for monitoring
         spike_sum = torch.zeros(batch_size, self.n_liquid, device=device)
@@ -581,7 +605,7 @@ class LSMModel(nn.Module):
 
             if self.readout_mode == "spike_count":
                 readout_mem = readout_mem + self.readout(liquid_spike)
-            elif self.readout_mode == "motor_lif":
+            elif self.is_motor_readout:
                 motor_current = self.readout(liquid_spike)
                 motor_mem = self.motor_beta * motor_mem + motor_current
                 motor_mem = torch.clamp(
@@ -589,6 +613,13 @@ class LSMModel(nn.Module):
                     -self.motor_mem_clamp,
                     self.motor_mem_clamp,
                 )
+                motor_mem_pre_spike = motor_mem
+                if self.readout_mode == "motor_lif_count_membrane":
+                    motor_membrane_sum = motor_membrane_sum + motor_mem_pre_spike
+                else:
+                    motor_membrane_sum = (
+                        motor_membrane_sum + motor_mem_pre_spike.detach()
+                    )
                 motor_spike = spike_fn(motor_mem - self.motor_threshold)
                 motor_mem = motor_mem * (1.0 - motor_spike)
                 motor_spike_count = motor_spike_count + motor_spike
@@ -604,6 +635,16 @@ class LSMModel(nn.Module):
             logits = self.readout(readout_input)
         elif self.readout_mode == "motor_lif":
             logits = motor_spike_count * self.motor_logit_scale
+            if self.motor_output_bias is not None:
+                logits = logits + self.motor_output_bias
+        elif self.readout_mode == "motor_lif_count_membrane":
+            motor_membrane_trace = motor_membrane_sum / self.T
+            logits = (
+                motor_spike_count * self.motor_logit_scale
+                + motor_membrane_trace * self.motor_membrane_logit_scale
+            )
+            if self.motor_output_bias is not None:
+                logits = logits + self.motor_output_bias
         else:
             logits = readout_mem / self.T
 
@@ -612,9 +653,13 @@ class LSMModel(nn.Module):
         if motor_spike_count is not None:
             self._last_motor_spike_count = motor_spike_count.detach()
             self._last_motor_spike_rates = (motor_spike_count / self.T).detach()
+            self._last_motor_membrane_trace = (
+                motor_membrane_sum / self.T
+            ).detach()
         else:
             self._last_motor_spike_count = None
             self._last_motor_spike_rates = None
+            self._last_motor_membrane_trace = None
         if liquid_a is not None:
             self._last_liquid_adaptation = liquid_a.detach()
         else:
@@ -677,18 +722,29 @@ class LSMModel(nn.Module):
         """Return motor readout spike stats from the last forward pass."""
         rates = getattr(self, "_last_motor_spike_rates", None)
         counts = getattr(self, "_last_motor_spike_count", None)
+        membrane = getattr(self, "_last_motor_membrane_trace", None)
         if rates is None or counts is None:
             return {
                 "mean_rate": 0.0,
                 "max_rate": 0.0,
                 "mean_count": 0.0,
                 "max_count": 0.0,
+                "mean_membrane": 0.0,
+                "max_membrane": 0.0,
             }
+        if membrane is None:
+            mean_membrane = 0.0
+            max_membrane = 0.0
+        else:
+            mean_membrane = membrane.mean().item()
+            max_membrane = membrane.mean(dim=0).max().item()
         return {
             "mean_rate": rates.mean().item(),
             "max_rate": rates.mean(dim=0).max().item(),
             "mean_count": counts.mean().item(),
             "max_count": counts.mean(dim=0).max().item(),
+            "mean_membrane": mean_membrane,
+            "max_membrane": max_membrane,
         }
 
     def prediction_loss(self) -> torch.Tensor:

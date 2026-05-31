@@ -8,3 +8,4 @@ liquid:
   motor_threshold: 1.0
   motor_mem_clamp: 5.0
   motor_logit_scale: 1.0
+  motor_final_bias: true

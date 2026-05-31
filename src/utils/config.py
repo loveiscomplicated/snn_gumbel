@@ -111,12 +111,14 @@ class LiquidConfig:
     )
     # 작은 값 → 경계(theta≈0) 엣지만 뒤집힘, 확실한 ON/OFF는 유지
     readout_mode: str = (
-        "spike_count"  # spike_count | membrane_trace | spike_adaptation_concat | motor_lif
+        "spike_count"  # spike_count | membrane_trace | spike_adaptation_concat | motor_lif | motor_lif_count_membrane
     )
     motor_beta: float = 0.9  # motor LIF readout membrane decay
     motor_threshold: float = 1.0  # motor LIF readout firing threshold
     motor_mem_clamp: float = 5.0  # motor LIF membrane clamp magnitude
     motor_logit_scale: float = 1.0  # scale raw motor spike counts before CE
+    motor_membrane_logit_scale: float = 1.0  # scale motor membrane trace logits
+    motor_final_bias: bool = True  # add class bias once to final motor logits
     pred_aux_enabled: bool = False  # next-state prediction auxiliary loss 활성화
     pred_trace_decay: float = 0.9  # filtered trace EMA decay (spike → trace)
 
