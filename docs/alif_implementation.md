@@ -10,8 +10,16 @@
 - 하지만 기존 `spike_count` readout과 결합하면 `learned_lowrank`에서 성능 이점이 거의 없거나 오히려 떨어진다.
 - `random_sparse`에서는 ALIF가 LIF 대비 거의 중립에 가까워, ALIF 뉴런 자체가 완전히 나쁜 것은 아니다.
 - 문제의 핵심은 `ALIF + learned_lowrank topology + count-only readout`의 상호작용으로 보인다.
-- `membrane_trace`와 `spike_adaptation_concat` readout은 ALIF 성능을 상당히 복구한다.
+- `membrane_trace`는 readout mismatch를 드러내는 diagnostic으로 유효하지만, 일반적인 성능 개선이라고 보기는 어렵다.
+- `spike_adaptation_concat`은 현재까지 가장 강한 후보이며, topology/activity regime까지 함께 회복시킨다.
 - 현재 최우선 후속 실험은 `spike_adaptation_concat` readout의 seed 43-45 반복이다.
+
+구현 관점의 요약은 다음과 같다.
+
+- 기본 경로는 여전히 `neuron_type: lif`이다.
+- ALIF는 config opt-in으로만 활성화된다.
+- recurrent topology 로직과 training loop는 그대로 유지된다.
+- ALIF 상태는 adaptation 변수 `a`로 추적되며, JSONL 로그에 `mean_adaptation`과 `max_adaptation`이 추가된다.
 
 ## 1. Background
 
@@ -126,6 +134,7 @@ liquid:
 | `spike_count` | mean spike over time | 기존 동작 유지 |
 | `membrane_trace` | mean membrane over time | spike로 드러나지 않은 subthreshold signal 읽기 |
 | `spike_adaptation_concat` | concat(mean spike, mean adaptation) | ALIF 고유 상태를 readout에 직접 제공 |
+| `motor_lif` | class별 output LIF spike count | 선형 readout 대신 spiking output neuron으로 class 선택 |
 
 ### spike_count
 
@@ -168,6 +177,26 @@ readout_input = concat(mean_t z[t], mean_t a[t])
 
 현재 결과상 가장 중요한 후속 후보이다.
 
+### motor_lif
+
+liquid spike를 class별 output LIF neuron에 전달하고, 각 class motor neuron의 누적 spike count를 logits로 사용한다.
+
+```text
+motor_current[t] = Linear(liquid_spike[t])
+motor_mem[t] = motor_beta * motor_mem[t-1] + motor_current[t]
+motor_spike[t] = spike_fn(motor_mem[t] - motor_threshold)
+logits = sum_t motor_spike[t] * motor_logit_scale
+```
+
+v0에서는 `logits = output_spike_count`를 기본으로 사용한다. `output_spike_count / T`는 CE logits 범위를 너무 작게 만들 수 있으므로 기본값으로 쓰지 않는다. 필요할 경우 `motor_logit_scale`로만 scale을 조정한다.
+
+v0 제약:
+
+- output recurrence 없음
+- class당 motor neuron 1개
+- motor neuron은 LIF만 사용
+- liquid-to-motor input은 liquid spike만 사용
+
 ## 4. Configs
 
 ### Main ALIF Lowrank Configs
@@ -191,10 +220,14 @@ readout_input = concat(mean_t z[t], mean_t a[t])
 | Config | Purpose |
 |---|---|
 | `configs/lsm_shd_lif_lowrank_readout_spike_count.yaml` | LIF lowrank readout baseline |
+| `configs/lsm_shd_lif_lowrank_readout_membrane_trace.yaml` | LIF lowrank membrane readout control |
 | `configs/lsm_shd_alif_lowrank_readout_spike_count.yaml` | ALIF lowrank count-only baseline |
 | `configs/lsm_shd_alif_lowrank_readout_membrane_trace.yaml` | ALIF lowrank membrane readout |
 | `configs/lsm_shd_alif_lowrank_readout_spike_adaptation_concat.yaml` | ALIF lowrank spike + adaptation readout |
 | `configs/lsm_shd_alif_random_sparse_p045_readout_membrane_trace.yaml` | random sparse에서 membrane readout 효과 확인 |
+| `configs/lsm_shd_alif_lowrank_readout_motor_lif.yaml` | ALIF lowrank motor LIF readout |
+| `configs/lsm_shd_lif_lowrank_readout_motor_lif.yaml` | LIF lowrank motor LIF control |
+| `configs/lsm_shd_alif_random_sparse_p045_readout_motor_lif.yaml` | random sparse motor LIF control |
 
 ## 5. Experimental Results
 
@@ -297,7 +330,37 @@ activity diagnostics:
 - `spike_adaptation_concat`은 LIF와 유사한 density/firing-rate regime까지 회복한다.
 - readout이 단순 classifier만 바꾼 것이 아니라, topology learning gradient까지 바꾸고 있다.
 
-### 5.5 ALIF Lowrank + Membrane Trace, Seeds 42-45
+### 5.5 LIF Lowrank + Membrane Trace, Seeds 42-45
+
+`configs/lsm_shd_lif_lowrank_readout_membrane_trace.yaml`을 seed 42-45로 반복해, membrane readout이 ALIF 특이 효과인지 일반적인 readout 효과인지 분리했다.
+
+| Seed | val@best-val | test@best-val | best test | density | mean firing rate |
+|---:|---:|---:|---:|---:|---:|
+| 42 | `0.7721` | `0.5998` | `0.6100` | `0.0166` | `0.0899` |
+| 43 | `0.7868` | `0.6166` | `0.6347` | `0.0194` | `0.0973` |
+| 44 | `0.7402` | `0.5892` | `0.6064` | `0.0176` | `0.0970` |
+| 45 | `0.7304` | `0.5640` | `0.5888` | `0.0156` | `0.0847` |
+
+Aggregate:
+
+| Condition | test@best-val mean | std | best test mean | val mean |
+|---|---:|---:|---:|---:|
+| LIF lowrank + membrane trace | `0.5924` | `0.0220` | `0.6100` | `0.7574` |
+| LIF lowrank + spike count | `0.5919` | `0.0145` | `0.5991` | `0.6330` |
+
+Paired comparison:
+
+| Comparison | Mean diff |
+|---|---:|
+| membrane trace minus LIF spike count | `+0.0006` |
+
+해석:
+
+- `membrane_trace`는 LIF lowrank에서 평균 test 성능을 거의 올리지 못했다.
+- validation은 크게 증가하지만 test는 거의 그대로라서, 일반적 개선이라고 보기 어렵다.
+- 따라서 `membrane_trace`의 큰 효과는 ALIF에 특이한 readout 개선이라기보다, validation set에 더 잘 맞는 feature를 만든 결과일 가능성이 크다.
+
+### 5.6 ALIF Lowrank + Membrane Trace, Seeds 42-45
 
 `configs/lsm_shd_alif_lowrank_readout_membrane_trace.yaml`을 seed 42-45로 반복했다.
 
@@ -326,7 +389,7 @@ Paired comparison:
 해석:
 
 - `membrane_trace`는 ALIF count-only 대비 평균 성능을 올리고 variance를 줄인다.
-- LIF lowrank baseline에는 거의 근접하지만, 안정적으로 넘지는 못한다.
+- 하지만 LIF lowrank membrane control과 거의 같은 수준이라, ALIF 특이 개선이라고 보기는 어렵다.
 - validation accuracy가 지나치게 높게 튀므로 over-selection 가능성을 주의해야 한다.
 
 Validation-test gap:
@@ -372,20 +435,21 @@ readout을 바꾸면 단지 마지막 classifier만 바뀌는 것이 아니다.
 | Condition | density | mean firing rate |
 |---|---:|---:|
 | ALIF lowrank + spike count, seed 42 | `0.0039` | `0.0512` |
+| LIF lowrank + membrane trace, seed 42 | `0.0166` | `0.0899` |
 | ALIF lowrank + spike/adaptation concat, seed 42 | `0.0459` | `0.2029` |
 
 이는 `spike_adaptation_concat`이 ALIF 상태를 더 잘 읽을 뿐 아니라, learned topology가 LIF baseline과 비슷한 activity regime을 만들도록 돕고 있음을 시사한다.
 
 ### 6.4 Membrane trace는 강하지만 validation over-selection이 있다
 
-`membrane_trace`는 test를 복구하지만 validation이 과도하게 높다. 이 현상은 다음 가능성을 의미한다.
+`membrane_trace`는 validation이 과도하게 높다. LIF와 ALIF 모두에서 test generalization은 거의 유지되거나 약하게만 변한다. 이 현상은 다음 가능성을 의미한다.
 
 - validation split에 membrane trace feature가 과적합됨
 - readout capacity가 커진 효과가 test에는 제한적으로 전달됨
 - topology freeze/rollback metric이 membrane readout에서는 너무 민감함
 - SHD validation set이 temporal trace readout에 대해 test보다 쉬운 분포일 수 있음
 
-따라서 `membrane_trace`는 메커니즘 증거로는 중요하지만, 최종 성능 후보로는 추가 검증이 필요하다.
+따라서 `membrane_trace`는 메커니즘 증거로는 중요하지만, 최종 성능 후보로는 추가 검증이 필요하다. 반면 `spike_adaptation_concat`은 현재까지 가장 강한 실사용 후보다.
 
 ## 7. Current Decision
 
@@ -395,17 +459,19 @@ readout을 바꾸면 단지 마지막 classifier만 바뀌는 것이 아니다.
 
 ```text
 ALIF + spike_count readout = 현재 구조에서는 부적합
-ALIF + membrane/adaptation-aware readout = 검증할 가치 있음
+ALIF + membrane_trace readout = diagnostic으로 유효, 최종 후보로는 약함
+ALIF + spike_adaptation_concat readout = 현재까지 최선의 후보
+motor_lif readout = 다음 spiking output layer ablation
 ```
 
 후속 우선순위:
 
 | Priority | Experiment | Reason |
 |---:|---|---|
-| 1 | `ALIF lowrank + spike_adaptation_concat` seeds 43-45 | seed 42 최고, val-test gap이 membrane trace보다 작음 |
-| 2 | `ALIF random sparse + membrane_trace` seeds 43-45 | readout effect가 topology-independent인지 확인 |
-| 3 | `ALIF lowrank + membrane_trace` 추가 diagnostics | validation over-selection 원인 확인 |
-| 4 | motor neuron readout | readout ablation 이후 진행 |
+| 1 | `ALIF lowrank + spike_adaptation_concat` seeds 43-45 | 현재까지 가장 강하고 topology regime도 회복함 |
+| 2 | `LIF lowrank + membrane_trace` 추가 확인 | membrane readout이 ALIF 특이 효과인지 분리 |
+| 3 | `ALIF random sparse + membrane_trace` 추가 확인 | readout 효과의 topology 독립성 점검 |
+| 4 | `motor_lif` readout seed 42 controls | spiking output layer가 ALIF liquid를 읽을 수 있는지 확인 |
 
 ## 8. Next Commands
 
@@ -425,6 +491,16 @@ uv run python scripts/train_lsm.py configs/lsm_shd_alif_random_sparse_p045_reado
 uv run python scripts/train_lsm.py configs/lsm_shd_alif_random_sparse_p045_readout_membrane_trace.yaml seed=45
 ```
 
+또는, 이제는 `LIF lowrank + membrane_trace`가 기준선에 비해 큰 이득이 없다는 점이 확인됐으므로, `membrane_trace`를 최우선 후보로 더 밀기보다는 `spike_adaptation_concat`의 안정성 확인에 자원을 쓰는 편이 낫다.
+
+다음 spiking output layer ablation:
+
+```bash
+uv run python scripts/train_lsm.py configs/lsm_shd_alif_lowrank_readout_motor_lif.yaml seed=42
+uv run python scripts/train_lsm.py configs/lsm_shd_lif_lowrank_readout_motor_lif.yaml seed=42
+uv run python scripts/train_lsm.py configs/lsm_shd_alif_random_sparse_p045_readout_motor_lif.yaml seed=42
+```
+
 ## 9. Evaluation Rules Going Forward
 
 ALIF 관련 실험은 다음 원칙으로 평가한다.
@@ -435,7 +511,7 @@ ALIF 관련 실험은 다음 원칙으로 평가한다.
 4. accuracy와 함께 density, firing rate, adaptation을 반드시 본다.
 5. validation-test gap이 큰 readout은 성능 후보가 아니라 diagnostic 후보로 먼저 취급한다.
 6. random sparse control에서 개선되는지 확인해 neuron/readout 효과와 topology-learning 효과를 분리한다.
-7. motor neuron readout은 readout mismatch 검증 이후에 추가한다.
+7. motor neuron readout은 seed 42에서 motor firing diagnostics를 먼저 확인한 뒤 반복한다.
 
 ## 10. Open Questions
 
@@ -443,10 +519,11 @@ ALIF 관련 실험은 다음 원칙으로 평가한다.
 
 - `spike_adaptation_concat`이 seed 43-45에서도 LIF lowrank를 넘거나 근접하는가?
 - `spike_adaptation_concat`의 좋은 seed 42 결과는 adaptation feature 때문인가, activity regime 회복 때문인가?
-- `membrane_trace`의 큰 validation-test gap은 split artifact인가, readout overfit인가?
+- `membrane_trace`의 큰 validation-test gap은 split artifact인가, readout overfit인가, 혹은 feature misspecification인가?
 - topology freeze metric을 `val_acc` 그대로 쓰는 것이 membrane/adaptation readout에서도 적절한가?
 - ALIF에 맞는 topology selection 기준은 LIF와 달라야 하는가?
 - motor neuron readout이 count-only mismatch를 더 자연스럽게 해결하는가?
+- raw motor spike count logits가 충분한 gradient를 주는가, 아니면 `motor_logit_scale` 또는 `motor_threshold` 조정이 필요한가?
 
 현재까지의 가장 방어적인 결론:
 

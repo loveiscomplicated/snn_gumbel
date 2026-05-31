@@ -90,6 +90,10 @@
 
 ## configs/lsm_shd_alif_learned_lowrank_m50p10.yaml `YAML`
 
+## configs/lsm_shd_alif_lowrank_readout_motor_lif.yaml `YAML`
+
+## configs/lsm_shd_alif_random_sparse_p045_readout_motor_lif.yaml `YAML`
+
 ## configs/lsm_shd_alif_random_sparse_p045_fixed.yaml `YAML`
 
 ## configs/lsm_shd_alif_random_sparse_p045_midadapt.yaml `YAML`
@@ -98,11 +102,15 @@
 
 ## configs/lsm_shd_grad_r_valrollback_m50p10.yaml `YAML`
 
+## configs/lsm_shd_lif_lowrank_readout_membrane_trace.yaml `YAML`
+
+## configs/lsm_shd_lif_lowrank_readout_motor_lif.yaml `YAML`
+
 ## configs/mnist_baseline.yaml `YAML`
 
 ## docs/.DS_Store `unknown`
 
-## docs/alif_phase_b_implementation.md `MD`
+## docs/alif_implementation.md `MD`
 
 ## docs/context_2_lowrank_updated_v7_vision_aligned.md `MD`
 
