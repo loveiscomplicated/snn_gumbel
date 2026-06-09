@@ -1,6 +1,6 @@
 # ALIF Implementation and Experiment Notes
 
-> Updated: 2026-05-31
+> Updated: 2026-06-01
 
 이 문서는 SHD LSM 코드베이스에 ALIF 뉴런을 이식한 과정, 현재까지의 실험 결과, 성능 저하 원인 해석, readout ablation 결과, 그리고 다음 실험 결정을 정리한다.
 
@@ -12,7 +12,9 @@
 - 문제의 핵심은 `ALIF + learned_lowrank topology + count-only readout`의 상호작용으로 보인다.
 - `membrane_trace`는 readout mismatch를 드러내는 diagnostic으로 유효하지만, 일반적인 성능 개선이라고 보기는 어렵다.
 - `spike_adaptation_concat`은 현재까지 가장 강한 후보이며, topology/activity regime까지 함께 회복시킨다.
-- 현재 최우선 후속 실험은 `spike_adaptation_concat` readout의 seed 43-45 반복이다.
+- `motor_lif` spike-count readout은 random sparse control에서도 기존 readout을 넘지 못했다.
+- 현재 motor 방향의 핵심 가설은 "output spike count만으로는 subthreshold class evidence를 너무 많이 버린다"는 것이다.
+- 따라서 motor 계열의 다음 우선순위는 `motor_lif_count_membrane`이며, lowrank로 가기 전에 random sparse control에서 먼저 검증한다.
 
 구현 관점의 요약은 다음과 같다.
 
@@ -429,6 +431,52 @@ Validation-test gap:
 
 이 gap은 LIF lowrank baseline보다 크다. 따라서 `membrane_trace`는 성능 복구 후보이지만, 최종 선택 후보로 바로 고정하기에는 generalization risk가 있다.
 
+### 5.7 Motor LIF Readout, Seed 42 Controls
+
+`motor_lif`는 class별 output LIF neuron의 spike count를 그대로 logits로 사용하는 외부 spiking readout이다.
+
+#### v0: per-timestep bias 포함, spike count only
+
+| Condition | val@best-val | test@best-val | best test | mean motor count |
+|---|---:|---:|---:|---:|
+| ALIF lowrank + motor_lif | `0.6556` | `0.5053` | `0.5137` | `12.79` |
+| LIF lowrank + motor_lif | `0.6520` | `0.4912` | `0.5119` | `13.82` |
+| ALIF random sparse + motor_lif | `0.6078` | `0.4766` | `0.4947` | `9.60` |
+
+해석:
+
+- output neuron은 발화했지만, random sparse control에서도 `membrane_trace`보다 한참 낮았다.
+- lowrank에서는 topology rollback 이후 hard density가 `~0.002`까지 내려가, motor readout 문제가 topology collapse와 섞여 있었다.
+- checkpoint inspection 결과 per-timestep `Linear` bias만으로도 class별 output spike가 반복 발생할 수 있어, readout bias leakage가 확인됐다.
+
+#### v1: liquid-to-motor bias 제거, final bias만 허용
+
+`motor_lif`의 per-timestep bias를 제거하고 `motor_final_bias`만 남긴 뒤 random sparse에서 먼저 재검증했다.
+
+| Config | count scale | threshold | val@best-val | test@best-val | best test |
+|---|---:|---:|---:|---:|---:|
+| `nobias_b09_s05` | `0.5` | `1.0` | `0.5184` | `0.4426` | `0.4611` |
+| `nobias_b09_th075_s05` | `0.5` | `0.75` | `0.4914` | `0.3980` | `0.4298` |
+| `nobias_b09_th05_s05` | `0.5` | `0.5` | `0.4301` | `0.3710` | `0.4028` |
+| `motor_lif scale=1.0 final_bias=true` | `1.0` | `1.0` | `0.5306` | `0.4554` | `0.4678` |
+| `motor_lif scale=2.0 final_bias=true` | `2.0` | `1.0` | `0.5466` | `0.4576` | `0.4792` |
+
+해석:
+
+- bias leakage는 제거하는 것이 맞았지만, 성능 자체는 회복되지 않았다.
+- `motor_logit_scale`을 `0.5 -> 1.0 -> 2.0`으로 올리면 val과 motor spike count는 약간 올라가지만 `test@best-val`은 `0.45`대에 머문다.
+- threshold를 낮추는 것은 도움이 되지 않았다.
+- 가장 중요한 결론은 random sparse control에서도 `motor_lif`가 `membrane_trace`(`0.5724`)를 전혀 따라가지 못한다는 점이다.
+
+따라서 현재까지의 해석은 다음과 같다.
+
+```text
+문제의 핵심은 motor neuron이 전혀 발화하지 않는 것이 아니다.
+문제는 output spike count-only logit이 subthreshold class evidence를 너무 많이 버린다는 것이다.
+```
+
+이 해석 때문에 `motor_lif_count_membrane`이 다음 실험 우선순위가 되었다.
+
 ## 6. Interpretation
 
 현재 결과는 다음 가설을 지지한다.
@@ -487,68 +535,45 @@ readout을 바꾸면 단지 마지막 classifier만 바뀌는 것이 아니다.
 ALIF + spike_count readout = 현재 구조에서는 부적합
 ALIF + membrane_trace readout = diagnostic으로 유효, 최종 후보로는 약함
 ALIF + spike_adaptation_concat readout = 현재까지 최선의 후보
-motor_lif readout = 다음 spiking output layer ablation
+motor_lif spike-count readout = random sparse control에서도 실패
+motor_lif_count_membrane = 현재 motor 계열의 다음 핵심 후보
 ```
 
 후속 우선순위:
 
 | Priority | Experiment | Reason |
 |---:|---|---|
-| 1 | `ALIF lowrank + spike_adaptation_concat` seeds 43-45 | 현재까지 가장 강하고 topology regime도 회복함 |
-| 2 | `LIF lowrank + membrane_trace` 추가 확인 | membrane readout이 ALIF 특이 효과인지 분리 |
-| 3 | `ALIF random sparse + membrane_trace` 추가 확인 | readout 효과의 topology 독립성 점검 |
-| 4 | `motor_lif` readout seed 42 controls | spiking output layer가 ALIF liquid를 읽을 수 있는지 확인 |
+| 1 | `ALIF random sparse + motor_lif_count_membrane` seed 42 controls | motor spike count-only 병목이 맞는지 먼저 분리 |
+| 2 | `ALIF lowrank + spike_adaptation_concat` seed 반복 결과 유지 여부 확인 | 현재까지 가장 강한 실사용 후보 |
+| 3 | `motor_lif_count_membrane`가 random sparse에서 회복되면 lowrank follow-up | topology-learning 효과를 그 다음 분리 |
+| 4 | sparse liquid-to-motor synapse 또는 motor competition readout | count+membrane도 실패할 경우 다음 구조적 변경 |
 
 ## 8. Next Commands
 
-가장 먼저 반복할 실험:
-
-```bash
-uv run python scripts/train_lsm.py configs/lsm_shd_alif_lowrank_readout_spike_adaptation_concat.yaml seed=43
-uv run python scripts/train_lsm.py configs/lsm_shd_alif_lowrank_readout_spike_adaptation_concat.yaml seed=44
-uv run python scripts/train_lsm.py configs/lsm_shd_alif_lowrank_readout_spike_adaptation_concat.yaml seed=45
-```
-
-리소스가 허용되면 보조로 반복할 실험:
-
-```bash
-uv run python scripts/train_lsm.py configs/lsm_shd_alif_random_sparse_p045_readout_membrane_trace.yaml seed=43
-uv run python scripts/train_lsm.py configs/lsm_shd_alif_random_sparse_p045_readout_membrane_trace.yaml seed=44
-uv run python scripts/train_lsm.py configs/lsm_shd_alif_random_sparse_p045_readout_membrane_trace.yaml seed=45
-```
-
-또는, 이제는 `LIF lowrank + membrane_trace`가 기준선에 비해 큰 이득이 없다는 점이 확인됐으므로, `membrane_trace`를 최우선 후보로 더 밀기보다는 `spike_adaptation_concat`의 안정성 확인에 자원을 쓰는 편이 낫다.
-
-다음 spiking output layer ablation:
-
-```bash
-uv run python scripts/train_lsm.py configs/lsm_shd_alif_lowrank_readout_motor_lif.yaml seed=42
-uv run python scripts/train_lsm.py configs/lsm_shd_lif_lowrank_readout_motor_lif.yaml seed=42
-uv run python scripts/train_lsm.py configs/lsm_shd_alif_random_sparse_p045_readout_motor_lif.yaml seed=42
-```
-
-motor v1에서는 먼저 random sparse에서 bias 제거와 output hyperparameter 효과를 분리한다.
-
-```bash
-uv run python scripts/train_lsm.py configs/lsm_shd_alif_random_sparse_p045_readout_motor_lif_nobias_b08_s05.yaml seed=42
-uv run python scripts/train_lsm.py configs/lsm_shd_alif_random_sparse_p045_readout_motor_lif_nobias_b09_s05.yaml seed=42
-uv run python scripts/train_lsm.py configs/lsm_shd_alif_random_sparse_p045_readout_motor_lif_nobias_b09_th075_s05.yaml seed=42
-uv run python scripts/train_lsm.py configs/lsm_shd_alif_random_sparse_p045_readout_motor_lif_nobias_b09_th05_s05.yaml seed=42
-```
-
-random sparse에서 개선이 보이면 lowrank topology freeze/rollback을 조정한다.
-
-```bash
-uv run python scripts/train_lsm.py configs/lsm_shd_alif_lowrank_readout_motor_lif_nobias_b09_th075_s05_no_rollback.yaml seed=42
-uv run python scripts/train_lsm.py configs/lsm_shd_alif_lowrank_readout_motor_lif_nobias_b09_th075_s05_freeze80_no_rollback.yaml seed=42
-```
-
-motor spike count-only가 random sparse에서도 낮게 나오면, 다음은 count + membrane trace를 확인한다.
+현재 가장 먼저 볼 실험은 `motor_lif_count_membrane` random sparse control이다.
 
 ```bash
 uv run python scripts/train_lsm.py configs/lsm_shd_alif_random_sparse_p045_readout_motor_lif_count_membrane_c1_m1.yaml seed=42
 uv run python scripts/train_lsm.py configs/lsm_shd_alif_random_sparse_p045_readout_motor_lif_count_membrane_c1_m2.yaml seed=42
 uv run python scripts/train_lsm.py configs/lsm_shd_alif_random_sparse_p045_readout_motor_lif_count_membrane_c2_m1.yaml seed=42
+```
+
+판정 기준:
+
+- random sparse에서 `test@best-val`이 `0.50+`로 회복되면 `motor spike count-only` 병목 가설이 지지된다.
+- 여전히 `0.45`대에 머물면 external motor layer는 count-only뿐 아니라 현재 연결 구조 자체도 약한 것이다.
+
+random sparse에서 count+membrane이 개선되면 그 다음 lowrank follow-up으로 넘어간다.
+
+```bash
+uv run python scripts/train_lsm.py configs/lsm_shd_alif_lowrank_readout_motor_lif_count_membrane_c1_m1_no_rollback.yaml seed=42
+```
+
+반대로 count+membrane도 실패하면 다음 구조 변경 후보는 다음 둘이다.
+
+```text
+1. sparse liquid-to-motor synapse readout
+2. motor-to-motor competition / inhibition readout
 ```
 
 ## 9. Evaluation Rules Going Forward
@@ -572,8 +597,9 @@ ALIF 관련 실험은 다음 원칙으로 평가한다.
 - `membrane_trace`의 큰 validation-test gap은 split artifact인가, readout overfit인가, 혹은 feature misspecification인가?
 - topology freeze metric을 `val_acc` 그대로 쓰는 것이 membrane/adaptation readout에서도 적절한가?
 - ALIF에 맞는 topology selection 기준은 LIF와 달라야 하는가?
-- motor neuron readout이 count-only mismatch를 더 자연스럽게 해결하는가?
-- raw motor spike count logits가 충분한 gradient를 주는가, 아니면 `motor_logit_scale` 또는 `motor_threshold` 조정이 필요한가?
+- `motor_lif_count_membrane`이 random sparse에서 `motor_lif`를 넘는가?
+- motor readout의 핵심 병목은 spike count-only logit인가, 아니면 dense external liquid-to-motor projection 자체인가?
+- random sparse에서도 `count+membrane`이 실패하면 sparse liquid-to-motor synapse 또는 motor competition이 필요한가?
 
 현재까지의 가장 방어적인 결론:
 

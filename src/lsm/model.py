@@ -653,9 +653,7 @@ class LSMModel(nn.Module):
         if motor_spike_count is not None:
             self._last_motor_spike_count = motor_spike_count.detach()
             self._last_motor_spike_rates = (motor_spike_count / self.T).detach()
-            self._last_motor_membrane_trace = (
-                motor_membrane_sum / self.T
-            ).detach()
+            self._last_motor_membrane_trace = (motor_membrane_sum / self.T).detach()
         else:
             self._last_motor_spike_count = None
             self._last_motor_spike_rates = None
