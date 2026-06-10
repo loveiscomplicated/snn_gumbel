@@ -493,7 +493,12 @@ class LSMModel(nn.Module):
         self.pred_aux = nn.Linear(n_liquid, n_liquid) if pred_aux_enabled else None
         self._last_pred_loss: torch.Tensor | None = None
 
-    def forward(self, spikes: torch.Tensor, tau: float = 1.0) -> torch.Tensor:
+    def forward(
+        self,
+        spikes: torch.Tensor,
+        tau: float = 1.0,
+        return_traces: bool = False,
+    ) -> torch.Tensor:
         """
         Args:
             spikes: (batch, T, n_input) spike train
@@ -544,6 +549,14 @@ class LSMModel(nn.Module):
             pred_loss_acc = torch.zeros((), device=device)
             pred_count = 0
 
+        if return_traces:
+            trace_spikes = []
+            trace_membrane = []
+            trace_input_current = []
+            trace_recurrent_current = []
+            trace_adaptation = [] if self.neuron_type == "alif" else None
+            trace_theta_eff = [] if self.neuron_type == "alif" else None
+
         # 3. timestep loop
         # truncated BPTT: detach hidden state before the gradient window
         # self.bptt_truncate: window
@@ -567,11 +580,16 @@ class LSMModel(nn.Module):
             # pick up the current timepoint
             input_current = self.input_proj(spikes[:, t])  # (batch, N)
             recurrent_current = self.liquid(liquid_spike)  # (batch, N)
+            if return_traces:
+                trace_input_current.append(input_current.detach())
+                trace_recurrent_current.append(recurrent_current.detach())
 
             liquid_mem = (
                 self.liquid.beta * liquid_mem + input_current + recurrent_current
             )
             liquid_mem = torch.clamp(liquid_mem, -3.0, 3.0)
+            if return_traces:
+                trace_membrane.append(liquid_mem.detach())
             if membrane_sum is not None:
                 membrane_sum = membrane_sum + liquid_mem
 
@@ -583,11 +601,16 @@ class LSMModel(nn.Module):
                 if adaptation_sum is not None:
                     adaptation_sum = adaptation_sum + liquid_a
                 theta_eff = self.liquid.threshold + self.liquid.alif_beta * liquid_a
+                if return_traces:
+                    trace_adaptation.append(liquid_a.detach())
+                    trace_theta_eff.append(theta_eff.detach())
                 liquid_spike = spike_fn(liquid_mem - theta_eff.clamp(min=0.01))
             else:
                 liquid_spike = spike_fn(
                     liquid_mem - self.liquid.threshold.clamp(min=0.01)
                 )
+            if return_traces:
+                trace_spikes.append(liquid_spike.detach())
             liquid_mem = liquid_mem * (1.0 - liquid_spike)  # reset fired neurons
 
             if self.pred_aux_enabled:
@@ -667,6 +690,18 @@ class LSMModel(nn.Module):
             self._last_pred_loss = pred_loss_acc / pred_count
         else:
             self._last_pred_loss = torch.zeros((), device=device)
+
+        if return_traces:
+            traces = {
+                "spikes": torch.stack(trace_spikes, dim=1),
+                "membrane": torch.stack(trace_membrane, dim=1),
+                "input_current": torch.stack(trace_input_current, dim=1),
+                "recurrent_current": torch.stack(trace_recurrent_current, dim=1),
+            }
+            if trace_adaptation is not None and trace_theta_eff is not None:
+                traces["adaptation"] = torch.stack(trace_adaptation, dim=1)
+                traces["theta_eff"] = torch.stack(trace_theta_eff, dim=1)
+            return logits, traces
 
         return logits
 

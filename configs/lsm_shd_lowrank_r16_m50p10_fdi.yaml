@@ -1,0 +1,81 @@
+base: lsm_shd_baseline.yaml
+
+# Main FDI test config:
+# learned_lowrank r16 + validation rollback m50p10 + FDI-style initial firing-regime calibration.
+#
+# Use CLI overrides for seeds:
+#   python scripts/train_lsm.py configs/lsm_shd_lowrank_r16_m50p10_fdi.yaml seed=42
+#   python scripts/train_lsm.py configs/lsm_shd_lowrank_r16_m50p10_fdi.yaml seed=43
+#   python scripts/train_lsm.py configs/lsm_shd_lowrank_r16_m50p10_fdi.yaml seed=44
+#   python scripts/train_lsm.py configs/lsm_shd_lowrank_r16_m50p10_fdi.yaml seed=45
+
+experiment_name: lsm_shd_lowrank_r16_m50p10_fdi
+
+# Keep the same validation protocol as the current learned_lowrank m50p10 baseline.
+use_validation: true
+val_fraction: 0.1
+val_seed: 42
+
+liquid:
+  # Main topology family: learned_lowrank, not edge-wise learned C.
+  recurrent_mode: learned_lowrank
+  recurrent_sparsity: 0.1
+
+  # learned_lowrank r16 setting.
+  theta_rank: 16
+  theta_lowrank_init_std: 0.30
+  theta_init_mean: -1.0
+  theta_init_std: 0.5
+  theta_lr_scale: 0.3
+
+  # Recurrent weight magnitude setting used in the validated lowrank m50p10 runs.
+  train_w_raw: false
+  w_raw_init_mean: -2.25
+  w_raw_init_std: 0.01
+  w_raw_max: -2.0
+
+  # Preserve the standard warmup / topology-learning semantics.
+  theta_warmup_epochs: 10
+  theta_warmup_dynamic: false
+  theta_freeze_epoch: 0
+  theta_adaptive_freeze: false
+
+  # Validation-based adaptive topology freeze / rollback: m50p10.
+  topology_adaptive_freeze: true
+  topology_freeze_metric: val_acc
+  topology_freeze_min_epoch: 50
+  topology_freeze_patience: 10
+  topology_freeze_min_delta: 0.0
+  topology_freeze_rollback_best: true
+  topology_freeze_verbose: true
+
+  # Stage 1: FDI-style empirical probe calibration.
+  init_mode: fdi_calibrated
+
+  fdi_probe_batches: 8
+
+  fdi_target_rate_hz: 10.0
+  fdi_target_rate_hz_min: 5.0
+  fdi_target_rate_hz_max: 20.0
+
+  fdi_max_silent_frac: 0.35
+  fdi_silent_rate_hz: 1.0
+
+  fdi_max_overactive_frac: 0.05
+  fdi_overactive_rate_hz: 50.0
+
+  fdi_target_xi_min: 1.0
+  fdi_target_xi_max: 3.0
+
+  fdi_max_adapt_ratio: 0.35
+
+  fdi_recurrent_to_input_ratio_min: 0.3
+  fdi_recurrent_to_input_ratio_max: 1.5
+
+  # For this lowrank setting, recurrent up-scaling above 1.0 is often blocked by w_raw_max.
+  # Keep the main FDI test clean by avoiding candidates that are expected to be skipped.
+  fdi_candidate_input_scales: [0.75, 1.0, 1.25, 1.5]
+  fdi_candidate_recurrent_scales: [0.75, 1.0]
+  fdi_candidate_threshold_scales: [0.75, 1.0, 1.25, 1.5]
+
+  fdi_strict_mode: false

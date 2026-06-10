@@ -20,6 +20,7 @@ from torch.optim.lr_scheduler import CosineAnnealingLR
 from tqdm import tqdm
 
 from src.data.loaders import get_train_val_test_dataloaders
+from src.lsm.initialization.fdi_calibration import calibrate_fdi_style_initial_regime
 from src.lsm.model import LSMModel
 from src.utils.config import Config
 
@@ -217,6 +218,19 @@ def train(cfg: Config) -> tuple:
         )
         + f"test={test_size}"
     )
+    if cfg.liquid.init_mode not in {"manual", "fdi_calibrated"}:
+        raise ValueError(
+            "liquid.init_mode must be one of: manual, fdi_calibrated; "
+            f"got {cfg.liquid.init_mode!r}"
+        )
+    if cfg.liquid.init_mode == "fdi_calibrated":
+        calibrate_fdi_style_initial_regime(
+            model=model,
+            train_loader=train_loader,
+            config=cfg,
+            device=device,
+            output_dir=exp_dir,
+        )
 
     def _topology_param_group():
         if cfg.liquid.recurrent_mode == "grad_r":

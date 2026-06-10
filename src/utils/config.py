@@ -79,6 +79,30 @@ class LiquidConfig:
     alif_adapt_increment: float = 1.0  # ALIF spike-to-adaptation increment scale
     alif_learn_rho: bool = False  # ALIF rho 학습 여부
     alif_learn_beta: bool = False  # ALIF beta 학습 여부
+    init_mode: str = "manual"  # manual | fdi_calibrated
+    fdi_probe_batches: int = 8
+    fdi_target_rate_hz: float = 10.0
+    fdi_target_rate_hz_min: float = 5.0
+    fdi_target_rate_hz_max: float = 20.0
+    fdi_max_silent_frac: float = 0.35
+    fdi_silent_rate_hz: float = 1.0
+    fdi_max_overactive_frac: float = 0.05
+    fdi_overactive_rate_hz: float = 50.0
+    fdi_target_xi_min: float = 1.0
+    fdi_target_xi_max: float = 3.0
+    fdi_max_adapt_ratio: float = 0.35
+    fdi_recurrent_to_input_ratio_min: float = 0.3
+    fdi_recurrent_to_input_ratio_max: float = 1.5
+    fdi_candidate_input_scales: List[float] = field(
+        default_factory=lambda: [0.75, 1.0, 1.25, 1.5]
+    )
+    fdi_candidate_recurrent_scales: List[float] = field(
+        default_factory=lambda: [0.75, 1.0, 1.25, 1.5]
+    )
+    fdi_candidate_threshold_scales: List[float] = field(
+        default_factory=lambda: [0.75, 1.0, 1.25, 1.5]
+    )
+    fdi_strict_mode: bool = False
     theta_warmup_epochs: int = (
         0  # Phase 1 길이: theta 고정, w_raw/readout만 학습 (0=비활성화)
     )
