@@ -144,6 +144,8 @@ class LiquidConfig:
     )
     readout_lif_beta: float = 0.95  # non-spiking LIF readout membrane decay
     readout_lif_learn_beta: bool = False  # learn non-spiking LIF readout decay
+    readout_lif_normalize: bool = True  # divide final membrane by decay window
+    readout_lif_bias_once: bool = True  # add class bias after temporal accumulation
     motor_beta: float = 0.9  # motor LIF readout membrane decay
     motor_threshold: float = 1.0  # motor LIF readout firing threshold
     motor_mem_clamp: float = 5.0  # motor LIF membrane clamp magnitude

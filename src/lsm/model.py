@@ -413,12 +413,16 @@ class NonSpikingLIFReadout(nn.Module):
         n_output: int,
         beta: float = 0.95,
         learn_beta: bool = False,
+        normalize: bool = True,
+        bias_once: bool = True,
     ):
         super().__init__()
         if not 0.0 <= float(beta) < 1.0:
             raise ValueError(f"readout LIF beta must be in [0, 1), got {beta}")
         self.linear = nn.Linear(n_liquid, n_output)
         self.learn_beta = bool(learn_beta)
+        self.normalize = bool(normalize)
+        self.bias_once = bool(bias_once)
         if self.learn_beta:
             beta_init = torch.tensor(float(beta)).clamp(1e-6, 1.0 - 1e-6)
             self.logit_beta = nn.Parameter(torch.logit(beta_init))
@@ -446,7 +450,39 @@ class NonSpikingLIFReadout(nn.Module):
         liquid_spike_t: torch.Tensor,
         readout_mem: torch.Tensor,
     ) -> torch.Tensor:
-        return self.beta * readout_mem + self.linear(liquid_spike_t)
+        bias = None if self.bias_once else self.linear.bias
+        return self.beta * readout_mem + F.linear(
+            liquid_spike_t,
+            self.linear.weight,
+            bias,
+        )
+
+    def _normalizer(
+        self,
+        lengths: int | torch.Tensor,
+        device: torch.device,
+        dtype: torch.dtype,
+    ) -> torch.Tensor:
+        if not self.normalize:
+            return torch.ones((), device=device, dtype=dtype)
+        beta = self.beta.to(device=device, dtype=dtype)
+        lengths_t = torch.as_tensor(lengths, device=device, dtype=dtype)
+        denom = (1.0 - beta.pow(lengths_t)) / (1.0 - beta)
+        return denom.clamp_min(torch.finfo(dtype).eps)
+
+    def finalize(
+        self,
+        readout_mem: torch.Tensor,
+        lengths: int | torch.Tensor,
+    ) -> torch.Tensor:
+        logits = readout_mem / self._normalizer(
+            lengths,
+            device=readout_mem.device,
+            dtype=readout_mem.dtype,
+        )
+        if self.bias_once and self.linear.bias is not None:
+            logits = logits + self.linear.bias
+        return logits
 
     def forward(
         self,
@@ -474,7 +510,9 @@ class NonSpikingLIFReadout(nn.Module):
             else:
                 active = (t < valid_lengths).unsqueeze(1)
                 readout_mem = torch.where(active, next_mem, readout_mem)
-        return readout_mem
+        if valid_lengths is None:
+            return self.finalize(readout_mem, timesteps)
+        return self.finalize(readout_mem, valid_lengths.unsqueeze(1))
 
 
 class LSMModel(nn.Module):
@@ -523,6 +561,8 @@ class LSMModel(nn.Module):
         pred_trace_decay: float = 0.9,
         readout_lif_beta: float = 0.95,
         readout_lif_learn_beta: bool = False,
+        readout_lif_normalize: bool = True,
+        readout_lif_bias_once: bool = True,
     ):
         super().__init__()
         self.T = T  # time stamp
@@ -597,6 +637,8 @@ class LSMModel(nn.Module):
                 n_output,
                 beta=readout_lif_beta,
                 learn_beta=readout_lif_learn_beta,
+                normalize=readout_lif_normalize,
+                bias_once=readout_lif_bias_once,
             )
         else:
             self.readout = nn.Linear(
@@ -696,8 +738,6 @@ class LSMModel(nn.Module):
                     liquid_a = liquid_a.detach()
                 if motor_mem is not None:
                     motor_mem = motor_mem.detach()
-                if self.is_non_spiking_lif_readout:
-                    readout_mem = readout_mem.detach()
                 if self.pred_aux_enabled:
                     liquid_trace = liquid_trace.detach()
 
@@ -797,7 +837,7 @@ class LSMModel(nn.Module):
             if self.motor_output_bias is not None:
                 logits = logits + self.motor_output_bias
         elif self.is_non_spiking_lif_readout:
-            logits = readout_mem
+            logits = self.readout.finalize(readout_mem, self.T)
         else:
             logits = readout_mem / self.T
 

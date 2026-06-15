@@ -6,3 +6,5 @@ liquid:
   readout_mode: non_spiking_lif_final_mem
   readout_lif_beta: 0.95
   readout_lif_learn_beta: false
+  readout_lif_normalize: true
+  readout_lif_bias_once: true

@@ -66,7 +66,7 @@ class NonSpikingLIFReadoutTest(unittest.TestCase):
 
         self.assertFalse(torch.allclose(logits_early, logits_late))
 
-    def test_update_matches_beta_mem_plus_linear_without_reset(self):
+    def test_update_matches_normalized_membrane_with_final_bias_once(self):
         readout = NonSpikingLIFReadout(n_liquid=2, n_output=1, beta=0.5)
         with torch.no_grad():
             readout.linear.weight.copy_(torch.tensor([[2.0, -1.0]]))
@@ -75,7 +75,7 @@ class NonSpikingLIFReadoutTest(unittest.TestCase):
 
         logits = readout(spikes)
 
-        expected = torch.tensor([[1.4375]])
+        expected = torch.tensor([[0.8214286]])
         self.assertTrue(torch.allclose(logits, expected))
 
     def test_gradient_flows_to_readout_linear_weights(self):
@@ -88,6 +88,42 @@ class NonSpikingLIFReadoutTest(unittest.TestCase):
         self.assertIsNotNone(readout.linear.weight.grad)
         self.assertIsNotNone(spikes.grad)
 
+    def test_bptt_truncate_keeps_readout_gradient_from_early_final_membrane(self):
+        cfg = Config(
+            dataset="shd",
+            n_input=1,
+            n_output=1,
+            T=4,
+            batch_size=1,
+        )
+        cfg.liquid.n_liquid = 1
+        cfg.liquid.p_input = 1.0
+        cfg.liquid.input_weight_scale = 1.0
+        cfg.liquid.recurrent_mode = "fixed"
+        cfg.liquid.recurrent_sparsity = 0.0
+        cfg.liquid.bptt_truncate = 1
+        cfg.liquid.beta_min = 0.1
+        cfg.liquid.beta_max = 0.1
+        cfg.liquid.threshold_min = 0.5
+        cfg.liquid.threshold_max = 0.5
+        cfg.liquid.readout_mode = "non_spiking_lif_final_mem"
+        cfg.liquid.readout_lif_beta = 0.5
+        model = build_model(cfg, torch.device("cpu"))
+        with torch.no_grad():
+            model.input_proj.mask.fill_(1.0)
+            model.input_proj.weight.fill_(2.0)
+            model.liquid.threshold.fill_(0.5)
+            model.readout.linear.weight.fill_(1.0)
+            model.readout.linear.bias.zero_()
+        x = torch.tensor([[[1.0], [0.0], [0.0], [0.0]]])
+
+        logits = model(x)
+        logits.sum().backward()
+
+        self.assertTrue(torch.allclose(logits, torch.tensor([[0.0666667]])))
+        self.assertIsNotNone(model.readout.linear.weight.grad)
+        self.assertGreater(model.readout.linear.weight.grad.item(), 0.0)
+
     def test_new_config_loads_expected_readout_and_baseline_fields(self):
         cfg = load_config(
             "configs/lsm_shd_lowrank_r16_m50p10_learned_input_proj_fdi_nonspiking_lif_readout.yaml"
@@ -96,6 +132,8 @@ class NonSpikingLIFReadoutTest(unittest.TestCase):
         self.assertEqual(cfg.liquid.readout_mode, "non_spiking_lif_final_mem")
         self.assertAlmostEqual(cfg.liquid.readout_lif_beta, 0.95)
         self.assertFalse(cfg.liquid.readout_lif_learn_beta)
+        self.assertTrue(cfg.liquid.readout_lif_normalize)
+        self.assertTrue(cfg.liquid.readout_lif_bias_once)
         self.assertEqual(cfg.liquid.input_projection_mode, "learned_sparse")
         self.assertTrue(cfg.liquid.train_input_projection)
         self.assertEqual(cfg.liquid.init_mode, "fdi_calibrated")

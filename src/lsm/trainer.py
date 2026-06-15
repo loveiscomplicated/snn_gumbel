@@ -136,6 +136,8 @@ def build_model(cfg: Config, device: torch.device) -> LSMModel:
         pred_trace_decay=liq.pred_trace_decay,
         readout_lif_beta=liq.readout_lif_beta,
         readout_lif_learn_beta=liq.readout_lif_learn_beta,
+        readout_lif_normalize=liq.readout_lif_normalize,
+        readout_lif_bias_once=liq.readout_lif_bias_once,
     ).to(device)
 
 
@@ -764,6 +766,8 @@ def train(cfg: Config) -> tuple:
                 neuron_type=cfg.liquid.neuron_type,
                 readout_mode=cfg.liquid.readout_mode,
                 readout_lif_beta=readout_lif_info["beta"],
+                readout_lif_normalize=cfg.liquid.readout_lif_normalize,
+                readout_lif_bias_once=cfg.liquid.readout_lif_bias_once,
                 readout_lif_mem_norm=readout_lif_info["mem_norm"],
                 readout_lif_final_logit_norm=readout_lif_info["final_logit_norm"],
                 sparsity=sparsity,
@@ -885,6 +889,12 @@ def train(cfg: Config) -> tuple:
                 in {"motor_lif", "motor_lif_count_membrane"}
                 else ""
             )
+            readout_lif_detail = (
+                f"  readout_lif_beta={readout_lif_info['beta']:.3f}"
+                f"  readout_lif_norm={readout_lif_info['final_logit_norm']:.2f}"
+                if cfg.liquid.readout_mode == "non_spiking_lif_final_mem"
+                else ""
+            )
             tau_str = f"  tau={tau:.3f}" if is_learned else ""
             tqdm.write(
                 f"[{epoch+1:03d}/{cfg.epochs}|{phase_label}] "
@@ -905,6 +915,7 @@ def train(cfg: Config) -> tuple:
                 f"logit={topology_logit_mean:.3f}±{topology_logit_std:.3f}  "
                 f"sig={topology_sigmoid_mean:.3f}±{topology_sigmoid_std:.3f}"
                 + motor_detail
+                + readout_lif_detail
                 + grad_detail
                 + lr_detail
             )
