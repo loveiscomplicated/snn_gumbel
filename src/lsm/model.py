@@ -18,12 +18,12 @@ import torch.nn.functional as F
 from src.models.layers import sigmoid_ste, spike_fn
 
 # ---------------------------------------------------------------------------
-# InputProjection: fixed random excitatory input → liquid
+# InputProjection: sparse random mixed-sign input → liquid
 # ---------------------------------------------------------------------------
 
 
 class InputProjection(nn.Module):
-    """Fixed random sparse connections from input to liquid. Mixed excitatory/inhibitory."""
+    """Sparse mixed-sign connections from input to liquid."""
 
     def __init__(
         self,
@@ -31,14 +31,47 @@ class InputProjection(nn.Module):
         n_liquid: int,
         p_input: float = 0.1,
         weight_scale: float = 0.1,
+        mode: str = "fixed_sparse",
+        trainable: bool = False,
     ):
         super().__init__()
+        if mode not in {"fixed_sparse", "learned_sparse"}:
+            raise ValueError(
+                "input projection mode must be one of: fixed_sparse, learned_sparse; "
+                f"got {mode!r}"
+            )
+        self.mode = mode
         mask = (torch.rand(n_input, n_liquid) < p_input).float()
         weight = torch.randn(n_input, n_liquid) * weight_scale * mask
-        self.register_buffer("weight", weight)
+        self.register_buffer("mask", mask)
+        if mode == "fixed_sparse":
+            self.register_buffer("weight", weight)
+        else:
+            self.weight = nn.Parameter(weight, requires_grad=bool(trainable))
+
+    def effective_weight(self) -> torch.Tensor:
+        return self.weight * self.mask
+
+    def effective_density(self) -> float:
+        with torch.no_grad():
+            return float((self.mask != 0).float().mean().item())
+
+    def effective_weight_norm(self) -> float:
+        with torch.no_grad():
+            return float(self.effective_weight().norm().item())
+
+    def grad_norm(self) -> float:
+        grad = getattr(self.weight, "grad", None)
+        if grad is None:
+            return 0.0
+        return float(grad.norm().item())
+
+    @property
+    def trainable(self) -> bool:
+        return isinstance(self.weight, nn.Parameter) and self.weight.requires_grad
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return x @ self.weight
+        return x @ self.effective_weight()
 
 
 # ---------------------------------------------------------------------------
@@ -386,6 +419,8 @@ class LSMModel(nn.Module):
         threshold_max: float = 1.5,
         p_input: float = 0.1,
         input_weight_scale: float = 0.1,
+        input_projection_mode: str = "fixed_sparse",
+        train_input_projection: bool = False,
         recurrent_mode: str = "learned",
         recurrent_sparsity: float = 0.2,
         self_connection: bool = False,
@@ -447,6 +482,8 @@ class LSMModel(nn.Module):
             n_liquid,
             p_input=p_input,
             weight_scale=input_weight_scale,
+            mode=input_projection_mode,
+            trainable=train_input_projection,
         )
         self.liquid = LiquidLayer(
             n_liquid,

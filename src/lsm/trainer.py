@@ -85,6 +85,8 @@ def build_model(cfg: Config, device: torch.device) -> LSMModel:
         alif_learn_beta=liq.alif_learn_beta,
         p_input=liq.p_input,
         input_weight_scale=liq.input_weight_scale,
+        input_projection_mode=liq.input_projection_mode,
+        train_input_projection=liq.train_input_projection,
         recurrent_mode=liq.recurrent_mode,
         recurrent_sparsity=liq.recurrent_sparsity,
         self_connection=liq.self_connection,
@@ -191,6 +193,87 @@ def _param_group_lr(optimizer: optim.Optimizer, name: str) -> float:
     return 0.0
 
 
+def _topology_param_group(model: LSMModel, cfg: Config) -> list[nn.Parameter]:
+    if cfg.liquid.recurrent_mode == "grad_r":
+        return [model.liquid.theta]
+    return list(model.liquid.topology_parameters())
+
+
+def _build_optimizer_param_groups(
+    model: LSMModel, cfg: Config
+) -> tuple[list[dict], dict[str, list[nn.Parameter]]]:
+    has_theta = cfg.liquid.recurrent_mode in {
+        "learned",
+        "learned_lowrank",
+        "grad_r",
+    }
+    topology_params = _topology_param_group(model, cfg) if has_theta else []
+    theta_bias_params: list[nn.Parameter] = []
+    theta_main_params = topology_params
+    if cfg.liquid.recurrent_mode == "learned_lowrank":
+        theta_bias_params = [model.liquid.theta_bias]
+        theta_main_params = [model.liquid.src_embed, model.liquid.dst_embed]
+
+    input_projection_params = list(model.input_proj.parameters())
+    trainable_input_projection_params = [
+        param for param in input_projection_params if param.requires_grad
+    ]
+    excluded_param_ids = {id(param) for param in topology_params}
+    excluded_param_ids.update(id(param) for param in input_projection_params)
+    other_params = [
+        param for param in model.parameters() if id(param) not in excluded_param_ids
+    ]
+
+    param_groups = [
+        {
+            "params": other_params,
+            "lr": cfg.lr,
+            "weight_decay": cfg.weight_decay,
+            "name": "other",
+        }
+    ]
+    if theta_main_params:
+        param_groups.append(
+            {
+                "params": theta_main_params,
+                "lr": cfg.lr * cfg.liquid.theta_lr_scale,
+                "weight_decay": 0.0,
+                "name": "topology",
+            }
+        )
+    if theta_bias_params:
+        param_groups.append(
+            {
+                "params": theta_bias_params,
+                "lr": (
+                    cfg.lr
+                    * cfg.liquid.theta_lr_scale
+                    * cfg.liquid.theta_bias_lr_scale
+                ),
+                "weight_decay": 0.0,
+                "name": "topology_bias",
+            }
+        )
+    if trainable_input_projection_params:
+        param_groups.append(
+            {
+                "params": trainable_input_projection_params,
+                "lr": cfg.lr * cfg.liquid.input_proj_lr_scale,
+                "weight_decay": 0.0,
+                "name": "input_projection",
+            }
+        )
+
+    metadata = {
+        "other_params": other_params,
+        "theta_params": topology_params,
+        "theta_main_params": theta_main_params,
+        "theta_bias_params": theta_bias_params,
+        "input_projection_params": trainable_input_projection_params,
+    }
+    return param_groups, metadata
+
+
 def _selection_state(val_loader) -> str:
     return "val_acc" if val_loader is not None else "test_acc"
 
@@ -199,6 +282,12 @@ def train(cfg: Config) -> tuple:
     os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")
     torch.manual_seed(cfg.seed)
     device = get_device()
+
+    if cfg.liquid.init_mode not in {"manual", "fdi_calibrated"}:
+        raise ValueError(
+            "liquid.init_mode must be one of: manual, fdi_calibrated; "
+            f"got {cfg.liquid.init_mode!r}"
+        )
 
     exp_dir = _make_experiment_dir(cfg)
     checkpoint_path = exp_dir / "checkpoints" / "best.pt"
@@ -218,24 +307,15 @@ def train(cfg: Config) -> tuple:
         )
         + f"test={test_size}"
     )
-    if cfg.liquid.init_mode not in {"manual", "fdi_calibrated"}:
-        raise ValueError(
-            "liquid.init_mode must be one of: manual, fdi_calibrated; "
-            f"got {cfg.liquid.init_mode!r}"
-        )
+    fdi_report = None
     if cfg.liquid.init_mode == "fdi_calibrated":
-        calibrate_fdi_style_initial_regime(
+        fdi_report = calibrate_fdi_style_initial_regime(
             model=model,
             train_loader=train_loader,
             config=cfg,
             device=device,
             output_dir=exp_dir,
         )
-
-    def _topology_param_group():
-        if cfg.liquid.recurrent_mode == "grad_r":
-            return [model.liquid.theta]
-        return list(model.liquid.topology_parameters())
 
     def _set_topology_requires_grad(requires_grad: bool) -> None:
         if cfg.liquid.recurrent_mode == "grad_r":
@@ -299,65 +379,12 @@ def train(cfg: Config) -> tuple:
         ramp = min(1.0, (p2_epoch + 1) / ramp_epochs)
         return cfg.liquid.theta_lr_scale * ramp
 
-    # Separate optimizer groups so topology gradient cannot suppress w_raw updates.
-    # Independent per-group clipping is applied before optimizer.step().
-    if has_theta:
-        topology_params = _topology_param_group()
-        theta_params = topology_params
-        theta_bias_params = []
-        theta_main_params = topology_params
-        if cfg.liquid.recurrent_mode == "learned_lowrank":
-            theta_bias_params = [model.liquid.theta_bias]
-            theta_main_params = [model.liquid.src_embed, model.liquid.dst_embed]
-        theta_param_ids = {id(param) for param in topology_params}
-        other_params = [
-            param
-            for param in model.parameters()
-            if id(param) not in theta_param_ids
-        ]
-        param_groups = [
-            {
-                "params": other_params,
-                "lr": cfg.lr,
-                "weight_decay": cfg.weight_decay,
-                "name": "other",
-            }
-        ]
-        if theta_main_params:
-            param_groups.append(
-                {
-                    "params": theta_main_params,
-                    "lr": cfg.lr * cfg.liquid.theta_lr_scale,
-                    "weight_decay": 0.0,
-                    "name": "topology",
-                }
-            )
-        if theta_bias_params:
-            param_groups.append(
-                {
-                    "params": theta_bias_params,
-                    "lr": (
-                        cfg.lr
-                        * cfg.liquid.theta_lr_scale
-                        * cfg.liquid.theta_bias_lr_scale
-                    ),
-                    "weight_decay": 0.0,
-                    "name": "topology_bias",
-                }
-            )
-    else:
-        other_params = list(model.parameters())
-        theta_params = []
-        theta_main_params = []
-        theta_bias_params = []
-        param_groups = [
-            {
-                "params": other_params,
-                "lr": cfg.lr,
-                "weight_decay": cfg.weight_decay,
-                "name": "other",
-            }
-        ]
+    # Separate optimizer groups so topology and input projection gradients cannot
+    # suppress w_raw/readout updates. Independent clipping is applied before step().
+    param_groups, optimizer_metadata = _build_optimizer_param_groups(model, cfg)
+    other_params = optimizer_metadata["other_params"]
+    theta_params = optimizer_metadata["theta_params"]
+    input_projection_params = optimizer_metadata["input_projection_params"]
     optimizer = optim.Adam(param_groups)
     scheduler = CosineAnnealingLR(optimizer, T_max=cfg.epochs, eta_min=cfg.lr_min)
 
@@ -371,6 +398,7 @@ def train(cfg: Config) -> tuple:
     history: list[dict] = []
     clip_norm_w = cfg.liquid.grad_clip_max_norm_w
     clip_norm_theta = cfg.liquid.grad_clip_max_norm_theta
+    clip_norm_input_projection = cfg.liquid.input_proj_grad_clip
 
     adaptive_freeze_bad_epochs = 0
     theta_adaptive_frozen = False
@@ -420,6 +448,8 @@ def train(cfg: Config) -> tuple:
                         * topology_lr_scale
                         * cfg.liquid.theta_bias_lr_scale
                     )
+                elif group.get("name") == "input_projection":
+                    group["lr"] = current_lr * cfg.liquid.input_proj_lr_scale
 
             # Phase transition: unfreeze theta at warmup boundary
             if is_learned and warmup > 0 and epoch == warmup and not _topology_is_frozen(epoch):
@@ -464,6 +494,7 @@ def train(cfg: Config) -> tuple:
             epoch_src_grad_post = 0.0
             epoch_dst_grad_post = 0.0
             epoch_bias_grad_post = 0.0
+            epoch_input_proj_grad_pre = 0.0
             topology_clip_violations = 0
 
             batch_bar = tqdm(train_loader, desc="  Train", leave=False, unit="batch")
@@ -500,12 +531,16 @@ def train(cfg: Config) -> tuple:
                     epoch_src_grad_pre += _grad_norm([model.liquid.src_embed])
                     epoch_dst_grad_pre += _grad_norm([model.liquid.dst_embed])
                     epoch_bias_grad_pre += _grad_norm([model.liquid.theta_bias])
+                input_proj_grad_pre = _grad_norm(input_projection_params)
+                if input_proj_grad_pre > 0.0:
+                    epoch_input_proj_grad_pre += input_proj_grad_pre
 
                 # Independent per-group clipping:
                 #   topology: clip_norm_theta (moderate — prevents runaway while allowing
                 #          Adam to normalize; smaller than clip_norm_w to enforce time-
                 #          scale separation: topology changes slowly, weights adapt fast)
                 #   other: clip_norm_w (large enough for recurrent BPTT norms ~10^2–10^4)
+                #   input_projection: optional dedicated clip, isolated from other groups
                 if has_theta and theta_params:
                     torch.nn.utils.clip_grad_norm_(
                         theta_params, max_norm=clip_norm_theta
@@ -527,6 +562,11 @@ def train(cfg: Config) -> tuple:
                     topology_grad_post = 0.0
                     grad_norm = torch.nn.utils.clip_grad_norm_(
                         other_params, max_norm=clip_norm_w
+                    )
+                if input_projection_params and clip_norm_input_projection is not None:
+                    torch.nn.utils.clip_grad_norm_(
+                        input_projection_params,
+                        max_norm=float(clip_norm_input_projection),
                     )
                 optimizer.step()
 
@@ -550,6 +590,7 @@ def train(cfg: Config) -> tuple:
             avg_src_grad_post = epoch_src_grad_post / max(n_batches, 1)
             avg_dst_grad_post = epoch_dst_grad_post / max(n_batches, 1)
             avg_bias_grad_post = epoch_bias_grad_post / max(n_batches, 1)
+            avg_input_proj_grad = epoch_input_proj_grad_pre / max(n_batches, 1)
             topology_clip_violation = topology_clip_violations > 0
 
             # Adaptive theta freeze: check after batch loop once avg_theta_grad is known
@@ -672,6 +713,10 @@ def train(cfg: Config) -> tuple:
 
             topology_lr = _param_group_lr(optimizer, "topology")
             theta_bias_lr = _param_group_lr(optimizer, "topology_bias")
+            input_proj_lr = _param_group_lr(optimizer, "input_projection")
+            fdi_selected_candidate = (
+                fdi_report.get("selected_candidate") if fdi_report else {}
+            )
 
             row = dict(
                 epoch=epoch + 1,
@@ -716,6 +761,20 @@ def train(cfg: Config) -> tuple:
                 theta_bias_lr=theta_bias_lr,
                 topology_lr_scale=topology_lr_scale,
                 topology_lr_scale_effective=topology_lr_scale,
+                fdi_selected_input_scale=fdi_selected_candidate.get("input_scale"),
+                fdi_selected_recurrent_scale=fdi_selected_candidate.get(
+                    "recurrent_scale"
+                ),
+                fdi_selected_threshold_scale=fdi_selected_candidate.get(
+                    "threshold_scale"
+                ),
+                input_projection_mode=cfg.liquid.input_projection_mode,
+                input_proj_trainable=model.input_proj.trainable,
+                input_proj_lr=input_proj_lr,
+                input_proj_grad_norm=avg_input_proj_grad,
+                input_proj_weight_norm=model.input_proj.effective_weight_norm(),
+                input_proj_effective_weight_norm=model.input_proj.effective_weight_norm(),
+                input_proj_effective_density=model.input_proj.effective_density(),
                 mean_firing_rate=fr_info["mean"],
                 max_firing_rate=fr_info["max"],
                 mean_adaptation=adapt_info["mean"],
