@@ -21,10 +21,12 @@ VENV_DIR="${VENV_DIR:-.venv}"
 DATA_DIR="${DATA_DIR:-./data}"
 CONFIG="${CONFIG:-configs/lsm_shd_lowrank_r16_m50p10_learned_input_proj_fdi.yaml}"
 SEED="${SEED:-42}"
+DEVICE="${DEVICE:-cuda}"
 RUN_SMOKE="${RUN_SMOKE:-0}"
 PREPARE_SHD="${PREPARE_SHD:-1}"
 INSTALL_APT="${INSTALL_APT:-1}"
 INSTALL_TORCH="${INSTALL_TORCH:-1}"
+REQUIRE_CUDA="${REQUIRE_CUDA:-1}"
 TORCH_INDEX_URL="${TORCH_INDEX_URL:-https://download.pytorch.org/whl/cu121}"
 
 log() {
@@ -41,6 +43,7 @@ run_sudo() {
 
 log "Repository: $REPO_ROOT"
 log "Config: $CONFIG"
+log "Device override: $DEVICE"
 
 if [[ "$INSTALL_APT" == "1" ]] && command -v apt-get >/dev/null 2>&1; then
   log "Installing system packages"
@@ -85,30 +88,41 @@ python -m pip install --upgrade tonic h5py
 mkdir -p "$DATA_DIR" experiments runs
 
 log "Environment check"
-python - <<'PY'
+REQUIRE_CUDA="$REQUIRE_CUDA" python - <<'PY'
+import os
 import importlib
 import torch
 
 print("python ok")
 print("torch:", torch.__version__)
+print("torch_cuda:", torch.version.cuda)
 print("cuda_available:", torch.cuda.is_available())
 if torch.cuda.is_available():
+    print("cuda_device_count:", torch.cuda.device_count())
     print("cuda_device:", torch.cuda.get_device_name(0))
 for name in ("torchvision", "yaml", "tonic", "h5py"):
     module = importlib.import_module(name)
     version = getattr(module, "__version__", "unknown")
     print(f"{name}: {version}")
+
+if os.environ.get("REQUIRE_CUDA", "1") == "1" and not torch.cuda.is_available():
+    raise SystemExit(
+        "CUDA is required by scripts/setup_vastai.sh but torch.cuda.is_available() is false. "
+        "Use a CUDA-capable Vast.ai image, check nvidia-smi, or rerun with REQUIRE_CUDA=0 "
+        "for CPU-only setup."
+    )
 PY
 
 log "Config load check"
-python - "$CONFIG" <<'PY'
+python - "$CONFIG" "$DEVICE" <<'PY'
 import sys
 from src.utils.config import load_config
 
-cfg = load_config(sys.argv[1])
+cfg = load_config(sys.argv[1], overrides=[f"device={sys.argv[2]}"])
 print("experiment_name:", cfg.experiment_name)
 print("dataset:", cfg.dataset)
 print("data_dir:", cfg.data_dir)
+print("device:", cfg.device)
 print("recurrent_mode:", cfg.liquid.recurrent_mode)
 print("input_projection_mode:", cfg.liquid.input_projection_mode)
 print("train_input_projection:", cfg.liquid.train_input_projection)
@@ -134,6 +148,7 @@ if [[ "$RUN_SMOKE" == "1" ]]; then
   log "Running 1-epoch smoke training"
   python scripts/train_lsm.py "$CONFIG" \
     data_dir="$DATA_DIR" \
+    device="$DEVICE" \
     seed="$SEED" \
     epochs=1 \
     experiment_name="vastai_smoke_${SEED}"
@@ -149,12 +164,15 @@ Activate the environment:
 Example full run:
   python scripts/train_lsm.py $CONFIG \\
     data_dir=$DATA_DIR \\
+    device=$DEVICE \\
     seed=$SEED \\
     experiment_name=lsm_shd_lowrank_r16_m50p10_learned_input_proj_fdi_${SEED}
 
 Useful options:
   RUN_SMOKE=1 bash scripts/setup_vastai.sh
   DATA_DIR=/workspace/data bash scripts/setup_vastai.sh
+  DEVICE=auto bash scripts/setup_vastai.sh
+  REQUIRE_CUDA=0 bash scripts/setup_vastai.sh
   TORCH_INDEX_URL=https://download.pytorch.org/whl/cu124 bash scripts/setup_vastai.sh
   INSTALL_APT=0 bash scripts/setup_vastai.sh
   INSTALL_TORCH=0 bash scripts/setup_vastai.sh
