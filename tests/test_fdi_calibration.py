@@ -8,6 +8,7 @@ import torch
 from torch.utils.data import DataLoader, TensorDataset
 
 from src.lsm.initialization.fdi_calibration import (
+    _scale_input_projection,
     calibrate_fdi_style_initial_regime,
     collect_initial_regime_stats,
 )
@@ -126,6 +127,95 @@ class FDICalibrationTest(unittest.TestCase):
         self.assertIn("skipped_scale_dimensions", report)
         self.assertIn("warnings", report)
         self.assertGreaterEqual(len(report["all_candidates"]), 1)
+
+    def test_input_scale_helper_scales_fixed_sparse_effective_projection(self):
+        cfg = _make_config()
+        model = build_model(cfg, self.device)
+        original_effective_input = model.input_proj.effective_weight().detach().clone()
+        original_norm = original_effective_input.norm().item()
+
+        ok, reason = _scale_input_projection(model, 0.75)
+
+        self.assertTrue(ok, reason)
+        self.assertIsNone(reason)
+        self.assertAlmostEqual(
+            model.input_proj.effective_weight().norm().item(),
+            original_norm * 0.75,
+            places=6,
+        )
+        self.assertTrue(
+            torch.allclose(
+                model.input_proj.effective_weight(),
+                original_effective_input * 0.75,
+            )
+        )
+
+    def test_input_scale_helper_scales_learned_sparse_effective_projection(self):
+        cfg = _make_config()
+        cfg.liquid.input_projection_mode = "learned_sparse"
+        cfg.liquid.train_input_projection = True
+        model = build_model(cfg, self.device)
+        original_effective_input = model.input_proj.effective_weight().detach().clone()
+        original_norm = original_effective_input.norm().item()
+        original_mask = model.input_proj.mask.detach().clone()
+
+        with torch.no_grad():
+            ok, reason = _scale_input_projection(model, 0.75)
+
+        self.assertTrue(ok, reason)
+        self.assertIsNone(reason)
+        self.assertTrue(model.input_proj.weight.requires_grad)
+        self.assertTrue(torch.equal(model.input_proj.mask, original_mask))
+        self.assertAlmostEqual(
+            model.input_proj.effective_weight().norm().item(),
+            original_norm * 0.75,
+            places=6,
+        )
+        self.assertTrue(
+            torch.allclose(
+                model.input_proj.effective_weight(),
+                original_effective_input * 0.75,
+            )
+        )
+        self.assertTrue(
+            torch.all(model.input_proj.effective_weight()[model.input_proj.mask == 0] == 0)
+        )
+
+    def test_calibration_scales_learned_sparse_input_projection_parameter(self):
+        cfg = _make_config()
+        cfg.liquid.input_projection_mode = "learned_sparse"
+        cfg.liquid.train_input_projection = True
+        cfg.liquid.fdi_candidate_input_scales = [0.75]
+        cfg.liquid.fdi_candidate_recurrent_scales = [1.0]
+        cfg.liquid.fdi_candidate_threshold_scales = [1.0]
+        model = build_model(cfg, self.device)
+        loader = _make_loader(cfg)
+        original_input = model.input_proj.weight.detach().clone()
+        original_effective_input = model.input_proj.effective_weight().detach().clone()
+        original_mask = model.input_proj.mask.detach().clone()
+
+        with tempfile.TemporaryDirectory() as tmp:
+            report = calibrate_fdi_style_initial_regime(
+                model, loader, cfg, self.device, output_dir=tmp
+            )
+
+        selected = report["selected_candidate"]
+        self.assertEqual(float(selected["input_scale"]), 0.75)
+        self.assertTrue(model.input_proj.weight.requires_grad)
+        self.assertTrue(torch.equal(model.input_proj.mask, original_mask))
+        self.assertTrue(
+            torch.allclose(
+                model.input_proj.weight,
+                original_input * float(selected["input_scale"]),
+            )
+        )
+        self.assertTrue(
+            torch.allclose(
+                model.input_proj.effective_weight(),
+                original_effective_input * float(selected["input_scale"]),
+            )
+        )
+        self.assertEqual(report["skipped_scale_dimensions"], [])
 
     def test_alif_adaptation_stats_are_optional_and_available_for_alif(self):
         cfg = _make_config(neuron_type="alif")

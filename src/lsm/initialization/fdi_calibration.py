@@ -421,10 +421,10 @@ def _scale_input_projection(model, scale: float) -> tuple[bool, str | None]:
         return True, None
     input_proj = getattr(model, "input_proj", None)
     weight = getattr(input_proj, "weight", None)
-    if not torch.is_tensor(weight) or isinstance(weight, nn.Parameter):
+    if not torch.is_tensor(weight):
         return (
             False,
-            "input_scale skipped: model.input_proj.weight is not a fixed tensor buffer",
+            "input_scale skipped: model.input_proj.weight is unavailable",
         )
     weight.mul_(float(scale))
     return True, None
@@ -485,11 +485,11 @@ def _scale_recurrent_weight(model, scale: float) -> tuple[bool, str | None]:
 def _supports_input_scale(model) -> tuple[bool, str | None]:
     input_proj = getattr(model, "input_proj", None)
     weight = getattr(input_proj, "weight", None)
-    if torch.is_tensor(weight) and not isinstance(weight, nn.Parameter):
+    if torch.is_tensor(weight):
         return True, None
     return (
         False,
-        "input_scale skipped: model.input_proj.weight is not a fixed tensor buffer",
+        "input_scale skipped: model.input_proj.weight is unavailable",
     )
 
 
@@ -696,6 +696,10 @@ def calibrate_fdi_style_initial_regime(
             "all_candidates": all_candidates,
             "skipped_scale_dimensions": skipped,
             "warnings": warnings,
+            "input_projection_mode": getattr(liq, "input_projection_mode", ""),
+            "input_proj_trainable": bool(
+                getattr(liq, "train_input_projection", False)
+            ),
         }
 
         if selected_constraint_warnings and bool(
@@ -718,6 +722,11 @@ def calibrate_fdi_style_initial_regime(
             raise RuntimeError(
                 "FDI calibration selected candidate could not be applied: "
                 + "; ".join(selected_apply_warnings)
+            )
+        input_proj = getattr(model, "input_proj", None)
+        if input_proj is not None and hasattr(input_proj, "effective_weight_norm"):
+            report["input_proj_effective_weight_norm"] = (
+                input_proj.effective_weight_norm()
             )
 
         _write_report(report, output_dir)
