@@ -28,12 +28,37 @@ from src.utils.config import Config
 ce_loss = nn.CrossEntropyLoss()
 
 
-def get_device() -> torch.device:
-    if torch.backends.mps.is_available():
-        return torch.device("mps")
-    if torch.cuda.is_available():
+def get_device(requested: str = "auto") -> torch.device:
+    requested = str(requested).lower()
+    if requested == "auto":
+        if torch.cuda.is_available():
+            return torch.device("cuda")
+        if torch.backends.mps.is_available():
+            return torch.device("mps")
+        return torch.device("cpu")
+    if requested == "cuda":
+        if not torch.cuda.is_available():
+            raise RuntimeError(
+                "Requested device='cuda' but CUDA is not available. "
+                "Check the NVIDIA driver and install a CUDA-enabled PyTorch wheel. "
+                f"torch.version.cuda={torch.version.cuda!r}"
+            )
         return torch.device("cuda")
-    return torch.device("cpu")
+    if requested == "mps":
+        if not torch.backends.mps.is_available():
+            raise RuntimeError("Requested device='mps' but MPS is not available.")
+        return torch.device("mps")
+    if requested == "cpu":
+        return torch.device("cpu")
+    raise ValueError("device must be one of: auto, cuda, mps, cpu")
+
+
+def _device_summary(device: torch.device) -> str:
+    parts = [f"device={device}", f"torch={torch.__version__}"]
+    if device.type == "cuda":
+        parts.append(f"torch_cuda={torch.version.cuda}")
+        parts.append(f"gpu={torch.cuda.get_device_name(device)}")
+    return "  ".join(parts)
 
 
 def get_tau(epoch: int, cfg: Config, warmup_epochs: int | None = None) -> float:
@@ -109,6 +134,8 @@ def build_model(cfg: Config, device: torch.device) -> LSMModel:
         motor_final_bias=liq.motor_final_bias,
         pred_aux_enabled=liq.pred_aux_enabled,
         pred_trace_decay=liq.pred_trace_decay,
+        readout_lif_beta=liq.readout_lif_beta,
+        readout_lif_learn_beta=liq.readout_lif_learn_beta,
     ).to(device)
 
 
@@ -281,7 +308,8 @@ def _selection_state(val_loader) -> str:
 def train(cfg: Config) -> tuple:
     os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")
     torch.manual_seed(cfg.seed)
-    device = get_device()
+    device = get_device(cfg.device)
+    tqdm.write(_device_summary(device))
 
     if cfg.liquid.init_mode not in {"manual", "fdi_calibrated"}:
         raise ValueError(
@@ -628,6 +656,7 @@ def train(cfg: Config) -> tuple:
             fr_info = model.firing_rate_info()
             adapt_info = model.adaptation_info()
             motor_info = model.motor_info()
+            readout_lif_info = model.readout_lif_info()
             topology_rollback_applied_epoch = False
 
             if (
@@ -734,6 +763,9 @@ def train(cfg: Config) -> tuple:
                 selection_acc=selection_acc,
                 neuron_type=cfg.liquid.neuron_type,
                 readout_mode=cfg.liquid.readout_mode,
+                readout_lif_beta=readout_lif_info["beta"],
+                readout_lif_mem_norm=readout_lif_info["mem_norm"],
+                readout_lif_final_logit_norm=readout_lif_info["final_logit_norm"],
                 sparsity=sparsity,
                 hard_density=sparsity,
                 topology_logit_mean=topology_logit_mean,
@@ -770,6 +802,7 @@ def train(cfg: Config) -> tuple:
                 ),
                 input_projection_mode=cfg.liquid.input_projection_mode,
                 input_proj_trainable=model.input_proj.trainable,
+                device=str(device),
                 input_proj_lr=input_proj_lr,
                 input_proj_grad_norm=avg_input_proj_grad,
                 input_proj_weight_norm=model.input_proj.effective_weight_norm(),

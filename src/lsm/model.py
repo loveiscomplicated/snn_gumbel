@@ -404,6 +404,79 @@ class LiquidLayer(nn.Module):
 # ---------------------------------------------------------------------------
 
 
+class NonSpikingLIFReadout(nn.Module):
+    """Differentiable LIF-style readout that returns the final membrane."""
+
+    def __init__(
+        self,
+        n_liquid: int,
+        n_output: int,
+        beta: float = 0.95,
+        learn_beta: bool = False,
+    ):
+        super().__init__()
+        if not 0.0 <= float(beta) < 1.0:
+            raise ValueError(f"readout LIF beta must be in [0, 1), got {beta}")
+        self.linear = nn.Linear(n_liquid, n_output)
+        self.learn_beta = bool(learn_beta)
+        if self.learn_beta:
+            beta_init = torch.tensor(float(beta)).clamp(1e-6, 1.0 - 1e-6)
+            self.logit_beta = nn.Parameter(torch.logit(beta_init))
+            self.register_buffer("beta_buffer", None)
+        else:
+            self.logit_beta = None
+            self.register_buffer("beta_buffer", torch.tensor(float(beta)))
+
+    @property
+    def beta(self) -> torch.Tensor:
+        if self.logit_beta is not None:
+            return torch.sigmoid(self.logit_beta)
+        return self.beta_buffer
+
+    @property
+    def weight(self) -> torch.Tensor:
+        return self.linear.weight
+
+    @property
+    def bias(self) -> torch.Tensor | None:
+        return self.linear.bias
+
+    def step(
+        self,
+        liquid_spike_t: torch.Tensor,
+        readout_mem: torch.Tensor,
+    ) -> torch.Tensor:
+        return self.beta * readout_mem + self.linear(liquid_spike_t)
+
+    def forward(
+        self,
+        liquid_spikes: torch.Tensor,
+        valid_lengths: torch.Tensor | None = None,
+    ) -> torch.Tensor:
+        if liquid_spikes.dim() != 3:
+            raise ValueError(
+                "liquid_spikes must have shape (batch, time, n_liquid); "
+                f"got {tuple(liquid_spikes.shape)}"
+            )
+        batch_size, timesteps, _ = liquid_spikes.shape
+        readout_mem = liquid_spikes.new_zeros(batch_size, self.linear.out_features)
+        if valid_lengths is not None:
+            if valid_lengths.shape != (batch_size,):
+                raise ValueError(
+                    "valid_lengths must have shape (batch,), "
+                    f"got {tuple(valid_lengths.shape)}"
+                )
+            valid_lengths = valid_lengths.to(device=liquid_spikes.device)
+        for t in range(timesteps):
+            next_mem = self.step(liquid_spikes[:, t], readout_mem)
+            if valid_lengths is None:
+                readout_mem = next_mem
+            else:
+                active = (t < valid_lengths).unsqueeze(1)
+                readout_mem = torch.where(active, next_mem, readout_mem)
+        return readout_mem
+
+
 class LSMModel(nn.Module):
     def __init__(
         self,
@@ -448,6 +521,8 @@ class LSMModel(nn.Module):
         motor_final_bias: bool = True,
         pred_aux_enabled: bool = False,
         pred_trace_decay: float = 0.9,
+        readout_lif_beta: float = 0.95,
+        readout_lif_learn_beta: bool = False,
     ):
         super().__init__()
         self.T = T  # time stamp
@@ -459,6 +534,7 @@ class LSMModel(nn.Module):
             "spike_count",
             "membrane_trace",
             "spike_adaptation_concat",
+            "non_spiking_lif_final_mem",
             "motor_lif",
             "motor_lif_count_membrane",
         }:
@@ -476,6 +552,7 @@ class LSMModel(nn.Module):
         self.motor_logit_scale = motor_logit_scale
         self.motor_membrane_logit_scale = motor_membrane_logit_scale
         self.motor_final_bias_enabled = motor_final_bias
+        self.is_non_spiking_lif_readout = readout_mode == "non_spiking_lif_final_mem"
 
         self.input_proj = InputProjection(
             n_input,
@@ -514,11 +591,19 @@ class LSMModel(nn.Module):
         readout_dim = (
             n_liquid * 2 if readout_mode == "spike_adaptation_concat" else n_liquid
         )
-        self.readout = nn.Linear(
-            readout_dim,
-            n_output,
-            bias=not self.is_motor_readout,
-        )
+        if self.is_non_spiking_lif_readout:
+            self.readout = NonSpikingLIFReadout(
+                n_liquid,
+                n_output,
+                beta=readout_lif_beta,
+                learn_beta=readout_lif_learn_beta,
+            )
+        else:
+            self.readout = nn.Linear(
+                readout_dim,
+                n_output,
+                bias=not self.is_motor_readout,
+            )
         self.motor_output_bias = (
             nn.Parameter(torch.zeros(n_output))
             if self.is_motor_readout and motor_final_bias
@@ -611,6 +696,8 @@ class LSMModel(nn.Module):
                     liquid_a = liquid_a.detach()
                 if motor_mem is not None:
                     motor_mem = motor_mem.detach()
+                if self.is_non_spiking_lif_readout:
+                    readout_mem = readout_mem.detach()
                 if self.pred_aux_enabled:
                     liquid_trace = liquid_trace.detach()
 
@@ -665,6 +752,10 @@ class LSMModel(nn.Module):
 
             if self.readout_mode == "spike_count":
                 readout_mem = readout_mem + self.readout(liquid_spike)
+            elif self.is_non_spiking_lif_readout:
+                # Fixed-length SHD uses T timesteps with no padding mask here,
+                # so the final state after timestep T-1 is the sample logit.
+                readout_mem = self.readout.step(liquid_spike, readout_mem)
             elif self.is_motor_readout:
                 motor_current = self.readout(liquid_spike)
                 motor_mem = self.motor_beta * motor_mem + motor_current
@@ -705,6 +796,8 @@ class LSMModel(nn.Module):
             )
             if self.motor_output_bias is not None:
                 logits = logits + self.motor_output_bias
+        elif self.is_non_spiking_lif_readout:
+            logits = readout_mem
         else:
             logits = readout_mem / self.T
 
@@ -718,6 +811,12 @@ class LSMModel(nn.Module):
             self._last_motor_spike_count = None
             self._last_motor_spike_rates = None
             self._last_motor_membrane_trace = None
+        if self.is_non_spiking_lif_readout:
+            self._last_readout_lif_mem = readout_mem.detach()
+            self._last_readout_lif_logits = logits.detach()
+        else:
+            self._last_readout_lif_mem = None
+            self._last_readout_lif_logits = None
         if liquid_a is not None:
             self._last_liquid_adaptation = liquid_a.detach()
         else:
@@ -815,6 +914,23 @@ class LSMModel(nn.Module):
             "max_count": counts.mean(dim=0).max().item(),
             "mean_membrane": mean_membrane,
             "max_membrane": max_membrane,
+        }
+
+    def readout_lif_info(self) -> dict:
+        """Return non-spiking LIF readout stats from the last forward pass."""
+        if not self.is_non_spiking_lif_readout:
+            return {"beta": 0.0, "mem_norm": 0.0, "final_logit_norm": 0.0}
+        membrane = getattr(self, "_last_readout_lif_mem", None)
+        logits = getattr(self, "_last_readout_lif_logits", None)
+        beta = float(self.readout.beta.detach().cpu().item())
+        mem_norm = (
+            0.0 if membrane is None else float(membrane.norm(dim=1).mean().item())
+        )
+        logit_norm = 0.0 if logits is None else float(logits.norm(dim=1).mean().item())
+        return {
+            "beta": beta,
+            "mem_norm": mem_norm,
+            "final_logit_norm": logit_norm,
         }
 
     def prediction_loss(self) -> torch.Tensor:

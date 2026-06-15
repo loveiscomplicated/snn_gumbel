@@ -139,8 +139,11 @@ class LiquidConfig:
     )
     # 작은 값 → 경계(theta≈0) 엣지만 뒤집힘, 확실한 ON/OFF는 유지
     readout_mode: str = (
-        "spike_count"  # spike_count | membrane_trace | spike_adaptation_concat | motor_lif | motor_lif_count_membrane
+        "spike_count"  # spike_count | membrane_trace | spike_adaptation_concat | non_spiking_lif_final_mem
+        # | motor_lif | motor_lif_count_membrane
     )
+    readout_lif_beta: float = 0.95  # non-spiking LIF readout membrane decay
+    readout_lif_learn_beta: bool = False  # learn non-spiking LIF readout decay
     motor_beta: float = 0.9  # motor LIF readout membrane decay
     motor_threshold: float = 1.0  # motor LIF readout firing threshold
     motor_mem_clamp: float = 5.0  # motor LIF membrane clamp magnitude
@@ -200,6 +203,7 @@ class Config:
     weight_decay: float = 0.0
     edge_threshold: float = 0.5
     seed: int = 42
+    device: str = "auto"  # auto | cuda | mps | cpu
 
     # paths
     data_dir: str = "./data"
