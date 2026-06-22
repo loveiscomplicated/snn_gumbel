@@ -1,0 +1,22 @@
+base: lsm_shd_lowrank_r16_m50p10_learned_input_proj_fdi.yaml
+
+# Current strongest 4-seed SHD LSM candidate as of 2026-06-16.
+# ALIF + learned_lowrank r16 + m50p10 validation rollback
+# + learned_sparse input projection + FDI
+# + spike/adaptation concatenated readout.
+
+experiment_name: lsm_shd_alif_lowrank_r16_m50p10_learned_input_proj_fdi_spike_adaptation_b010_inc0125_biaslr05
+
+liquid:
+  neuron_type: alif
+
+  alif_rho_init: 0.85
+  alif_beta_init: 0.10
+  alif_adapt_increment: 0.125
+  alif_learn_rho: false
+  alif_learn_beta: false
+
+  theta_bias_lr_scale: 0.5
+
+  # Read [time-averaged spike rate, time-averaged ALIF adaptation trace].
+  readout_mode: spike_adaptation_concat

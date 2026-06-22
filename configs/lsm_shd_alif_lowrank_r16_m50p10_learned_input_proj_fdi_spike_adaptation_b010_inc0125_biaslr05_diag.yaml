@@ -1,0 +1,15 @@
+base: lsm_shd_alif_lowrank_r16_m50p10_learned_input_proj_fdi_spike_adaptation_b010_inc0125_biaslr05.yaml
+
+experiment_name: lsm_shd_alif_lowrank_r16_m50p10_learned_input_proj_fdi_spike_adaptation_b010_inc0125_biaslr05_diag
+
+diagnostics:
+  enabled: true
+  log_every_epoch: true
+  topology_log_interval: 5
+  save_raw_jsonl: true
+  save_summary_json: true
+  save_red_flags_json: true
+  save_markdown_report: true
+  save_trend_plots: true
+  save_full_topology_snapshots: false
+  full_snapshot_epochs: ["best", "freeze", "final"]

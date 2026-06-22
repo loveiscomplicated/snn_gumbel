@@ -1,0 +1,111 @@
+{
+  "active_edge_rule": "topk_by_configured_recurrent_sparsity",
+  "baseline_acc": 0.078125,
+  "baseline_mask_rule": "topk_by_configured_recurrent_sparsity",
+  "checkpoint": "experiments/lsm_shd_alif_lowrank_r16_m50p10_learned_input_proj_fdi_spike_adaptation_b010_inc0125_biaslr05_42_260616014632/checkpoints/best.pt",
+  "config": "configs/lsm_shd_alif_lowrank_r16_m50p10_learned_input_proj_fdi_spike_adaptation_b010_inc0125_biaslr05.yaml",
+  "interventions": {
+    "degree_matched_outgoing_control": {
+      "available": true,
+      "mean_abs_degree_gap": 5.528199005126954,
+      "mean_control_expected_out_degree": 157.55158233642578,
+      "mean_delta_acc": -0.0078125,
+      "mean_target_expected_out_degree": 163.0797882080078,
+      "n_available": 2,
+      "n_rows": 2,
+      "removed_edges": 1023.5,
+      "std_delta_acc": 0.0,
+      "unavailable_reasons": []
+    },
+    "ei_matched_outgoing_control": {
+      "available": true,
+      "mean_delta_acc": -0.015625,
+      "n_available": 2,
+      "n_rows": 2,
+      "removed_edges": 557.5,
+      "std_delta_acc": 0.0,
+      "unavailable_reasons": []
+    },
+    "hub_incoming_remove": {
+      "available": true,
+      "mean_delta_acc": -0.0078125,
+      "n_available": 1,
+      "n_rows": 1,
+      "removed_edges": 1344.0,
+      "std_delta_acc": 0.0,
+      "unavailable_reasons": []
+    },
+    "hub_outgoing_remove": {
+      "available": true,
+      "mean_delta_acc": -0.015625,
+      "n_available": 1,
+      "n_rows": 1,
+      "removed_edges": 1269.0,
+      "std_delta_acc": 0.0,
+      "unavailable_reasons": []
+    },
+    "random_edges_same_as_top_prob": {
+      "available": true,
+      "mean_delta_acc": -0.0078125,
+      "n_available": 2,
+      "n_rows": 2,
+      "removed_edges": 50.0,
+      "std_delta_acc": 0.0078125,
+      "unavailable_reasons": []
+    },
+    "random_edges_same_count_as_hub_incoming": {
+      "available": true,
+      "mean_delta_acc": 0.0,
+      "n_available": 2,
+      "n_rows": 2,
+      "removed_edges": 1344.0,
+      "std_delta_acc": 0.0,
+      "unavailable_reasons": []
+    },
+    "random_edges_same_count_as_hub_outgoing": {
+      "available": true,
+      "mean_delta_acc": -0.01171875,
+      "n_available": 2,
+      "n_rows": 2,
+      "removed_edges": 1269.0,
+      "std_delta_acc": 0.00390625,
+      "unavailable_reasons": []
+    },
+    "recurrent_current_top_neuron_outgoing_remove": {
+      "available": false,
+      "mean_delta_acc": null,
+      "n_available": 0,
+      "n_rows": 1,
+      "removed_edges": null,
+      "std_delta_acc": null,
+      "unavailable_reasons": [
+        "missing_recurrent_current_diagnostics"
+      ]
+    },
+    "top_prob_edges_remove": {
+      "available": true,
+      "mean_delta_acc": 0.0,
+      "n_available": 1,
+      "n_rows": 1,
+      "removed_edges": 50.0,
+      "std_delta_acc": 0.0,
+      "unavailable_reasons": []
+    }
+  },
+  "mask_override_verification": {
+    "active_effective_nonzero": 24950,
+    "mask_override_verified": true,
+    "zero_effective_nonzero": 0
+  },
+  "num_active_edges": 24950,
+  "num_random_repeats": 2,
+  "num_valid_nonself_edges": 249500,
+  "original_model_eval_acc": 0.7421875,
+  "self_connections_excluded": true,
+  "split": "test",
+  "theta_value_max": 2.341719150543213,
+  "theta_value_min": -4.552772045135498,
+  "topk_active_baseline_acc": 0.078125,
+  "topology_probability_source": "logits_sigmoid",
+  "warnings": []
+}

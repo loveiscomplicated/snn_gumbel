@@ -1,0 +1,341 @@
+{
+  "generated_at": "2026-06-21",
+  "purpose": "Run directory manifest for scripts/diagnose_lowrank_runaway.py using existing experiments only.",
+  "selection_policy": {
+    "required_files": [
+      "config.yaml",
+      "logs/train.jsonl",
+      "checkpoints/best.pt"
+    ],
+    "checkpoint_policy": "Use validation-selected checkpoints/best.pt only.",
+    "oracle_policy": "Do not reconstruct oracle best-test checkpoints; train.jsonl best-test is only an upper-bound reference.",
+    "duplicate_seed_policy": "Prefer exact config matches before recency.",
+    "bad_rerun_exclusion": "No requested-prefix directory matching 2606152229 or 26061522xx was found under experiments/."
+  },
+  "groups": {
+    "lif_learned_input_fdi": {
+      "required": true,
+      "expected": {
+        "neuron_type": "lif",
+        "recurrent_mode": "learned_lowrank",
+        "theta_rank": 16,
+        "input_projection_mode": "learned_sparse",
+        "train_input_projection": true,
+        "init_mode": "fdi_calibrated",
+        "readout_mode": "spike_count"
+      },
+      "missing_seeds": [],
+      "run_dirs": [
+        {
+          "seed": 42,
+          "path": "experiments/lsm_shd_lowrank_r16_m50p10_learned_input_proj_fdi_42_260615123903",
+          "log_readout_mode": "spike_count",
+          "best_pt": true
+        },
+        {
+          "seed": 43,
+          "path": "experiments/lsm_shd_lowrank_r16_m50p10_learned_input_proj_fdi_43_260615123908",
+          "log_readout_mode": "spike_count",
+          "best_pt": true
+        },
+        {
+          "seed": 44,
+          "path": "experiments/lsm_shd_lowrank_r16_m50p10_learned_input_proj_fdi_44_260615123913",
+          "log_readout_mode": "spike_count",
+          "best_pt": true
+        },
+        {
+          "seed": 45,
+          "path": "experiments/lsm_shd_lowrank_r16_m50p10_learned_input_proj_fdi_45_260615123919",
+          "log_readout_mode": "spike_count",
+          "best_pt": true
+        }
+      ],
+      "excluded": []
+    },
+    "alif_b010_inc0125_biaslr05": {
+      "required": true,
+      "expected": {
+        "neuron_type": "alif",
+        "recurrent_mode": "learned_lowrank",
+        "theta_rank": 16,
+        "input_projection_mode": "learned_sparse",
+        "train_input_projection": true,
+        "init_mode": "fdi_calibrated",
+        "readout_mode": "spike_adaptation_concat",
+        "alif_beta_init": 0.1,
+        "alif_adapt_increment": 0.125,
+        "theta_bias_lr_scale": 0.5
+      },
+      "missing_seeds": [],
+      "run_dirs": [
+        {
+          "seed": 42,
+          "path": "experiments/lsm_shd_alif_lowrank_r16_m50p10_learned_input_proj_fdi_spike_adaptation_b010_inc0125_biaslr05_42_260616014632",
+          "log_readout_mode": "spike_adaptation_concat",
+          "best_pt": true
+        },
+        {
+          "seed": 43,
+          "path": "experiments/lsm_shd_alif_lowrank_r16_m50p10_learned_input_proj_fdi_spike_adaptation_b010_inc0125_biaslr05_43_260616083935",
+          "log_readout_mode": "spike_adaptation_concat",
+          "best_pt": true
+        },
+        {
+          "seed": 44,
+          "path": "experiments/lsm_shd_alif_lowrank_r16_m50p10_learned_input_proj_fdi_spike_adaptation_b010_inc0125_biaslr05_44_260616083940",
+          "log_readout_mode": "spike_adaptation_concat",
+          "best_pt": true
+        },
+        {
+          "seed": 45,
+          "path": "experiments/lsm_shd_alif_lowrank_r16_m50p10_learned_input_proj_fdi_spike_adaptation_b010_inc0125_biaslr05_45_260616083948",
+          "log_readout_mode": "spike_adaptation_concat",
+          "best_pt": true
+        }
+      ],
+      "excluded": []
+    },
+    "alif_b010_inc0125_biaslr10": {
+      "required": true,
+      "expected": {
+        "neuron_type": "alif",
+        "recurrent_mode": "learned_lowrank",
+        "theta_rank": 16,
+        "input_projection_mode": "learned_sparse",
+        "train_input_projection": true,
+        "init_mode": "fdi_calibrated",
+        "readout_mode": "spike_adaptation_concat",
+        "alif_beta_init": 0.1,
+        "alif_adapt_increment": 0.125,
+        "theta_bias_lr_scale": 1.0
+      },
+      "missing_seeds": [],
+      "run_dirs": [
+        {
+          "seed": 42,
+          "path": "experiments/lsm_shd_alif_lowrank_r16_m50p10_learned_input_proj_fdi_spike_adaptation_alif_beta_init_01_incre_0125_42_260616005645",
+          "log_readout_mode": "spike_adaptation_concat",
+          "best_pt": true
+        },
+        {
+          "seed": 43,
+          "path": "experiments/lsm_shd_alif_lowrank_r16_m50p10_learned_input_proj_fdi_spike_adaptation_alif_beta_init_01_incre_0125_43_260616014512",
+          "log_readout_mode": "spike_adaptation_concat",
+          "best_pt": true
+        },
+        {
+          "seed": 44,
+          "path": "experiments/lsm_shd_alif_lowrank_r16_m50p10_learned_input_proj_fdi_spike_adaptation_alif_beta_init_01_incre_0125_44_260616014523",
+          "log_readout_mode": "spike_adaptation_concat",
+          "best_pt": true
+        },
+        {
+          "seed": 45,
+          "path": "experiments/lsm_shd_alif_lowrank_r16_m50p10_learned_input_proj_fdi_spike_adaptation_alif_beta_init_01_incre_0125_45_260616014531",
+          "log_readout_mode": "spike_adaptation_concat",
+          "best_pt": true
+        }
+      ],
+      "excluded": []
+    },
+    "optional_alif_b005_inc010_spike_adaptation_concat": {
+      "required": false,
+      "expected": {
+        "neuron_type": "alif",
+        "recurrent_mode": "learned_lowrank",
+        "theta_rank": 16,
+        "input_projection_mode": "learned_sparse",
+        "train_input_projection": true,
+        "init_mode": "fdi_calibrated",
+        "readout_mode": "spike_adaptation_concat",
+        "alif_beta_init": 0.05,
+        "alif_adapt_increment": 0.1,
+        "theta_bias_lr_scale": 1.0
+      },
+      "missing_seeds": [],
+      "run_dirs": [
+        {
+          "seed": 42,
+          "path": "experiments/lsm_shd_alif_lowrank_r16_m50p10_learned_input_proj_fdi_spike_adaptation_concat_42_260616000131",
+          "log_readout_mode": "spike_adaptation_concat",
+          "best_pt": true
+        },
+        {
+          "seed": 43,
+          "path": "experiments/lsm_shd_alif_lowrank_r16_m50p10_learned_input_proj_fdi_spike_adaptation_concat_43_260616000140",
+          "log_readout_mode": "spike_adaptation_concat",
+          "best_pt": true
+        },
+        {
+          "seed": 44,
+          "path": "experiments/lsm_shd_alif_lowrank_r16_m50p10_learned_input_proj_fdi_spike_adaptation_concat_44_260616000147",
+          "log_readout_mode": "spike_adaptation_concat",
+          "best_pt": true
+        },
+        {
+          "seed": 45,
+          "path": "experiments/lsm_shd_alif_lowrank_r16_m50p10_learned_input_proj_fdi_spike_adaptation_concat_45_260616000153",
+          "log_readout_mode": "spike_adaptation_concat",
+          "best_pt": true
+        }
+      ],
+      "excluded": [
+        {
+          "path": "experiments/lsm_shd_alif_lowrank_r16_m50p10_learned_input_proj_fdi_spike_adaptation_concat_44_260616005518",
+          "seed": 44,
+          "reasons": [
+            "missing checkpoints/best.pt",
+            "missing logs/train.jsonl",
+            "alif_beta_init expected 0.05 got 0.1",
+            "alif_adapt_increment expected 0.1 got 0.125"
+          ]
+        }
+      ]
+    },
+    "optional_alif_spike_count": {
+      "required": false,
+      "expected": {
+        "neuron_type": "alif",
+        "recurrent_mode": "learned_lowrank",
+        "theta_rank": 16,
+        "input_projection_mode": "learned_sparse",
+        "train_input_projection": true,
+        "init_mode": "fdi_calibrated",
+        "readout_mode": "spike_count"
+      },
+      "missing_seeds": [],
+      "run_dirs": [
+        {
+          "seed": 42,
+          "path": "experiments/lsm_shd_alif_lowrank_r16_m50p10_learned_input_proj_fdi_spike_count_42_260615182043",
+          "log_readout_mode": "spike_count",
+          "best_pt": true
+        },
+        {
+          "seed": 43,
+          "path": "experiments/lsm_shd_alif_lowrank_r16_m50p10_learned_input_proj_fdi_spike_count_43_260615182112",
+          "log_readout_mode": "spike_count",
+          "best_pt": true
+        },
+        {
+          "seed": 44,
+          "path": "experiments/lsm_shd_alif_lowrank_r16_m50p10_learned_input_proj_fdi_spike_count_44_260615182116",
+          "log_readout_mode": "spike_count",
+          "best_pt": true
+        },
+        {
+          "seed": 45,
+          "path": "experiments/lsm_shd_alif_lowrank_r16_m50p10_learned_input_proj_fdi_spike_count_45_260615182120",
+          "log_readout_mode": "spike_count",
+          "best_pt": true
+        }
+      ],
+      "excluded": []
+    }
+  },
+  "ignored_broad_candidates": [
+    {
+      "pattern": "experiments/lsm_shd_lowrank_r16_m50p10_learned_input_proj_fdi_nonspiking_lif_readout*",
+      "count": 11,
+      "reason": "readout_mode is non_spiking_lif_final_mem, not a requested spike_count or spike_adaptation_concat group."
+    }
+  ],
+  "commands": {
+    "core_lif_vs_alif_biaslr": [
+      "python",
+      "scripts/diagnose_lowrank_runaway.py",
+      "--run-dirs",
+      "experiments/lsm_shd_lowrank_r16_m50p10_learned_input_proj_fdi_42_260615123903",
+      "experiments/lsm_shd_lowrank_r16_m50p10_learned_input_proj_fdi_43_260615123908",
+      "experiments/lsm_shd_lowrank_r16_m50p10_learned_input_proj_fdi_44_260615123913",
+      "experiments/lsm_shd_lowrank_r16_m50p10_learned_input_proj_fdi_45_260615123919",
+      "experiments/lsm_shd_alif_lowrank_r16_m50p10_learned_input_proj_fdi_spike_adaptation_b010_inc0125_biaslr05_42_260616014632",
+      "experiments/lsm_shd_alif_lowrank_r16_m50p10_learned_input_proj_fdi_spike_adaptation_b010_inc0125_biaslr05_43_260616083935",
+      "experiments/lsm_shd_alif_lowrank_r16_m50p10_learned_input_proj_fdi_spike_adaptation_b010_inc0125_biaslr05_44_260616083940",
+      "experiments/lsm_shd_alif_lowrank_r16_m50p10_learned_input_proj_fdi_spike_adaptation_b010_inc0125_biaslr05_45_260616083948",
+      "experiments/lsm_shd_alif_lowrank_r16_m50p10_learned_input_proj_fdi_spike_adaptation_alif_beta_init_01_incre_0125_42_260616005645",
+      "experiments/lsm_shd_alif_lowrank_r16_m50p10_learned_input_proj_fdi_spike_adaptation_alif_beta_init_01_incre_0125_43_260616014512",
+      "experiments/lsm_shd_alif_lowrank_r16_m50p10_learned_input_proj_fdi_spike_adaptation_alif_beta_init_01_incre_0125_44_260616014523",
+      "experiments/lsm_shd_alif_lowrank_r16_m50p10_learned_input_proj_fdi_spike_adaptation_alif_beta_init_01_incre_0125_45_260616014531",
+      "--output-dir",
+      "reports/lowrank_runaway_diagnostics/core_lif_vs_alif_biaslr",
+      "--num-batches",
+      "4",
+      "--batch-size",
+      "64",
+      "--top-k",
+      "50",
+      "--firing-threshold",
+      "0.9",
+      "--theta-grad-threshold",
+      "50"
+    ],
+    "core_plus_alif_b005_inc010_spike_adaptation_concat": [
+      "python",
+      "scripts/diagnose_lowrank_runaway.py",
+      "--run-dirs",
+      "experiments/lsm_shd_lowrank_r16_m50p10_learned_input_proj_fdi_42_260615123903",
+      "experiments/lsm_shd_lowrank_r16_m50p10_learned_input_proj_fdi_43_260615123908",
+      "experiments/lsm_shd_lowrank_r16_m50p10_learned_input_proj_fdi_44_260615123913",
+      "experiments/lsm_shd_lowrank_r16_m50p10_learned_input_proj_fdi_45_260615123919",
+      "experiments/lsm_shd_alif_lowrank_r16_m50p10_learned_input_proj_fdi_spike_adaptation_b010_inc0125_biaslr05_42_260616014632",
+      "experiments/lsm_shd_alif_lowrank_r16_m50p10_learned_input_proj_fdi_spike_adaptation_b010_inc0125_biaslr05_43_260616083935",
+      "experiments/lsm_shd_alif_lowrank_r16_m50p10_learned_input_proj_fdi_spike_adaptation_b010_inc0125_biaslr05_44_260616083940",
+      "experiments/lsm_shd_alif_lowrank_r16_m50p10_learned_input_proj_fdi_spike_adaptation_b010_inc0125_biaslr05_45_260616083948",
+      "experiments/lsm_shd_alif_lowrank_r16_m50p10_learned_input_proj_fdi_spike_adaptation_alif_beta_init_01_incre_0125_42_260616005645",
+      "experiments/lsm_shd_alif_lowrank_r16_m50p10_learned_input_proj_fdi_spike_adaptation_alif_beta_init_01_incre_0125_43_260616014512",
+      "experiments/lsm_shd_alif_lowrank_r16_m50p10_learned_input_proj_fdi_spike_adaptation_alif_beta_init_01_incre_0125_44_260616014523",
+      "experiments/lsm_shd_alif_lowrank_r16_m50p10_learned_input_proj_fdi_spike_adaptation_alif_beta_init_01_incre_0125_45_260616014531",
+      "experiments/lsm_shd_alif_lowrank_r16_m50p10_learned_input_proj_fdi_spike_adaptation_concat_42_260616000131",
+      "experiments/lsm_shd_alif_lowrank_r16_m50p10_learned_input_proj_fdi_spike_adaptation_concat_43_260616000140",
+      "experiments/lsm_shd_alif_lowrank_r16_m50p10_learned_input_proj_fdi_spike_adaptation_concat_44_260616000147",
+      "experiments/lsm_shd_alif_lowrank_r16_m50p10_learned_input_proj_fdi_spike_adaptation_concat_45_260616000153",
+      "--output-dir",
+      "reports/lowrank_runaway_diagnostics/core_plus_alif_b005_inc010_spike_adaptation_concat",
+      "--num-batches",
+      "4",
+      "--batch-size",
+      "64",
+      "--top-k",
+      "50",
+      "--firing-threshold",
+      "0.9",
+      "--theta-grad-threshold",
+      "50"
+    ],
+    "core_plus_alif_spike_count": [
+      "python",
+      "scripts/diagnose_lowrank_runaway.py",
+      "--run-dirs",
+      "experiments/lsm_shd_lowrank_r16_m50p10_learned_input_proj_fdi_42_260615123903",
+      "experiments/lsm_shd_lowrank_r16_m50p10_learned_input_proj_fdi_43_260615123908",
+      "experiments/lsm_shd_lowrank_r16_m50p10_learned_input_proj_fdi_44_260615123913",
+      "experiments/lsm_shd_lowrank_r16_m50p10_learned_input_proj_fdi_45_260615123919",
+      "experiments/lsm_shd_alif_lowrank_r16_m50p10_learned_input_proj_fdi_spike_adaptation_b010_inc0125_biaslr05_42_260616014632",
+      "experiments/lsm_shd_alif_lowrank_r16_m50p10_learned_input_proj_fdi_spike_adaptation_b010_inc0125_biaslr05_43_260616083935",
+      "experiments/lsm_shd_alif_lowrank_r16_m50p10_learned_input_proj_fdi_spike_adaptation_b010_inc0125_biaslr05_44_260616083940",
+      "experiments/lsm_shd_alif_lowrank_r16_m50p10_learned_input_proj_fdi_spike_adaptation_b010_inc0125_biaslr05_45_260616083948",
+      "experiments/lsm_shd_alif_lowrank_r16_m50p10_learned_input_proj_fdi_spike_adaptation_alif_beta_init_01_incre_0125_42_260616005645",
+      "experiments/lsm_shd_alif_lowrank_r16_m50p10_learned_input_proj_fdi_spike_adaptation_alif_beta_init_01_incre_0125_43_260616014512",
+      "experiments/lsm_shd_alif_lowrank_r16_m50p10_learned_input_proj_fdi_spike_adaptation_alif_beta_init_01_incre_0125_44_260616014523",
+      "experiments/lsm_shd_alif_lowrank_r16_m50p10_learned_input_proj_fdi_spike_adaptation_alif_beta_init_01_incre_0125_45_260616014531",
+      "experiments/lsm_shd_alif_lowrank_r16_m50p10_learned_input_proj_fdi_spike_count_42_260615182043",
+      "experiments/lsm_shd_alif_lowrank_r16_m50p10_learned_input_proj_fdi_spike_count_43_260615182112",
+      "experiments/lsm_shd_alif_lowrank_r16_m50p10_learned_input_proj_fdi_spike_count_44_260615182116",
+      "experiments/lsm_shd_alif_lowrank_r16_m50p10_learned_input_proj_fdi_spike_count_45_260615182120",
+      "--output-dir",
+      "reports/lowrank_runaway_diagnostics/core_plus_alif_spike_count",
+      "--num-batches",
+      "4",
+      "--batch-size",
+      "64",
+      "--top-k",
+      "50",
+      "--firing-threshold",
+      "0.9",
+      "--theta-grad-threshold",
+      "50"
+    ]
+  }
+}
