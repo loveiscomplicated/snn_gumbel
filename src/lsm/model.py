@@ -11,6 +11,8 @@ Liquid topology modes:
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -399,6 +401,105 @@ class LiquidLayer(nn.Module):
         raise RuntimeError(f"Unknown liquid mode: {self.mode}")
 
 
+@dataclass
+class ALIFReservoirState:
+    spike: torch.Tensor
+    membrane: torch.Tensor
+    adaptation: torch.Tensor
+    recurrent_current: torch.Tensor
+    membrane_pre_reset: torch.Tensor
+    theta_eff: torch.Tensor
+
+
+class ALIFReservoirBlock:
+    """Plain wrapper for ALIF recurrent dynamics.
+
+    This intentionally is not an nn.Module. LiquidLayer remains the sole owner of
+    all parameters and buffers, which preserves existing state_dict key names.
+    """
+
+    def __init__(self, liquid: LiquidLayer):
+        if liquid.neuron_type != "alif":
+            raise ValueError(
+                "ALIFReservoirBlock requires a LiquidLayer with neuron_type='alif'"
+            )
+        self.liquid = liquid
+
+    @property
+    def n_liquid(self) -> int:
+        return self.liquid.n_liquid
+
+    def init_state(
+        self,
+        batch_size: int,
+        *,
+        device: torch.device | str | None = None,
+        dtype: torch.dtype | None = None,
+    ) -> ALIFReservoirState:
+        if device is None:
+            device = self.liquid.threshold.device
+        if dtype is None:
+            dtype = self.liquid.threshold.dtype
+        zeros = torch.zeros(
+            batch_size,
+            self.n_liquid,
+            device=device,
+            dtype=dtype,
+        )
+        return ALIFReservoirState(
+            spike=zeros,
+            membrane=zeros.clone(),
+            adaptation=zeros.clone(),
+            recurrent_current=zeros.clone(),
+            membrane_pre_reset=zeros.clone(),
+            theta_eff=zeros.clone(),
+        )
+
+    def detach_state(self, state: ALIFReservoirState) -> ALIFReservoirState:
+        return ALIFReservoirState(
+            spike=state.spike.detach(),
+            membrane=state.membrane.detach(),
+            adaptation=state.adaptation.detach(),
+            recurrent_current=state.recurrent_current.detach(),
+            membrane_pre_reset=state.membrane_pre_reset.detach(),
+            theta_eff=state.theta_eff.detach(),
+        )
+
+    def __call__(
+        self,
+        input_current: torch.Tensor,
+        state: ALIFReservoirState,
+    ) -> tuple[torch.Tensor, ALIFReservoirState]:
+        return self.forward(input_current, state)
+
+    def forward(
+        self,
+        input_current: torch.Tensor,
+        state: ALIFReservoirState,
+    ) -> tuple[torch.Tensor, ALIFReservoirState]:
+        recurrent_current = self.liquid(state.spike)
+        membrane_pre_reset = (
+            self.liquid.beta * state.membrane + input_current + recurrent_current
+        )
+        membrane_pre_reset = torch.clamp(membrane_pre_reset, -3.0, 3.0)
+        adaptation = (
+            self.liquid.alif_rho * state.adaptation
+            + self.liquid.alif_adapt_increment * state.spike
+        )
+        theta_eff = self.liquid.threshold + self.liquid.alif_beta * adaptation
+        spike = spike_fn(membrane_pre_reset - theta_eff.clamp(min=0.01))
+        membrane = membrane_pre_reset * (1.0 - spike)
+        next_state = ALIFReservoirState(
+            spike=spike,
+            membrane=membrane,
+            adaptation=adaptation,
+            recurrent_current=recurrent_current,
+            membrane_pre_reset=membrane_pre_reset,
+            theta_eff=theta_eff,
+        )
+        return spike, next_state
+
+
 # ---------------------------------------------------------------------------
 # LSMModel: full model combining input, liquid, readout
 # ---------------------------------------------------------------------------
@@ -628,6 +729,9 @@ class LSMModel(nn.Module):
             alif_learn_beta=alif_learn_beta,
             noise_scale=noise_scale,
         )
+        self.alif_reservoir = (
+            ALIFReservoirBlock(self.liquid) if neuron_type == "alif" else None
+        )
         readout_dim = (
             n_liquid * 2 if readout_mode == "spike_adaptation_concat" else n_liquid
         )
@@ -662,13 +766,15 @@ class LSMModel(nn.Module):
         spikes: torch.Tensor,
         tau: float = 1.0,
         return_traces: bool = False,
+        return_diagnostics: bool = False,
     ) -> torch.Tensor:
         """
         Args:
             spikes: (batch, T, n_input) spike train
             tau: Gumbel temperature
         Returns:
-            (batch, n_output) average readout membrane over time
+            (batch, n_output) average readout membrane over time, optionally
+            paired with traces and/or reservoir diagnostics.
         """
         batch_size = spikes.shape[0]
         device = spikes.device
@@ -683,8 +789,18 @@ class LSMModel(nn.Module):
         liquid_mem = torch.zeros(batch_size, self.n_liquid, device=device)
         liquid_spike = torch.zeros(batch_size, self.n_liquid, device=device)
         liquid_a = None
+        alif_state = None
         if self.neuron_type == "alif":
-            liquid_a = torch.zeros(batch_size, self.n_liquid, device=device)
+            if self.alif_reservoir is None:
+                raise RuntimeError("ALIF reservoir block is not initialized")
+            alif_state = self.alif_reservoir.init_state(
+                batch_size,
+                device=device,
+                dtype=spikes.dtype,
+            )
+            liquid_spike = alif_state.spike
+            liquid_mem = alif_state.membrane
+            liquid_a = alif_state.adaptation
         readout_mem = torch.zeros(batch_size, self.n_output, device=device)
         motor_mem = None
         motor_spike_count = None
@@ -721,6 +837,15 @@ class LSMModel(nn.Module):
             trace_adaptation = [] if self.neuron_type == "alif" else None
             trace_theta_eff = [] if self.neuron_type == "alif" else None
 
+        if return_diagnostics:
+            diag_count = batch_size * self.T * self.n_liquid
+            diag_membrane_sum = torch.zeros((), device=device)
+            diag_membrane_max = None
+            diag_recurrent_abs_sum = torch.zeros((), device=device)
+            diag_recurrent_abs_max = None
+            diag_adaptation_sum = torch.zeros((), device=device)
+            diag_adaptation_max = None
+
         # 3. timestep loop
         # truncated BPTT: detach hidden state before the gradient window
         # self.bptt_truncate: window
@@ -732,10 +857,14 @@ class LSMModel(nn.Module):
             # This makes the remaining timesteps start a fresh graph,
             # so gradients do not flow back before grad_start.
             if t == grad_start and t > 0:
-                liquid_mem = liquid_mem.detach()
-                liquid_spike = liquid_spike.detach()
-                if liquid_a is not None:
-                    liquid_a = liquid_a.detach()
+                if alif_state is not None:
+                    alif_state = self.alif_reservoir.detach_state(alif_state)
+                    liquid_mem = alif_state.membrane
+                    liquid_spike = alif_state.spike
+                    liquid_a = alif_state.adaptation
+                else:
+                    liquid_mem = liquid_mem.detach()
+                    liquid_spike = liquid_spike.detach()
                 if motor_mem is not None:
                     motor_mem = motor_mem.detach()
                 if self.pred_aux_enabled:
@@ -743,39 +872,76 @@ class LSMModel(nn.Module):
 
             # pick up the current timepoint
             input_current = self.input_proj(spikes[:, t])  # (batch, N)
-            recurrent_current = self.liquid(liquid_spike)  # (batch, N)
+            if alif_state is not None:
+                liquid_spike, alif_state = self.alif_reservoir(
+                    input_current,
+                    alif_state,
+                )
+                recurrent_current = alif_state.recurrent_current
+                liquid_mem = alif_state.membrane_pre_reset
+                liquid_a = alif_state.adaptation
+                theta_eff = alif_state.theta_eff
+            else:
+                recurrent_current = self.liquid(liquid_spike)  # (batch, N)
+                liquid_mem = (
+                    self.liquid.beta * liquid_mem + input_current + recurrent_current
+                )
+                liquid_mem = torch.clamp(liquid_mem, -3.0, 3.0)
             if return_traces:
                 trace_input_current.append(input_current.detach())
                 trace_recurrent_current.append(recurrent_current.detach())
-
-            liquid_mem = (
-                self.liquid.beta * liquid_mem + input_current + recurrent_current
-            )
-            liquid_mem = torch.clamp(liquid_mem, -3.0, 3.0)
             if return_traces:
                 trace_membrane.append(liquid_mem.detach())
             if membrane_sum is not None:
                 membrane_sum = membrane_sum + liquid_mem
 
-            if self.neuron_type == "alif":
-                liquid_a = (
-                    self.liquid.alif_rho * liquid_a
-                    + self.liquid.alif_adapt_increment * liquid_spike
+            if return_diagnostics:
+                liquid_mem_detached = liquid_mem.detach()
+                recurrent_abs = recurrent_current.detach().abs()
+                diag_membrane_sum = diag_membrane_sum + liquid_mem_detached.sum()
+                current_membrane_max = liquid_mem_detached.max()
+                diag_membrane_max = (
+                    current_membrane_max
+                    if diag_membrane_max is None
+                    else torch.maximum(diag_membrane_max, current_membrane_max)
                 )
+                diag_recurrent_abs_sum = (
+                    diag_recurrent_abs_sum + recurrent_abs.sum()
+                )
+                current_recurrent_abs_max = recurrent_abs.max()
+                diag_recurrent_abs_max = (
+                    current_recurrent_abs_max
+                    if diag_recurrent_abs_max is None
+                    else torch.maximum(
+                        diag_recurrent_abs_max,
+                        current_recurrent_abs_max,
+                    )
+                )
+
+            if alif_state is not None:
                 if adaptation_sum is not None:
                     adaptation_sum = adaptation_sum + liquid_a
-                theta_eff = self.liquid.threshold + self.liquid.alif_beta * liquid_a
                 if return_traces:
                     trace_adaptation.append(liquid_a.detach())
                     trace_theta_eff.append(theta_eff.detach())
-                liquid_spike = spike_fn(liquid_mem - theta_eff.clamp(min=0.01))
+                if return_diagnostics:
+                    adaptation_detached = liquid_a.detach()
+                    diag_adaptation_sum = (
+                        diag_adaptation_sum + adaptation_detached.sum()
+                    )
+                    current_adaptation_max = adaptation_detached.max()
+                    diag_adaptation_max = (
+                        current_adaptation_max
+                        if diag_adaptation_max is None
+                        else torch.maximum(diag_adaptation_max, current_adaptation_max)
+                    )
             else:
                 liquid_spike = spike_fn(
                     liquid_mem - self.liquid.threshold.clamp(min=0.01)
                 )
+                liquid_mem = liquid_mem * (1.0 - liquid_spike)  # reset fired neurons
             if return_traces:
                 trace_spikes.append(liquid_spike.detach())
-            liquid_mem = liquid_mem * (1.0 - liquid_spike)  # reset fired neurons
 
             if self.pred_aux_enabled:
                 prev_trace = liquid_trace
@@ -815,6 +981,9 @@ class LSMModel(nn.Module):
                 motor_mem = motor_mem * (1.0 - motor_spike)
                 motor_spike_count = motor_spike_count + motor_spike
             spike_sum = spike_sum + liquid_spike
+
+            if alif_state is not None:
+                liquid_mem = alif_state.membrane
 
         if self.readout_mode == "membrane_trace":
             readout_input = membrane_sum / self.T
@@ -867,6 +1036,57 @@ class LSMModel(nn.Module):
         else:
             self._last_pred_loss = torch.zeros((), device=device)
 
+        diagnostics = None
+        if return_diagnostics:
+            denom = max(diag_count, 1)
+            diagnostics = {
+                "mean_spike_rate": float(
+                    (spike_sum / self.T).mean().detach().cpu().item()
+                ),
+                "max_spike_rate": float(
+                    (spike_sum / self.T).mean(dim=0).max().detach().cpu().item()
+                ),
+                "adaptation_mean": float(
+                    (diag_adaptation_sum / denom).detach().cpu().item()
+                ),
+                "adaptation_max": float(
+                    (
+                        torch.zeros((), device=device)
+                        if diag_adaptation_max is None
+                        else diag_adaptation_max
+                    )
+                    .detach()
+                    .cpu()
+                    .item()
+                ),
+                "membrane_mean": float(
+                    (diag_membrane_sum / denom).detach().cpu().item()
+                ),
+                "membrane_max": float(
+                    (
+                        torch.zeros((), device=device)
+                        if diag_membrane_max is None
+                        else diag_membrane_max
+                    )
+                    .detach()
+                    .cpu()
+                    .item()
+                ),
+                "recurrent_current_abs_mean": float(
+                    (diag_recurrent_abs_sum / denom).detach().cpu().item()
+                ),
+                "recurrent_current_abs_max": float(
+                    (
+                        torch.zeros((), device=device)
+                        if diag_recurrent_abs_max is None
+                        else diag_recurrent_abs_max
+                    )
+                    .detach()
+                    .cpu()
+                    .item()
+                ),
+            }
+
         if return_traces:
             traces = {
                 "spikes": torch.stack(trace_spikes, dim=1),
@@ -877,7 +1097,12 @@ class LSMModel(nn.Module):
             if trace_adaptation is not None and trace_theta_eff is not None:
                 traces["adaptation"] = torch.stack(trace_adaptation, dim=1)
                 traces["theta_eff"] = torch.stack(trace_theta_eff, dim=1)
+            if return_diagnostics:
+                return logits, traces, diagnostics
             return logits, traces
+
+        if return_diagnostics:
+            return logits, diagnostics
 
         return logits
 

@@ -38,6 +38,42 @@ class TopologyConfig:
 
 
 @dataclass
+class DiagnosticsConfig:
+    enabled: bool = False
+    log_every_epoch: bool = True
+    topology_log_interval: int = 5
+    save_raw_jsonl: bool = True
+    save_summary_json: bool = True
+    save_red_flags_json: bool = True
+    save_markdown_report: bool = True
+    save_trend_plots: bool = True
+    save_full_topology_snapshots: bool = False
+    full_snapshot_epochs: List[str] = field(
+        default_factory=lambda: ["best", "freeze", "final"]
+    )
+
+    # Activity helper thresholds for scalar summaries.
+    silent_firing_rate_threshold: float = 0.001
+    overactive_firing_rate_threshold: float = 0.20
+
+    # Conservative red-flag heuristic thresholds.
+    missing_required_fraction_threshold: float = 0.35
+    dead_mean_firing_rate_threshold: float = 0.005
+    dead_fraction_epochs: float = 0.70
+    adaptation_near_zero_threshold: float = 0.01
+    val_improvement_min_delta: float = 0.01
+    high_max_firing_rate_threshold: float = 0.80
+    rec_input_high_threshold: float = 2.0
+    topology_entropy_drop_threshold: float = 0.25
+    degree_gini_rise_threshold: float = 0.20
+    top_edge_prob_rise_threshold: float = 0.02
+    theta_grad_spike_abs_threshold: float = 50.0
+    theta_grad_spike_multiplier: float = 3.0
+    adaptation_saturation_threshold: float = 1.0
+    adaptation_saturation_flat_delta: float = 0.05
+
+
+@dataclass
 class LiquidConfig:
     n_liquid: int = 200  # 리퀴드 뉴런 수
     exc_ratio: float = 0.8  # 흥분성 뉴런 비율
@@ -182,6 +218,9 @@ class Config:
     # liquid (LSM 전용)
     liquid: LiquidConfig = field(default_factory=LiquidConfig)
 
+    # diagnostics
+    diagnostics: DiagnosticsConfig = field(default_factory=DiagnosticsConfig)
+
     # annealing
     tau_start: float = 1.0
     tau_end: float = 0.05
@@ -295,9 +334,11 @@ def load_config(
     arch_d = data.pop("architecture", {})
     topo_d = data.pop("topology", {})
     liq_d = data.pop("liquid", {})
+    diag_d = data.pop("diagnostics", {})
 
     cfg = Config(**data)
     cfg.architecture = ArchitectureConfig(**arch_d)
     cfg.topology = TopologyConfig(**topo_d)
     cfg.liquid = LiquidConfig(**liq_d)
+    cfg.diagnostics = DiagnosticsConfig(**diag_d)
     return cfg

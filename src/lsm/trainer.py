@@ -20,6 +20,7 @@ from torch.optim.lr_scheduler import CosineAnnealingLR
 from tqdm import tqdm
 
 from src.data.loaders import get_train_val_test_dataloaders
+from src.lsm.diagnostics import DiagnosticsLogger, collect_epoch_diagnostics
 from src.lsm.initialization.fdi_calibration import calibrate_fdi_style_initial_regime
 from src.lsm.model import LSMModel
 from src.utils.config import Config
@@ -322,6 +323,9 @@ def train(cfg: Config) -> tuple:
     exp_dir = _make_experiment_dir(cfg)
     checkpoint_path = exp_dir / "checkpoints" / "best.pt"
     log_path = exp_dir / "logs" / "train.jsonl"
+    diagnostics_logger = (
+        DiagnosticsLogger(exp_dir, cfg) if cfg.diagnostics.enabled else None
+    )
 
     train_loader, val_loader, test_loader = get_train_val_test_dataloaders(cfg)
     model = build_model(cfg, device)
@@ -464,6 +468,7 @@ def train(cfg: Config) -> tuple:
 
     epoch_bar = tqdm(range(cfg.epochs), desc="Epochs", unit="ep")
     alif_batch_debug_logged = False
+    last_epoch_completed = 0
 
     with open(log_path, "a") as log_f:
         for epoch in epoch_bar:
@@ -992,7 +997,8 @@ def train(cfg: Config) -> tuple:
             log_f.flush()
 
             # checkpoint best
-            if selection_acc > best_acc:
+            best_improved = selection_acc > best_acc
+            if best_improved:
                 best_acc = selection_acc
                 best_metric_value = selection_acc
                 best_val_acc = val_acc
@@ -1031,9 +1037,57 @@ def train(cfg: Config) -> tuple:
             else:
                 epochs_no_improve += 1
 
-            if cfg.patience > 0 and epochs_no_improve >= cfg.patience:
+            last_epoch_completed = epoch + 1
+            will_stop = cfg.patience > 0 and epochs_no_improve >= cfg.patience
+            is_final_epoch = epoch + 1 >= cfg.epochs or will_stop
+            if diagnostics_logger is not None:
+                if cfg.diagnostics.log_every_epoch or is_final_epoch:
+                    diagnostic_input = dict(row)
+                    diagnostic_input.update(
+                        best_val_acc_so_far=best_val_acc,
+                        test_at_best_val=(
+                            best_test_acc_at_best_val
+                            if val_loader is not None
+                            else None
+                        ),
+                        test_at_best_val_expected=(
+                            val_loader is not None and test_acc is not None
+                        ),
+                    )
+                    force_topology = bool(
+                        is_final_epoch
+                        or topology_rollback_applied_epoch
+                        or topology_frozen_epoch == epoch + 1
+                    )
+                    diagnostics_logger.log_epoch(
+                        epoch + 1,
+                        collect_epoch_diagnostics(
+                            model,
+                            diagnostic_input,
+                            cfg,
+                            force_topology=force_topology,
+                            final_epoch=is_final_epoch,
+                        ),
+                    )
+                if best_improved:
+                    diagnostics_logger.save_topology_snapshot(
+                        model, "best", epoch + 1
+                    )
+                if topology_rollback_applied_epoch or topology_frozen_epoch == epoch + 1:
+                    diagnostics_logger.save_topology_snapshot(
+                        model, "freeze", epoch + 1
+                    )
+
+            if will_stop:
                 tqdm.write(f"Early stopping: no improvement for {cfg.patience} epochs.")
                 break
+
+    if diagnostics_logger is not None:
+        if last_epoch_completed > 0:
+            diagnostics_logger.save_topology_snapshot(
+                model, "final", last_epoch_completed
+            )
+        diagnostics_logger.summarize_run()
 
     if best_metric_value is None:
         best_metric_value = float("nan")
