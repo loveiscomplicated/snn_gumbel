@@ -248,7 +248,13 @@ def _largest_drop_epoch(rows: list[dict[str, Any]], key: str) -> int | None:
 
 def _infer_probability_source(raw: torch.Tensor, recurrent_mode: str) -> str:
     mode = str(recurrent_mode).lower()
-    if mode in {"learned", "learned_lowrank", "learned_lowrank_frozen_w", "grad_r"}:
+    if mode in {
+        "learned",
+        "learned_lowrank",
+        "learned_lowrank_grad_r",
+        "learned_lowrank_frozen_w",
+        "grad_r",
+    }:
         return "logits_sigmoid"
     finite = raw.detach().float().reshape(-1)
     finite = finite[torch.isfinite(finite)]

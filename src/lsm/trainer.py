@@ -357,9 +357,19 @@ def _collect_recurrent_ablation_metrics(
                     ),
                 }
             )
-        if liquid.mode in {"learned", "learned_lowrank", "learned_lowrank_frozen_w", "grad_r"}:
+        if liquid.mode in {
+            "learned",
+            "learned_lowrank",
+            "learned_lowrank_grad_r",
+            "learned_lowrank_frozen_w",
+            "grad_r",
+        }:
             if liquid.mode == "grad_r":
                 theta = liquid.theta.detach().float()
+                probs = torch.sigmoid(theta)
+                mask = (theta > 0).float()
+            elif liquid.mode == "learned_lowrank_grad_r":
+                theta = liquid.get_theta().detach().float()
                 probs = torch.sigmoid(theta)
                 mask = (theta > 0).float()
             else:
@@ -781,6 +791,7 @@ def _build_optimizer_param_groups(
     has_theta = cfg.liquid.recurrent_mode in {
         "learned",
         "learned_lowrank",
+        "learned_lowrank_grad_r",
         "learned_lowrank_frozen_w",
         "edgewise_soft_conductance",
         "smooth_lowrank_conductance",
@@ -793,6 +804,7 @@ def _build_optimizer_param_groups(
     theta_main_params = topology_params
     if cfg.liquid.recurrent_mode in {
         "learned_lowrank",
+        "learned_lowrank_grad_r",
         "learned_lowrank_frozen_w",
         "smooth_lowrank_conductance",
         "soft_gate_lowrank",
@@ -914,13 +926,16 @@ def train(cfg: Config) -> tuple:
         else:
             model.liquid.set_topology_requires_grad(requires_grad)
 
-    # Phase 1 warmup is only for hard Gumbel topology modes. Soft conductance
-    # modes learn from epoch 1 because there is no sampled mask to stabilize.
+    # Phase 1 warmup is for hard topology modes. Only Gumbel modes receive
+    # epoch-level noise; deterministic Grad-R lowrank uses the same warmup
+    # policy without tau/noise sampling.
     warmup = cfg.liquid.theta_warmup_epochs
-    hard_topology_modes = {"learned", "learned_lowrank", "learned_lowrank_frozen_w"}
+    gumbel_topology_modes = {"learned", "learned_lowrank", "learned_lowrank_frozen_w"}
+    hard_topology_modes = gumbel_topology_modes | {"learned_lowrank_grad_r"}
     soft_gate_modes = {"soft_gate_lowrank", "soft_gate_edgewise"}
     lowrank_param_modes = {
         "learned_lowrank",
+        "learned_lowrank_grad_r",
         "learned_lowrank_frozen_w",
         "smooth_lowrank_conductance",
         "soft_gate_lowrank",
@@ -928,6 +943,7 @@ def train(cfg: Config) -> tuple:
     topology_param_modes = {
         "learned",
         "learned_lowrank",
+        "learned_lowrank_grad_r",
         "learned_lowrank_frozen_w",
         "edgewise_soft_conductance",
         "smooth_lowrank_conductance",
@@ -935,9 +951,10 @@ def train(cfg: Config) -> tuple:
         "soft_gate_edgewise",
         "grad_r",
     }
-    is_learned = cfg.liquid.recurrent_mode in hard_topology_modes
+    is_hard_topology = cfg.liquid.recurrent_mode in hard_topology_modes
+    is_gumbel_topology = cfg.liquid.recurrent_mode in gumbel_topology_modes
     is_soft_gate = cfg.liquid.recurrent_mode in soft_gate_modes
-    uses_topology_warmup = is_learned or is_soft_gate
+    uses_topology_warmup = is_hard_topology or is_soft_gate
     has_theta = cfg.liquid.recurrent_mode in topology_param_modes
     topology_trainable_modes = topology_param_modes
     topology_freeze_enabled = has_theta and cfg.liquid.topology_adaptive_freeze
@@ -1123,7 +1140,7 @@ def train(cfg: Config) -> tuple:
                 )
             topology_is_frozen = _topology_is_frozen(epoch)
 
-            tau = get_tau(epoch, cfg, warmup_epochs=warmup) if is_learned else 1.0
+            tau = get_tau(epoch, cfg, warmup_epochs=warmup) if is_gumbel_topology else 1.0
             soft_gate_temp, soft_gate_target_density = (
                 get_soft_gate_schedule(epoch, cfg, warmup_epochs=warmup)
                 if is_soft_gate
@@ -1137,7 +1154,7 @@ def train(cfg: Config) -> tuple:
             # Phase 2: sample Gumbel noise ONCE per epoch, lock mask for all batches.
             # This keeps topology stable within an epoch (BPTT safe) while allowing
             # exploration across epochs (OFF edges get a chance to be ON → w_raw learns).
-            if is_learned and epoch >= warmup and not topology_is_frozen:
+            if is_gumbel_topology and epoch >= warmup and not topology_is_frozen:
                 eps = torch.rand_like(model.liquid.get_theta()).clamp(1e-6, 1 - 1e-6)
                 epoch_noise = (torch.log(eps) - torch.log(1.0 - eps)).to(device)
                 model.liquid.sample_epoch_mask(tau=tau, epoch_noise=epoch_noise)
@@ -1645,7 +1662,7 @@ def train(cfg: Config) -> tuple:
                 phase=phase_label,
                 lr=current_lr,
                 base_lr=current_lr,
-                tau=tau if is_learned else None,
+                tau=tau if is_gumbel_topology else None,
                 train_loss=train_loss,
                 train_acc=train_acc,
                 val_loss=val_loss,
@@ -1809,7 +1826,7 @@ def train(cfg: Config) -> tuple:
                 postfix["topo_best"] = (
                     f"{topology_best_metric_name}:{best_topology_metric:.4f}@{best_topology_epoch}"
                 )
-            if is_learned:
+            if is_gumbel_topology:
                 postfix["tau"] = f"{tau:.3f}"
             if is_soft_gate:
                 postfix["soft_den"] = f"{soft_gate_metrics.get('soft_density', 0.0):.3f}"
@@ -1846,7 +1863,7 @@ def train(cfg: Config) -> tuple:
                 if cfg.liquid.readout_mode == "non_spiking_lif_final_mem"
                 else ""
             )
-            tau_str = f"  tau={tau:.3f}" if is_learned else ""
+            tau_str = f"  tau={tau:.3f}" if is_gumbel_topology else ""
             soft_gate_detail = (
                 f"  soft_den={soft_gate_metrics.get('soft_density', 0.0):.3f}"
                 f"/{float(soft_gate_target_density):.3f}"
@@ -1889,7 +1906,7 @@ def train(cfg: Config) -> tuple:
             if has_theta and avg_topology_grad_pre > 50:
                 schedule_label = (
                     f"tau={tau:.3f}"
-                    if is_learned
+                    if is_gumbel_topology
                     else (
                         f"temp={float(soft_gate_temp):.3f}"
                         if is_soft_gate
@@ -1903,7 +1920,7 @@ def train(cfg: Config) -> tuple:
                 tqdm.write(
                     f"  ⚠ topo_grad_post={avg_topology_grad_post:.2f} exceeded clip max {clip_norm_theta:.2f}"
                 )
-            if is_learned and avg_w_raw_grad > 50:
+            if is_hard_topology and avg_w_raw_grad > 50:
                 tqdm.write(
                     f"  ⚠ w_raw_grad={avg_w_raw_grad:.1f} — weight gradient exploding"
                 )

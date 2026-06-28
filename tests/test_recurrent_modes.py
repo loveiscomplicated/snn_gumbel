@@ -142,6 +142,48 @@ class RecurrentModeFormulaTest(unittest.TestCase):
         self.assertTrue(torch.isfinite(liquid.theta.grad).all())
         self.assertGreater(float(liquid.theta.grad.abs().sum().item()), 0.0)
 
+    def test_learned_lowrank_grad_r_uses_deterministic_lowrank_ste(self):
+        liquid = LiquidLayer(
+            3,
+            mode="learned_lowrank_grad_r",
+            theta_rank=1,
+            theta_lowrank_init_std=0.0,
+            w_raw_init_mean=-2.0,
+            w_raw_init_std=0.0,
+            train_w_raw=False,
+            self_connection=False,
+        )
+        with torch.no_grad():
+            liquid.src_embed.copy_(torch.tensor([[1.0], [-1.0], [0.5]]))
+            liquid.dst_embed.copy_(torch.tensor([[1.0], [2.0], [-3.0]]))
+            liquid.theta_bias.zero_()
+
+        theta = liquid.get_theta()
+        expected_hard = (theta > 0).float()
+        expected_ste = (
+            expected_hard - torch.sigmoid(theta).detach() + torch.sigmoid(theta)
+        )
+
+        liquid.train()
+        liquid.sample_epoch_mask(
+            tau=0.01,
+            epoch_noise=torch.full_like(theta, 1000.0),
+        )
+        sampled = liquid.sample_mask()
+
+        self.assertTrue(torch.allclose(sampled, expected_ste))
+        self.assertTrue(torch.allclose(sampled.detach(), expected_hard))
+
+        loss = liquid.get_effective_weight().abs().sum()
+        loss.backward()
+
+        self.assertIsNotNone(liquid.src_embed.grad)
+        self.assertIsNotNone(liquid.dst_embed.grad)
+        self.assertIsNotNone(liquid.theta_bias.grad)
+        self.assertGreater(float(liquid.src_embed.grad.abs().sum().item()), 0.0)
+        self.assertGreater(float(liquid.dst_embed.grad.abs().sum().item()), 0.0)
+        self.assertGreater(float(liquid.theta_bias.grad.abs().sum().item()), 0.0)
+
     def test_soft_gate_schedule_anneals_after_warmup(self):
         cfg = Config()
         cfg.liquid.theta_warmup_epochs = 10
@@ -182,6 +224,14 @@ class RecurrentModeFormulaTest(unittest.TestCase):
                 overrides=[
                     "liquid.recurrent_mode=learned_lowrank",
                     "liquid.density_penalty_lambda=1.0",
+                ],
+            )
+        with self.assertRaisesRegex(ValueError, "noise_scale=0.0"):
+            load_config(
+                None,
+                overrides=[
+                    "liquid.recurrent_mode=learned_lowrank_grad_r",
+                    "liquid.noise_scale=0.1",
                 ],
             )
 
@@ -302,6 +352,7 @@ class RecurrentModeFormulaTest(unittest.TestCase):
             "configs/ablation/lsm_shd_alif_SG_lowrank.yaml",
             "configs/ablation/lsm_shd_alif_SG_edgewise.yaml",
             "configs/ablation/lsm_shd_alif_gradR.yaml",
+            "configs/ablation/lsm_shd_alif_lowrank_gradR.yaml",
         ]
         for path in paths:
             with self.subTest(path=path):

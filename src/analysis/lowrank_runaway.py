@@ -881,7 +881,10 @@ def compute_lowrank_role_summary(
         "lowrank_available": False,
         "evidence_status": "missing",
     }
-    if str(getattr(liquid, "mode", "")).lower() != "learned_lowrank":
+    if str(getattr(liquid, "mode", "")).lower() not in {
+        "learned_lowrank",
+        "learned_lowrank_grad_r",
+    }:
         return {**base, "evidence_status": "not_lowrank"}, {}
 
     mats = materialize_lowrank_topology(

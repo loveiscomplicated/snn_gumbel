@@ -864,7 +864,10 @@ def _classwise_rows(
 
 def _hard_mask_and_edge_prob(model: torch.nn.Module) -> tuple[torch.Tensor, torch.Tensor | None]:
     liquid = model.liquid
-    if str(getattr(liquid, "mode", "")).lower() == "learned_lowrank":
+    if str(getattr(liquid, "mode", "")).lower() in {
+        "learned_lowrank",
+        "learned_lowrank_grad_r",
+    }:
         mats = materialize_lowrank_topology(
             liquid.src_embed,
             liquid.dst_embed,

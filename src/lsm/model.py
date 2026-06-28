@@ -4,6 +4,7 @@ LSM model: InputProjection → LiquidLayer (recurrent) → Readout.
 Liquid topology modes:
   - "learned"       : Gumbel-Sigmoid mask, trained end-to-end
   - "learned_lowrank": Gumbel-Sigmoid mask with directed low-rank theta
+  - "learned_lowrank_grad_r": deterministic Grad-R mask with directed low-rank theta
   - "learned_lowrank_frozen_w": learned_lowrank mask with frozen conductance
   - "softplus_w_only": dense softplus(w_raw) conductance, no topology
   - "edgewise_soft_conductance": independent softplus(theta_ij) conductance
@@ -31,11 +32,17 @@ from src.models.layers import sigmoid_ste, spike_fn
 
 LOWRANK_MODES = {
     "learned_lowrank",
+    "learned_lowrank_grad_r",
     "learned_lowrank_frozen_w",
     "smooth_lowrank_conductance",
     "soft_gate_lowrank",
 }
-HARD_TOPOLOGY_MODES = {"learned", "learned_lowrank", "learned_lowrank_frozen_w"}
+HARD_TOPOLOGY_MODES = {
+    "learned",
+    "learned_lowrank",
+    "learned_lowrank_grad_r",
+    "learned_lowrank_frozen_w",
+}
 SOFT_GATE_MODES = {"soft_gate_lowrank", "soft_gate_edgewise"}
 SOFT_CONDUCTANCE_MODES = {
     "softplus_w_only",
@@ -51,6 +58,7 @@ NO_W_RAW_CONDUCTANCE_MODES = {
 VALID_RECURRENT_MODES = {
     "learned",
     "learned_lowrank",
+    "learned_lowrank_grad_r",
     "learned_lowrank_frozen_w",
     "softplus_w_only",
     "edgewise_soft_conductance",
@@ -688,7 +696,17 @@ class LiquidLayer(nn.Module):
             other batches this epoch, but a fresh computation graph each call.
         Phase 1 / eval: deterministic hard mask, no gradient.
         """
-        if self.mode in HARD_TOPOLOGY_MODES:
+        if self.mode == "learned_lowrank_grad_r":
+            theta = self.get_theta()
+            if self.training and any(
+                param.requires_grad for param in self.topology_parameters()
+            ):
+                soft = torch.sigmoid(theta)
+                hard_mask = (theta > 0).float()
+                self.current_mask = hard_mask - soft.detach() + soft
+            else:
+                self.current_mask = (theta > 0).float()
+        elif self.mode in HARD_TOPOLOGY_MODES:
             theta = self.get_theta()
             if self._epoch_noise is not None:
                 # Phase 2: recompute STE with the epoch noise every batch.
@@ -788,6 +806,8 @@ class LiquidLayer(nn.Module):
             return self.fixed_mask
         if self.mode == "grad_r":
             return (self.theta > 0).float() * self.self_conn_mask
+        if self.mode == "learned_lowrank_grad_r":
+            return (self.get_theta() > 0).float() * self.self_conn_mask
         if self.mode in HARD_TOPOLOGY_MODES:
             theta = self.get_theta()
             return ((torch.sigmoid(theta) >= 0.5).float()) * self.self_conn_mask

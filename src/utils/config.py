@@ -79,7 +79,7 @@ class LiquidConfig:
     exc_ratio: float = 0.8  # 흥분성 뉴런 비율
     neuron_type: str = "lif"  # lif | alif
     p_input: float = 0.1  # 입력→리퀴드 연결 확률
-    recurrent_mode: str = "learned"  # learned | learned_lowrank | random_sparse | fixed | grad_r | ablation modes
+    recurrent_mode: str = "learned"  # learned | learned_lowrank | learned_lowrank_grad_r | random_sparse | fixed | grad_r | ablation modes
     recurrent_sparsity: float = 0.2  # random_sparse 모드 시 연결 확률
     self_connection: bool = False  # 자기 연결 허용 여부
     theta_init_mean: float = (
@@ -334,6 +334,7 @@ def _validate_config(cfg: Config) -> None:
     valid_modes = {
         "learned",
         "learned_lowrank",
+        "learned_lowrank_grad_r",
         "learned_lowrank_frozen_w",
         "softplus_w_only",
         "edgewise_soft_conductance",
@@ -406,6 +407,10 @@ def _validate_config(cfg: Config) -> None:
     if mode == "learned_lowrank_frozen_w" and liq.train_w_raw:
         raise ValueError(
             "learned_lowrank_frozen_w requires liquid.train_w_raw=false."
+        )
+    if mode == "learned_lowrank_grad_r" and float(liq.noise_scale) != 0.0:
+        raise ValueError(
+            "learned_lowrank_grad_r is deterministic. Set liquid.noise_scale=0.0."
         )
     if liq.frozen_w_constant_g is not None and float(liq.frozen_w_constant_g) < 0.0:
         raise ValueError("liquid.frozen_w_constant_g must be non-negative.")
