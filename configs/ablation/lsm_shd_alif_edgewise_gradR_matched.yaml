@@ -1,0 +1,9 @@
+base: ../lsm_shd_alif_lowrank_r16_m50p10_learned_input_proj_fdi_spike_adaptation_b010_inc0125_biaslr05.yaml
+
+experiment_name: lsm_shd_alif_edgewise_gradR_matched
+seed: 42
+
+liquid:
+  recurrent_mode: grad_r
+  train_w_raw: false
+  noise_scale: 0.0
