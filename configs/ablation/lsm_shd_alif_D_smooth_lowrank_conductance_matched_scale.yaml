@@ -1,0 +1,15 @@
+base: ../lsm_shd_alif_lowrank_r16_m50p10_learned_input_proj_fdi_spike_adaptation_b010_inc0125_biaslr05.yaml
+
+experiment_name: lsm_shd_alif_D_smooth_lowrank_conductance_matched_scale
+seed: 42
+
+liquid:
+  recurrent_mode: smooth_lowrank_conductance
+  train_w_raw: false
+  recurrent_weight_scale: 1.0
+  match_initial_w_eff_scale: true
+
+  topology_adaptive_freeze: false
+  theta_freeze_epoch: 0
+  theta_adaptive_freeze: false
+  topology_runaway_guard_enabled: false

@@ -1,0 +1,22 @@
+base: ../lsm_shd_alif_lowrank_r16_m50p10_learned_input_proj_fdi_spike_adaptation_b010_inc0125_biaslr05.yaml
+
+experiment_name: lsm_shd_alif_SG_edgewise
+seed: 42
+
+liquid:
+  recurrent_mode: soft_gate_edgewise
+  train_w_raw: false
+  noise_scale: 0.0
+
+  temp_init: 1.0
+  temp_final: 0.2
+  target_density_init: 0.3
+  target_density_final: 0.05
+  target_anneal_epochs: 40
+  density_penalty_lambda: 1.0
+  mag_from_separate_param: false
+
+  topology_adaptive_freeze: false
+  theta_freeze_epoch: 0
+  theta_adaptive_freeze: false
+  topology_runaway_guard_enabled: false

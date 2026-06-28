@@ -1,0 +1,14 @@
+base: ../lsm_shd_alif_lowrank_r16_m50p10_learned_input_proj_fdi_spike_adaptation_b010_inc0125_biaslr05.yaml
+
+experiment_name: lsm_shd_alif_F_fixed_random_sparse_learned_w
+seed: 42
+
+liquid:
+  recurrent_mode: random_sparse
+  recurrent_sparsity: 0.1
+  train_w_raw: true
+
+  topology_adaptive_freeze: false
+  theta_freeze_epoch: 0
+  theta_adaptive_freeze: false
+  topology_runaway_guard_enabled: false
