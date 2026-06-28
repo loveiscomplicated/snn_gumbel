@@ -19,8 +19,13 @@ from pathlib import Path
 # Make project root importable regardless of cwd
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from src.utils.config import load_config
-from src.training.trainer import train
+from src.utils.config import Config, load_config
+
+
+def _is_lsm_config(cfg: Config) -> bool:
+    return str(cfg.dataset).lower() == "shd" or (
+        cfg.liquid.n_liquid > 0 and not cfg.architecture.hidden_layers
+    )
 
 
 def main():
@@ -36,6 +41,12 @@ def main():
         action="store_true",
         help="Resume from the last checkpoint in the experiment dir",
     )
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=None,
+        help="Override cfg.seed without using key=value syntax",
+    )
     # All remaining args are treated as key=value overrides
     parser.add_argument(
         "overrides", nargs="*", help="CLI overrides in key=value form, e.g. lr=0.0005"
@@ -43,7 +54,18 @@ def main():
 
     args = parser.parse_args()
     cfg = load_config(args.config, overrides=args.overrides)
-    train(cfg, resume=args.resume)
+    if args.seed is not None:
+        cfg.seed = args.seed
+    if _is_lsm_config(cfg):
+        from src.lsm.trainer import train as train_lsm
+
+        if args.resume:
+            raise ValueError("LSM trainer does not support --resume via scripts/train.py")
+        train_lsm(cfg)
+    else:
+        from src.training.trainer import train
+
+        train(cfg, resume=args.resume)
 
 
 if __name__ == "__main__":

@@ -79,7 +79,7 @@ class LiquidConfig:
     exc_ratio: float = 0.8  # 흥분성 뉴런 비율
     neuron_type: str = "lif"  # lif | alif
     p_input: float = 0.1  # 입력→리퀴드 연결 확률
-    recurrent_mode: str = "learned"  # learned | learned_lowrank | random_sparse | fixed | grad_r
+    recurrent_mode: str = "learned"  # learned | learned_lowrank | random_sparse | fixed | grad_r | ablation modes
     recurrent_sparsity: float = 0.2  # random_sparse 모드 시 연결 확률
     self_connection: bool = False  # 자기 연결 허용 여부
     theta_init_mean: float = (
@@ -107,6 +107,17 @@ class LiquidConfig:
     w_raw_max: float = (
         -3.0
     )  # w_raw 상한 clamp (softplus(-3.0)≈0.049, spectral radius < 1 for N≤500)
+    recurrent_weight_scale: float = 1.0  # smooth conductance recurrent gain scale
+    match_initial_w_eff_scale: bool = False  # smooth lowrank 초기 W_eff norm matching
+    frozen_w_mode: str = "initialized_w"  # initialized_w | constant_g
+    frozen_w_constant_g: float | None = None  # constant_g mode conductance; None=derive
+    temp_init: float = 1.0  # soft_gate sigmoid temperature at phase-2 start
+    temp_final: float = 0.2  # soft_gate final sigmoid temperature; must stay > 0
+    target_density_init: float = 0.3  # soft_gate initial gate-density target
+    target_density_final: float = 0.05  # soft_gate final gate-density target
+    target_anneal_epochs: int = 40  # soft_gate phase-2 anneal length
+    density_penalty_lambda: float = 0.0  # soft_gate gate-only density penalty
+    mag_from_separate_param: bool = False  # soft_gate optional separate mag tensor
     bptt_truncate: int = (
         0  # truncated BPTT: 마지막 K 타임스텝만 gradient 흘림 (0 = full BPTT)
     )
@@ -170,6 +181,11 @@ class LiquidConfig:
     topology_freeze_min_delta: float = 0.0  # minimum val_acc improvement for snapshot
     topology_freeze_rollback_best: bool = True  # rollback best topology before freezing
     topology_freeze_verbose: bool = True  # print one-time validation freeze event
+    topology_runaway_guard_enabled: bool = False
+    topology_runaway_grad_threshold: float = 50.0
+    topology_runaway_firing_threshold: float = 0.9
+    topology_runaway_patience: int = 2
+    topology_runaway_freeze_epochs: int = 3
     noise_scale: float = (
         0.1  # 에폭 단위 Gumbel noise 크기 (0=결정적, 1=표준 Gumbel std≈1.81)
     )
@@ -236,6 +252,10 @@ class Config:
     val_fraction: float = 0.1
     val_seed: int = 42
     use_validation: bool = True
+    selection_val_loss_tie_break: bool = False
+    selection_tie_epsilon: float = 0.0
+    selection_tie_break_later_if_loss_missing: bool = False
+    checkpoint_top_k_val: int = 5
     lr: float = 1e-3
     lr_min: float = 1e-5  # cosine scheduler의 최솟값
     lambda_sparse: float = 0.005
@@ -308,6 +328,101 @@ def _apply_cli_overrides(d: dict, overrides: List[str]) -> dict:
     return d
 
 
+def _validate_config(cfg: Config) -> None:
+    liq = cfg.liquid
+    mode = str(liq.recurrent_mode)
+    valid_modes = {
+        "learned",
+        "learned_lowrank",
+        "learned_lowrank_frozen_w",
+        "softplus_w_only",
+        "edgewise_soft_conductance",
+        "smooth_lowrank_conductance",
+        "soft_gate_lowrank",
+        "soft_gate_edgewise",
+        "random_sparse",
+        "fixed",
+        "grad_r",
+    }
+    soft_gate_modes = {"soft_gate_lowrank", "soft_gate_edgewise"}
+    if mode not in valid_modes:
+        raise ValueError(
+            "liquid.recurrent_mode must be one of "
+            f"{sorted(valid_modes)}, got {mode!r}"
+        )
+    if liq.frozen_w_mode not in {"initialized_w", "constant_g"}:
+        raise ValueError(
+            "liquid.frozen_w_mode must be one of: initialized_w, constant_g; "
+            f"got {liq.frozen_w_mode!r}"
+        )
+    if mode != "learned_lowrank_frozen_w":
+        if liq.frozen_w_mode != "initialized_w":
+            raise ValueError(
+                "liquid.frozen_w_mode is only valid for "
+                "recurrent_mode=learned_lowrank_frozen_w."
+            )
+        if liq.frozen_w_constant_g is not None:
+            raise ValueError(
+                "liquid.frozen_w_constant_g is only valid for "
+                "recurrent_mode=learned_lowrank_frozen_w."
+            )
+    if liq.match_initial_w_eff_scale and mode != "smooth_lowrank_conductance":
+        raise ValueError(
+            "liquid.match_initial_w_eff_scale=true is only valid for "
+            "recurrent_mode=smooth_lowrank_conductance."
+        )
+    if mode == "softplus_w_only" and not liq.train_w_raw:
+        raise ValueError(
+            "softplus_w_only uses softplus(w_raw) as its conductance. "
+            "Set liquid.train_w_raw=true."
+        )
+    if (
+        mode in {"edgewise_soft_conductance", "smooth_lowrank_conductance"}
+        and liq.train_w_raw
+    ):
+        raise ValueError(
+            f"{mode} does not use w_raw. Set liquid.train_w_raw=false."
+        )
+    if mode in soft_gate_modes:
+        if liq.train_w_raw:
+            raise ValueError(
+                f"{mode} uses gate*mag conductance and does not use w_raw. "
+                "Set liquid.train_w_raw=false."
+            )
+        if float(liq.noise_scale) != 0.0:
+            raise ValueError(
+                f"{mode} is deterministic soft-gate topology. "
+                "Set liquid.noise_scale=0.0 to disable Gumbel/sampling noise."
+            )
+    elif float(liq.density_penalty_lambda) != 0.0:
+        raise ValueError(
+            "liquid.density_penalty_lambda is only valid for "
+            "soft_gate_lowrank or soft_gate_edgewise."
+        )
+    if mode not in soft_gate_modes and bool(liq.mag_from_separate_param):
+        raise ValueError(
+            "liquid.mag_from_separate_param is only valid for soft_gate modes."
+        )
+    if mode == "learned_lowrank_frozen_w" and liq.train_w_raw:
+        raise ValueError(
+            "learned_lowrank_frozen_w requires liquid.train_w_raw=false."
+        )
+    if liq.frozen_w_constant_g is not None and float(liq.frozen_w_constant_g) < 0.0:
+        raise ValueError("liquid.frozen_w_constant_g must be non-negative.")
+    if float(liq.temp_init) <= 0.0:
+        raise ValueError("liquid.temp_init must be positive.")
+    if float(liq.temp_final) <= 0.0:
+        raise ValueError("liquid.temp_final must be positive.")
+    for key in ("target_density_init", "target_density_final"):
+        value = float(getattr(liq, key))
+        if not 0.0 < value < 1.0:
+            raise ValueError(f"liquid.{key} must be in (0, 1), got {value}")
+    if int(liq.target_anneal_epochs) < 0:
+        raise ValueError("liquid.target_anneal_epochs must be non-negative.")
+    if float(liq.density_penalty_lambda) < 0.0:
+        raise ValueError("liquid.density_penalty_lambda must be non-negative.")
+
+
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
@@ -341,4 +456,5 @@ def load_config(
     cfg.topology = TopologyConfig(**topo_d)
     cfg.liquid = LiquidConfig(**liq_d)
     cfg.diagnostics = DiagnosticsConfig(**diag_d)
+    _validate_config(cfg)
     return cfg

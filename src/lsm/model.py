@@ -4,9 +4,18 @@ LSM model: InputProjection → LiquidLayer (recurrent) → Readout.
 Liquid topology modes:
   - "learned"       : Gumbel-Sigmoid mask, trained end-to-end
   - "learned_lowrank": Gumbel-Sigmoid mask with directed low-rank theta
+  - "learned_lowrank_frozen_w": learned_lowrank mask with frozen conductance
+  - "softplus_w_only": dense softplus(w_raw) conductance, no topology
+  - "edgewise_soft_conductance": independent softplus(theta_ij) conductance
+  - "smooth_lowrank_conductance": softplus(lowrank logit) conductance
+  - "soft_gate_lowrank": differentiable gate*conductance from low-rank score
+  - "soft_gate_edgewise": differentiable gate*conductance from edge score
   - "random_sparse"  : fixed random binary mask at init
   - "fixed"          : random sparse + weights frozen (traditional LSM)
   - "grad_r"         : hard threshold (theta > 0) mask
+
+Current learned_lowrank baseline:
+  W_eff = mask_lowrank * self_conn_mask * dale_sign * softplus(clamp(w_raw)).
 """
 
 from __future__ import annotations
@@ -18,6 +27,41 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from src.models.layers import sigmoid_ste, spike_fn
+
+
+LOWRANK_MODES = {
+    "learned_lowrank",
+    "learned_lowrank_frozen_w",
+    "smooth_lowrank_conductance",
+    "soft_gate_lowrank",
+}
+HARD_TOPOLOGY_MODES = {"learned", "learned_lowrank", "learned_lowrank_frozen_w"}
+SOFT_GATE_MODES = {"soft_gate_lowrank", "soft_gate_edgewise"}
+SOFT_CONDUCTANCE_MODES = {
+    "softplus_w_only",
+    "edgewise_soft_conductance",
+    "smooth_lowrank_conductance",
+}
+NO_W_RAW_CONDUCTANCE_MODES = {
+    "edgewise_soft_conductance",
+    "smooth_lowrank_conductance",
+    "soft_gate_lowrank",
+    "soft_gate_edgewise",
+}
+VALID_RECURRENT_MODES = {
+    "learned",
+    "learned_lowrank",
+    "learned_lowrank_frozen_w",
+    "softplus_w_only",
+    "edgewise_soft_conductance",
+    "smooth_lowrank_conductance",
+    "soft_gate_lowrank",
+    "soft_gate_edgewise",
+    "random_sparse",
+    "fixed",
+    "grad_r",
+}
+
 
 # ---------------------------------------------------------------------------
 # InputProjection: sparse random mixed-sign input → liquid
@@ -105,6 +149,13 @@ class LiquidLayer(nn.Module):
         w_raw_init_std: float = 0.01,
         train_w_raw: bool = True,
         w_raw_max: float = -1.0,
+        recurrent_weight_scale: float = 1.0,
+        match_initial_w_eff_scale: bool = False,
+        frozen_w_mode: str = "initialized_w",
+        frozen_w_constant_g: float | None = None,
+        soft_gate_temp_init: float = 1.0,
+        soft_gate_target_density_init: float = 0.3,
+        mag_from_separate_param: bool = False,
         beta_min: float = 0.7,
         beta_max: float = 0.95,
         threshold_min: float = 0.8,
@@ -122,9 +173,34 @@ class LiquidLayer(nn.Module):
         self.mode = mode
         self.w_raw_max = w_raw_max
         self.noise_scale = noise_scale
+        self.frozen_w_mode = frozen_w_mode
+        self.mag_from_separate_param = bool(mag_from_separate_param)
 
+        if mode not in VALID_RECURRENT_MODES:
+            raise ValueError(
+                "Unknown liquid mode: "
+                f"{mode!r}; expected one of {sorted(VALID_RECURRENT_MODES)}"
+            )
         if neuron_type not in {"lif", "alif"}:
             raise ValueError(f"Unknown neuron_type: {neuron_type}")
+        if frozen_w_mode not in {"initialized_w", "constant_g"}:
+            raise ValueError(
+                "frozen_w_mode must be one of: initialized_w, constant_g; "
+                f"got {frozen_w_mode!r}"
+            )
+        if mode != "learned_lowrank_frozen_w" and frozen_w_mode != "initialized_w":
+            raise ValueError(
+                "frozen_w_mode is only supported for learned_lowrank_frozen_w."
+            )
+        if float(soft_gate_temp_init) <= 0.0:
+            raise ValueError(
+                f"soft_gate_temp_init must be positive, got {soft_gate_temp_init}"
+            )
+        if not 0.0 < float(soft_gate_target_density_init) < 1.0:
+            raise ValueError(
+                "soft_gate_target_density_init must be in (0, 1), "
+                f"got {soft_gate_target_density_init}"
+            )
         if not 0.0 <= alif_rho_init < 1.0:
             raise ValueError(f"alif_rho_init must be in [0, 1), got {alif_rho_init}")
         if alif_adapt_increment < 0.0:
@@ -140,7 +216,7 @@ class LiquidLayer(nn.Module):
                 torch.randn(n_liquid, n_liquid) * theta_init_std + theta_init_mean,
                 requires_grad=True,
             )
-        elif mode == "learned_lowrank":
+        elif mode in LOWRANK_MODES:
             self.src_embed = nn.Parameter(
                 torch.randn(n_liquid, theta_rank) * theta_lowrank_init_std
             )
@@ -148,6 +224,17 @@ class LiquidLayer(nn.Module):
                 torch.randn(n_liquid, theta_rank) * theta_lowrank_init_std
             )
             self.theta_bias = nn.Parameter(torch.tensor(float(theta_init_mean)))
+        elif mode == "edgewise_soft_conductance":
+            self.theta = nn.Parameter(
+                torch.randn(n_liquid, n_liquid) * theta_init_std + theta_init_mean,
+                requires_grad=True,
+            )
+        elif mode == "soft_gate_edgewise":
+            self.theta = nn.Parameter(
+                torch.randn(n_liquid, n_liquid) * theta_init_std,
+                requires_grad=True,
+            )
+            self.theta_offset = nn.Parameter(torch.tensor(float(theta_init_mean)))
         else:
             self.theta = nn.Parameter(
                 torch.randn(n_liquid, n_liquid) * theta_init_std + theta_init_mean,
@@ -157,10 +244,23 @@ class LiquidLayer(nn.Module):
         # softplus(0)=0.693 is way too large for recurrent nets.
         # With N=200, p=0.2: ~40 inputs/neuron, 80% exc.
         # softplus(-4.0)≈0.018 → recurrent current ≈ 0.58 (sub-threshold)
+        w_raw_requires_grad = (
+            weight_trainable
+            and train_w_raw
+            and mode != "learned_lowrank_frozen_w"
+            and mode not in NO_W_RAW_CONDUCTANCE_MODES
+        )
         self.w_raw = nn.Parameter(
             torch.randn(n_liquid, n_liquid) * w_raw_init_std + w_raw_init_mean,
-            requires_grad=(weight_trainable and train_w_raw),
+            requires_grad=w_raw_requires_grad,
         )
+        if self.mode in SOFT_GATE_MODES and self.mag_from_separate_param:
+            self.w_core = nn.Parameter(
+                torch.randn(n_liquid, n_liquid) * w_raw_init_std + w_raw_init_mean,
+                requires_grad=True,
+            )
+        else:
+            self.w_core = None
         # shuffle so beta/threshold are not correlated with E/I neuron ordering
         beta_vals = torch.linspace(beta_min, beta_max, n_liquid)
         beta_vals = beta_vals[torch.randperm(n_liquid)]
@@ -208,6 +308,15 @@ class LiquidLayer(nn.Module):
         else:
             self_conn_mask = 1.0 - torch.eye(n_liquid)
         self.register_buffer("self_conn_mask", self_conn_mask)
+        self.register_buffer("density_mask", 1.0 - torch.eye(n_liquid))
+        self.register_buffer(
+            "recurrent_weight_scale",
+            torch.tensor(float(recurrent_weight_scale)),
+        )
+        self.register_buffer(
+            "soft_gate_temp",
+            torch.tensor(float(soft_gate_temp_init)),
+        )
 
         # --- fixed mask for random_sparse / fixed modes ---
         if mode in ("random_sparse", "fixed"):
@@ -222,6 +331,20 @@ class LiquidLayer(nn.Module):
 
         # cached mask for current simulation
         self.current_mask: torch.Tensor | None = None
+        self.register_buffer(
+            "frozen_w_constant_g",
+            torch.tensor(0.0 if frozen_w_constant_g is None else float(frozen_w_constant_g)),
+        )
+        if mode == "learned_lowrank_frozen_w" and frozen_w_mode == "constant_g":
+            if frozen_w_constant_g is None:
+                self._initialize_frozen_w_constant_g()
+        if mode == "smooth_lowrank_conductance" and match_initial_w_eff_scale:
+            self._match_initial_lowrank_conductance_scale()
+        if mode in SOFT_GATE_MODES:
+            self._initialize_soft_gate_density(
+                target_density=float(soft_gate_target_density_init),
+                temp=float(soft_gate_temp_init),
+            )
         # epoch-level Gumbel noise (Phase 2): stored here, STE recomputed each batch
         self._epoch_noise: torch.Tensor | None = None
         self._epoch_tau: float = 1.0
@@ -249,15 +372,21 @@ class LiquidLayer(nn.Module):
     def get_theta(self) -> torch.Tensor:
         if self.mode == "learned":
             return self.theta
-        if self.mode == "learned_lowrank":
+        if self.mode in LOWRANK_MODES:
             return self.src_embed @ self.dst_embed.T + self.theta_bias
+        if self.mode == "edgewise_soft_conductance":
+            return self.theta
+        if self.mode == "soft_gate_edgewise":
+            return self.theta + self.theta_offset
         raise RuntimeError(f"Topology logits are not defined for mode: {self.mode}")
 
     def topology_parameters(self) -> list[nn.Parameter]:
-        if self.mode in ("learned", "grad_r"):
+        if self.mode in ("learned", "grad_r", "edgewise_soft_conductance"):
             return [self.theta]
-        if self.mode == "learned_lowrank":
+        if self.mode in LOWRANK_MODES:
             return [self.src_embed, self.dst_embed, self.theta_bias]
+        if self.mode == "soft_gate_edgewise":
+            return [self.theta, self.theta_offset]
         return []
 
     def set_topology_requires_grad(self, requires_grad: bool) -> None:
@@ -265,21 +394,28 @@ class LiquidLayer(nn.Module):
             param.requires_grad_(requires_grad)
 
     def topology_state_dict(self) -> dict[str, torch.Tensor]:
-        if self.mode == "learned_lowrank":
+        if self.mode in LOWRANK_MODES:
             return {
                 "src_embed": self.src_embed.detach().clone(),
                 "dst_embed": self.dst_embed.detach().clone(),
                 "theta_bias": self.theta_bias.detach().clone(),
             }
-        if self.mode in ("learned", "grad_r"):
+        if self.mode in ("learned", "grad_r", "edgewise_soft_conductance"):
             return {"theta": self.theta.detach().clone()}
+        if self.mode == "soft_gate_edgewise":
+            return {
+                "theta": self.theta.detach().clone(),
+                "theta_offset": self.theta_offset.detach().clone(),
+            }
         return {}
 
     def load_topology_state_dict(self, state: dict[str, torch.Tensor]) -> None:
-        if self.mode == "learned_lowrank":
+        if self.mode in LOWRANK_MODES:
             required_keys = {"src_embed", "dst_embed", "theta_bias"}
-        elif self.mode in ("learned", "grad_r"):
+        elif self.mode in ("learned", "grad_r", "edgewise_soft_conductance"):
             required_keys = {"theta"}
+        elif self.mode == "soft_gate_edgewise":
+            required_keys = {"theta", "theta_offset"}
         else:
             if state:
                 raise ValueError(
@@ -294,12 +430,229 @@ class LiquidLayer(nn.Module):
             )
 
         with torch.no_grad():
-            if self.mode == "learned_lowrank":
+            if self.mode in LOWRANK_MODES:
                 self.src_embed.copy_(state["src_embed"])
                 self.dst_embed.copy_(state["dst_embed"])
                 self.theta_bias.copy_(state["theta_bias"])
+            elif self.mode == "soft_gate_edgewise":
+                self.theta.copy_(state["theta"])
+                self.theta_offset.copy_(state["theta_offset"])
             else:
                 self.theta.copy_(state["theta"])
+
+    def _w_raw_conductance(self) -> torch.Tensor:
+        return F.softplus(torch.clamp(self.w_raw, max=self.w_raw_max))
+
+    def _lowrank_conductance(self) -> torch.Tensor:
+        return F.softplus(self.get_theta())
+
+    def _edgewise_conductance(self) -> torch.Tensor:
+        return F.softplus(self.theta)
+
+    def _hard_lowrank_mask(self) -> torch.Tensor:
+        theta = self.get_theta()
+        return (torch.sigmoid(theta) >= 0.5).float()
+
+    def set_soft_gate_temperature(self, temp: float) -> None:
+        if self.mode not in SOFT_GATE_MODES:
+            return
+        if float(temp) <= 0.0:
+            raise ValueError(f"soft-gate temperature must be positive, got {temp}")
+        self.soft_gate_temp.copy_(
+            torch.as_tensor(float(temp), device=self.soft_gate_temp.device)
+        )
+
+    def _soft_gate_gate(
+        self,
+        score: torch.Tensor | None = None,
+        temp: float | torch.Tensor | None = None,
+    ) -> torch.Tensor:
+        if score is None:
+            score = self.get_theta()
+        if temp is None:
+            temp_t = self.soft_gate_temp.to(device=score.device, dtype=score.dtype)
+        else:
+            temp_t = torch.as_tensor(temp, device=score.device, dtype=score.dtype)
+        return torch.sigmoid(score / temp_t.clamp_min(torch.finfo(score.dtype).eps))
+
+    def _soft_gate_mag(self, score: torch.Tensor | None = None) -> torch.Tensor:
+        if self.mag_from_separate_param:
+            if self.w_core is None:
+                raise RuntimeError("mag_from_separate_param=true but w_core is missing")
+            return F.softplus(self.w_core)
+        if score is None:
+            score = self.get_theta()
+        return F.softplus(score)
+
+    def soft_gate_components(
+        self,
+        *,
+        temp: float | torch.Tensor | None = None,
+        use_current_gate: bool = False,
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        if self.mode not in SOFT_GATE_MODES:
+            raise RuntimeError(f"soft-gate components are not defined for {self.mode!r}")
+        score = self.get_theta()
+        if use_current_gate and self.current_mask is not None:
+            gate = self.current_mask
+        else:
+            gate = self._soft_gate_gate(score, temp=temp)
+        mag = self._soft_gate_mag(score)
+        return score, gate, mag
+
+    def soft_gate_density(self, gate: torch.Tensor | None = None) -> torch.Tensor:
+        if self.mode not in SOFT_GATE_MODES:
+            raise RuntimeError(f"soft density is not defined for mode {self.mode!r}")
+        if gate is None:
+            gate = (
+                self.current_mask
+                if self.current_mask is not None
+                else self._soft_gate_gate()
+            )
+        mask = self.density_mask.to(device=gate.device, dtype=gate.dtype)
+        return (gate * mask).sum() / mask.sum().clamp_min(1.0)
+
+    def soft_gate_density_penalty(
+        self, target_density: float | torch.Tensor
+    ) -> torch.Tensor:
+        density = self.soft_gate_density()
+        target = torch.as_tensor(
+            target_density, device=density.device, dtype=density.dtype
+        )
+        return (density - target) ** 2
+
+    def soft_gate_stats(
+        self,
+        *,
+        target_density: float | None = None,
+        hard_eps: float = 1e-12,
+    ) -> dict[str, float]:
+        if self.mode not in SOFT_GATE_MODES:
+            return {}
+        with torch.no_grad():
+            score, gate, mag = self.soft_gate_components()
+            w_eff = (
+                self.recurrent_weight_scale
+                * self.self_conn_mask
+                * self.dale_sign
+                * gate
+                * mag
+            ).detach().float()
+            mask = self.density_mask.detach().bool()
+            score_v = score.detach().float()[mask]
+            gate_v = gate.detach().float()[mask]
+            mag_v = mag.detach().float()[mask]
+            w_v = w_eff[mask]
+            out = {
+                "soft_density": float(gate_v.mean().item()) if gate_v.numel() else 0.0,
+                "hard_active_fraction": (
+                    float((w_v.abs() > hard_eps).float().mean().item())
+                    if w_v.numel()
+                    else 0.0
+                ),
+                "soft_gate_temp": float(self.soft_gate_temp.detach().cpu().item()),
+                "score_mean": float(score_v.mean().item()) if score_v.numel() else 0.0,
+                "score_std": (
+                    float(score_v.std(unbiased=False).item())
+                    if score_v.numel() > 1
+                    else 0.0
+                ),
+                "gate_mean": float(gate_v.mean().item()) if gate_v.numel() else 0.0,
+                "gate_p50": (
+                    float(torch.quantile(gate_v, 0.50).item())
+                    if gate_v.numel()
+                    else 0.0
+                ),
+                "gate_p95": (
+                    float(torch.quantile(gate_v, 0.95).item())
+                    if gate_v.numel()
+                    else 0.0
+                ),
+                "mag_mean": float(mag_v.mean().item()) if mag_v.numel() else 0.0,
+                "mag_max": float(mag_v.max().item()) if mag_v.numel() else 0.0,
+                "soft_gate_w_eff_mean": (
+                    float(w_v.mean().item()) if w_v.numel() else 0.0
+                ),
+                "soft_gate_w_eff_abs_max": (
+                    float(w_v.abs().max().item()) if w_v.numel() else 0.0
+                ),
+                "soft_gate_w_eff_fro_norm": float(w_eff.norm().item()),
+            }
+            if target_density is not None:
+                target = float(target_density)
+                out["target_density"] = target
+                out["density_penalty"] = (out["soft_density"] - target) ** 2
+            return out
+
+    def _shift_soft_gate_score(self, delta: torch.Tensor) -> None:
+        if self.mode == "soft_gate_lowrank":
+            self.theta_bias.add_(
+                delta.to(device=self.theta_bias.device, dtype=self.theta_bias.dtype)
+            )
+        elif self.mode == "soft_gate_edgewise":
+            self.theta_offset.add_(
+                delta.to(device=self.theta_offset.device, dtype=self.theta_offset.dtype)
+            )
+        else:
+            raise RuntimeError(f"soft-gate score shift is not defined for {self.mode!r}")
+
+    def _initialize_soft_gate_density(self, target_density: float, temp: float) -> None:
+        if self.mode not in SOFT_GATE_MODES:
+            return
+        with torch.no_grad():
+            valid = self.density_mask.bool()
+            score0 = self.get_theta().detach()
+            score0_valid = score0[valid]
+            if score0_valid.numel() == 0:
+                return
+            q = torch.quantile(score0_valid.float(), 1.0 - float(target_density)).to(
+                score0.device
+            )
+            self._shift_soft_gate_score(-q)
+
+            # The quantile step makes score>0 match the desired hard fraction.
+            # The density penalty, however, sees mean(sigmoid(score/temp)), so
+            # finish with a scalar bisection shift that matches that actual tensor.
+            lo = score0_valid.new_tensor(-80.0)
+            hi = score0_valid.new_tensor(80.0)
+            target = score0_valid.new_tensor(float(target_density))
+            valid = valid.to(device=score0.device)
+            for _ in range(80):
+                mid = (lo + hi) * 0.5
+                shifted_score = self.get_theta() + mid
+                gate = self._soft_gate_gate(shifted_score, temp=float(temp))[valid]
+                if gate.mean() < target:
+                    lo = mid
+                else:
+                    hi = mid
+            self._shift_soft_gate_score((lo + hi) * 0.5)
+
+    def _initialize_frozen_w_constant_g(self) -> None:
+        with torch.no_grad():
+            valid = self.self_conn_mask.bool()
+            active = (self._hard_lowrank_mask() * self.self_conn_mask).bool()
+            conductance = self._w_raw_conductance()
+            selected = conductance[active]
+            if selected.numel() == 0:
+                selected = conductance[valid]
+            if selected.numel() == 0:
+                value = conductance.new_tensor(0.0)
+            else:
+                value = selected.square().mean().sqrt()
+            self.frozen_w_constant_g.copy_(value.detach())
+
+    def _match_initial_lowrank_conductance_scale(self) -> None:
+        with torch.no_grad():
+            target = (
+                self._hard_lowrank_mask()
+                * self.self_conn_mask
+                * self.dale_sign
+                * self._w_raw_conductance()
+            )
+            raw = self.self_conn_mask * self.dale_sign * self._lowrank_conductance()
+            raw_norm = raw.norm()
+            if bool(torch.isfinite(raw_norm).item()) and raw_norm.item() > 1e-12:
+                self.recurrent_weight_scale.copy_((target.norm() / raw_norm).detach())
 
     def freeze_topology(self) -> None:
         self.set_topology_requires_grad(False)
@@ -335,7 +688,7 @@ class LiquidLayer(nn.Module):
             other batches this epoch, but a fresh computation graph each call.
         Phase 1 / eval: deterministic hard mask, no gradient.
         """
-        if self.mode in ("learned", "learned_lowrank"):
+        if self.mode in HARD_TOPOLOGY_MODES:
             theta = self.get_theta()
             if self._epoch_noise is not None:
                 # Phase 2: recompute STE with the epoch noise every batch.
@@ -365,15 +718,55 @@ class LiquidLayer(nn.Module):
                 self.current_mask = sigmoid_ste(self.theta)
             else:
                 self.current_mask = (self.theta > 0).float()
+        elif self.mode in SOFT_GATE_MODES:
+            self.current_mask = self._soft_gate_gate()
+        elif self.mode in SOFT_CONDUCTANCE_MODES:
+            self.current_mask = torch.ones_like(self.self_conn_mask)
         else:
             raise ValueError(f"Unknown liquid mode: {self.mode}")
         return self.current_mask
 
     def get_effective_weight(self) -> torch.Tensor:
-        """Compute effective weight: mask * self_conn * (dale_sign * softplus(w_raw))."""
-        w_clamped = torch.clamp(self.w_raw, max=self.w_raw_max)
-        signed_w = self.dale_sign * F.softplus(w_clamped)  # (N, N)
-        return self.current_mask * self.self_conn_mask * signed_w
+        """Compute the effective recurrent matrix.
+
+        Existing learned_lowrank baseline:
+            W_eff = current_mask * self_conn_mask * dale_sign * softplus(clamp(w_raw)).
+        New soft-conductance ablations replace only the conductance generator while
+        keeping Dale sign and self-connection masking fixed.
+        """
+        if self.mode == "softplus_w_only":
+            return self.self_conn_mask * self.dale_sign * self._w_raw_conductance()
+        if self.mode == "edgewise_soft_conductance":
+            return self.self_conn_mask * self.dale_sign * self._edgewise_conductance()
+        if self.mode == "smooth_lowrank_conductance":
+            return (
+                self.recurrent_weight_scale
+                * self.self_conn_mask
+                * self.dale_sign
+                * self._lowrank_conductance()
+            )
+        if self.mode in SOFT_GATE_MODES:
+            if self.current_mask is None:
+                self.sample_mask()
+            score = self.get_theta()
+            mag = self._soft_gate_mag(score)
+            return (
+                self.recurrent_weight_scale
+                * self.self_conn_mask
+                * self.dale_sign
+                * self.current_mask
+                * mag
+            )
+        if self.current_mask is None and self.mode not in SOFT_CONDUCTANCE_MODES:
+            self.sample_mask()
+        if self.mode == "learned_lowrank_frozen_w" and self.frozen_w_mode == "constant_g":
+            return (
+                self.current_mask
+                * self.self_conn_mask
+                * self.dale_sign
+                * self.frozen_w_constant_g
+            )
+        return self.current_mask * self.self_conn_mask * self.dale_sign * self._w_raw_conductance()
 
     def forward(self, spike: torch.Tensor) -> torch.Tensor:
         """
@@ -395,9 +788,16 @@ class LiquidLayer(nn.Module):
             return self.fixed_mask
         if self.mode == "grad_r":
             return (self.theta > 0).float() * self.self_conn_mask
-        if self.mode in ("learned", "learned_lowrank"):
+        if self.mode in HARD_TOPOLOGY_MODES:
             theta = self.get_theta()
             return ((torch.sigmoid(theta) >= 0.5).float()) * self.self_conn_mask
+        if self.mode == "softplus_w_only":
+            return self.self_conn_mask
+        if self.mode in ("edgewise_soft_conductance", "smooth_lowrank_conductance"):
+            return (self.get_theta() > 0).float() * self.self_conn_mask
+        if self.mode in SOFT_GATE_MODES:
+            gate = self._soft_gate_gate()
+            return (gate >= 0.5).float() * self.density_mask
         raise RuntimeError(f"Unknown liquid mode: {self.mode}")
 
 
@@ -644,6 +1044,13 @@ class LSMModel(nn.Module):
         w_raw_init_std: float = 0.01,
         train_w_raw: bool = True,
         w_raw_max: float = -1.0,
+        recurrent_weight_scale: float = 1.0,
+        match_initial_w_eff_scale: bool = False,
+        frozen_w_mode: str = "initialized_w",
+        frozen_w_constant_g: float | None = None,
+        soft_gate_temp_init: float = 1.0,
+        soft_gate_target_density_init: float = 0.3,
+        mag_from_separate_param: bool = False,
         bptt_truncate: int = 0,
         alif_rho_init: float = 0.9,
         alif_beta_init: float = 0.4,
@@ -718,6 +1125,13 @@ class LSMModel(nn.Module):
             w_raw_init_std=w_raw_init_std,
             train_w_raw=train_w_raw,
             w_raw_max=w_raw_max,
+            recurrent_weight_scale=recurrent_weight_scale,
+            match_initial_w_eff_scale=match_initial_w_eff_scale,
+            frozen_w_mode=frozen_w_mode,
+            frozen_w_constant_g=frozen_w_constant_g,
+            soft_gate_temp_init=soft_gate_temp_init,
+            soft_gate_target_density_init=soft_gate_target_density_init,
+            mag_from_separate_param=mag_from_separate_param,
             beta_min=beta_min,
             beta_max=beta_max,
             threshold_min=threshold_min,
@@ -841,6 +1255,8 @@ class LSMModel(nn.Module):
             diag_count = batch_size * self.T * self.n_liquid
             diag_membrane_sum = torch.zeros((), device=device)
             diag_membrane_max = None
+            diag_input_abs_sum = torch.zeros((), device=device)
+            diag_input_abs_max = None
             diag_recurrent_abs_sum = torch.zeros((), device=device)
             diag_recurrent_abs_max = None
             diag_adaptation_sum = torch.zeros((), device=device)
@@ -897,6 +1313,7 @@ class LSMModel(nn.Module):
 
             if return_diagnostics:
                 liquid_mem_detached = liquid_mem.detach()
+                input_abs = input_current.detach().abs()
                 recurrent_abs = recurrent_current.detach().abs()
                 diag_membrane_sum = diag_membrane_sum + liquid_mem_detached.sum()
                 current_membrane_max = liquid_mem_detached.max()
@@ -904,6 +1321,13 @@ class LSMModel(nn.Module):
                     current_membrane_max
                     if diag_membrane_max is None
                     else torch.maximum(diag_membrane_max, current_membrane_max)
+                )
+                diag_input_abs_sum = diag_input_abs_sum + input_abs.sum()
+                current_input_abs_max = input_abs.max()
+                diag_input_abs_max = (
+                    current_input_abs_max
+                    if diag_input_abs_max is None
+                    else torch.maximum(diag_input_abs_max, current_input_abs_max)
                 )
                 diag_recurrent_abs_sum = (
                     diag_recurrent_abs_sum + recurrent_abs.sum()
@@ -1039,6 +1463,8 @@ class LSMModel(nn.Module):
         diagnostics = None
         if return_diagnostics:
             denom = max(diag_count, 1)
+            input_abs_mean = diag_input_abs_sum / denom
+            recurrent_abs_mean = diag_recurrent_abs_sum / denom
             diagnostics = {
                 "mean_spike_rate": float(
                     (spike_sum / self.T).mean().detach().cpu().item()
@@ -1072,8 +1498,21 @@ class LSMModel(nn.Module):
                     .cpu()
                     .item()
                 ),
+                "input_current_abs_mean": float(
+                    input_abs_mean.detach().cpu().item()
+                ),
+                "input_current_abs_max": float(
+                    (
+                        torch.zeros((), device=device)
+                        if diag_input_abs_max is None
+                        else diag_input_abs_max
+                    )
+                    .detach()
+                    .cpu()
+                    .item()
+                ),
                 "recurrent_current_abs_mean": float(
-                    (diag_recurrent_abs_sum / denom).detach().cpu().item()
+                    recurrent_abs_mean.detach().cpu().item()
                 ),
                 "recurrent_current_abs_max": float(
                     (
@@ -1081,6 +1520,12 @@ class LSMModel(nn.Module):
                         if diag_recurrent_abs_max is None
                         else diag_recurrent_abs_max
                     )
+                    .detach()
+                    .cpu()
+                    .item()
+                ),
+                "rec_input_abs_ratio": float(
+                    (recurrent_abs_mean / input_abs_mean.clamp(min=1e-12))
                     .detach()
                     .cpu()
                     .item()
@@ -1113,7 +1558,7 @@ class LSMModel(nn.Module):
     def sparsity_loss(self) -> torch.Tensor:
         # sparsity_loss는 theta 값을 조정하여 시그모이드 함수를 통과한에
         # 결과가 0에 더 가깝게 하여 분포가 희소하게 만드는 역할을 함.
-        if self.liquid.mode not in ("learned", "learned_lowrank"):
+        if self.liquid.mode not in HARD_TOPOLOGY_MODES:
             return torch.zeros((), device=self.readout.weight.device)
         theta = self.liquid.get_theta()
         return torch.sigmoid(theta).mean()
@@ -1121,7 +1566,7 @@ class LSMModel(nn.Module):
     def commitment_loss(self) -> torch.Tensor:
         # theta를 시그모이드를 통과한 것의 분포가 0 또는 1에 몰리게 하는 결과를 내도록 함
         # 만약 theta가 0.5 근처에 존재한다면 엣지의 존재유무가 확확 바뀌기 때문에 불안정해진다.
-        if self.liquid.mode not in ("learned", "learned_lowrank"):
+        if self.liquid.mode not in HARD_TOPOLOGY_MODES:
             return torch.zeros((), device=self.readout.weight.device)
         eps = 1e-6
         theta = self.liquid.get_theta()
