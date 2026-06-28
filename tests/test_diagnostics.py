@@ -20,6 +20,7 @@ from src.lsm.diagnostics import (
     safe_mean,
     safe_min,
 )
+from src.lsm.model import LiquidLayer
 from src.utils.config import Config, load_config
 
 
@@ -29,6 +30,7 @@ class _FakeLiquid:
         self._values = values
         self.self_conn_mask = 1.0 - torch.eye(values.shape[0])
         self.theta_bias = torch.tensor(-1.0)
+        self.fixed_mask = values if mode in {"fixed", "random_sparse"} else None
 
     def get_theta(self):
         return self._values
@@ -94,7 +96,67 @@ class DiagnosticsTest(unittest.TestCase):
         self.assertEqual(source, "probabilities_direct")
         self.assertTrue(torch.allclose(edge_probs, probs))
 
-    def test_collect_epoch_diagnostics_marks_trace_only_and_interval_skips(self):
+    def test_soft_gate_probability_source_uses_actual_gate(self):
+        liquid = LiquidLayer(
+            3,
+            mode="soft_gate_edgewise",
+            theta_init_std=0.0,
+            train_w_raw=False,
+            self_connection=False,
+            soft_gate_temp_init=0.5,
+            soft_gate_target_density_init=0.3,
+        )
+        with torch.no_grad():
+            liquid.theta.copy_(
+                torch.tensor(
+                    [
+                        [0.0, -1.0, 1.0],
+                        [2.0, 0.0, -2.0],
+                        [0.5, -0.5, 0.0],
+                    ]
+                )
+            )
+            liquid.theta_offset.zero_()
+        model = type("Model", (), {"liquid": liquid})()
+
+        edge_probs, valid, source = deterministic_edge_probabilities(model)
+
+        self.assertEqual(source, "soft_gate")
+        self.assertTrue(
+            torch.equal(
+                valid,
+                torch.tensor(
+                    [
+                        [False, True, True],
+                        [True, False, True],
+                        [True, True, False],
+                    ]
+                ),
+            )
+        )
+        self.assertTrue(
+            torch.allclose(edge_probs, torch.sigmoid(liquid.get_theta() / 0.5))
+        )
+
+    def test_fixed_mask_topology_metrics_include_degree_gini(self):
+        mask = torch.tensor(
+            [
+                [0.0, 1.0, 0.0],
+                [1.0, 0.0, 1.0],
+                [0.0, 0.0, 0.0],
+            ]
+        )
+        model = _FakeModel(mask, mode="fixed")
+
+        metrics = collect_topology_metrics(model)
+
+        self.assertEqual(metrics["topology_probability_source"], "fixed_mask:fixed")
+        self.assertIsNotNone(metrics["edge_prob_entropy"])
+        self.assertLess(metrics["edge_prob_entropy"], 1e-4)
+        self.assertIsNotNone(metrics["in_degree_gini"])
+        self.assertIsNotNone(metrics["out_degree_gini"])
+
+    def test_collect_epoch_diagnostics_uses_raw_activity_and_interval_skips(self):
         cfg = Config()
         cfg.diagnostics.topology_log_interval = 5
         model = _FakeModel(torch.zeros(3, 3))
@@ -108,6 +170,13 @@ class DiagnosticsTest(unittest.TestCase):
             "max_firing_rate": 0.4,
             "mean_adaptation": 0.2,
             "max_adaptation": 0.5,
+            "membrane_mean": 0.05,
+            "membrane_max": 0.2,
+            "input_current_abs_mean": 0.4,
+            "input_current_abs_max": 0.9,
+            "recurrent_current_abs_mean": 0.8,
+            "recurrent_current_abs_max": 1.5,
+            "rec_input_abs_ratio": 2.0,
             "topology_grad_pre_clip": 2.0,
             "topology_grad_post_clip": 1.0,
             "test_at_best_val_expected": False,
@@ -116,12 +185,11 @@ class DiagnosticsTest(unittest.TestCase):
         row = collect_epoch_diagnostics(model, raw, cfg)
 
         self.assertIn("edge_prob_entropy", row["interval_skipped_metrics"])
-        self.assertIn(
-            "rec_input_abs_ratio",
-            row["unsupported_without_extra_forward_trace_metrics"],
-        )
+        self.assertEqual(row["unsupported_without_extra_forward_trace_metrics"], [])
         self.assertIsNone(row["edge_prob_entropy"])
-        self.assertIsNone(row["rec_input_abs_ratio"])
+        self.assertEqual(row["rec_input_abs_ratio"], 2.0)
+        self.assertEqual(row["input_current_abs_mean"], 0.4)
+        self.assertEqual(row["recurrent_current_abs_mean"], 0.8)
         self.assertAlmostEqual(row["silent_fraction"], 1.0 / 3.0)
         self.assertAlmostEqual(row["overactive_fraction"], 1.0 / 3.0)
 
@@ -161,13 +229,9 @@ class DiagnosticsTest(unittest.TestCase):
                     "out_degree_gini": 0.1,
                     "max_in_degree": 1.0,
                     "max_out_degree": 1.0,
-                    "rec_input_abs_ratio": None,
+                    "rec_input_abs_ratio": 1.5,
                     "interval_skipped_metrics": [],
-                    "unsupported_without_extra_forward_trace_metrics": [
-                        "rec_input_abs_ratio",
-                        "membrane_mean",
-                        "membrane_max",
-                    ],
+                    "unsupported_without_extra_forward_trace_metrics": [],
                 },
             )
 
@@ -178,9 +242,9 @@ class DiagnosticsTest(unittest.TestCase):
             self.assertTrue((root / "run_summary.json").exists())
             self.assertTrue((root / "red_flags.json").exists())
             self.assertTrue((root / "diagnostic_report.md").exists())
-            self.assertIn(
-                "rec_input_abs_ratio",
+            self.assertEqual(
                 summary["unsupported_without_extra_forward_trace_metrics"],
+                [],
             )
             self.assertNotIn(
                 "test_at_best_val",
@@ -211,19 +275,21 @@ class DiagnosticsTest(unittest.TestCase):
                     "overactive_fraction": 0.0,
                     "adaptation_mean": 0.1,
                     "adaptation_max": 0.2,
+                    "membrane_mean": 0.0,
+                    "membrane_max": 0.1,
                     "theta_grad_norm_pre_clip": 1.0,
                     "theta_grad_norm_post_clip": 1.0,
+                    "theta_bias": -1.0,
                     "edge_prob_entropy": 0.6,
+                    "edge_prob_mean": 0.2,
+                    "edge_prob_std": 0.1,
                     "top_edge_prob_mean": 0.6,
                     "in_degree_gini": 0.1,
                     "out_degree_gini": 0.1,
                     "max_in_degree": 1.0,
                     "max_out_degree": 1.0,
-                    "unsupported_without_extra_forward_trace_metrics": [
-                        "rec_input_abs_ratio",
-                        "membrane_mean",
-                        "membrane_max",
-                    ],
+                    "rec_input_abs_ratio": 1.0,
+                    "unsupported_without_extra_forward_trace_metrics": [],
                 },
                 {
                     "epoch": 2,
@@ -240,19 +306,21 @@ class DiagnosticsTest(unittest.TestCase):
                     "overactive_fraction": 0.0,
                     "adaptation_mean": 0.1,
                     "adaptation_max": 0.2,
+                    "membrane_mean": 0.0,
+                    "membrane_max": 0.1,
                     "theta_grad_norm_pre_clip": 1.0,
                     "theta_grad_norm_post_clip": 1.0,
+                    "theta_bias": -1.0,
                     "edge_prob_entropy": 0.3,
+                    "edge_prob_mean": 0.3,
+                    "edge_prob_std": 0.1,
                     "top_edge_prob_mean": 0.8,
                     "in_degree_gini": 0.4,
                     "out_degree_gini": 0.3,
                     "max_in_degree": 2.0,
                     "max_out_degree": 2.0,
-                    "unsupported_without_extra_forward_trace_metrics": [
-                        "rec_input_abs_ratio",
-                        "membrane_mean",
-                        "membrane_max",
-                    ],
+                    "rec_input_abs_ratio": 1.2,
+                    "unsupported_without_extra_forward_trace_metrics": [],
                 },
             ]
             logger.rows = rows

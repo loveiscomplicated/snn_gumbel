@@ -9,6 +9,7 @@ from torch.utils.data import DataLoader, TensorDataset
 
 from src.lsm.initialization.fdi_calibration import (
     _scale_input_projection,
+    _scale_recurrent_weight,
     calibrate_fdi_style_initial_regime,
     collect_initial_regime_stats,
 )
@@ -180,6 +181,27 @@ class FDICalibrationTest(unittest.TestCase):
         self.assertTrue(
             torch.all(model.input_proj.effective_weight()[model.input_proj.mask == 0] == 0)
         )
+
+    def test_recurrent_scale_helper_uses_soft_gate_scale_buffer(self):
+        cfg = _make_config()
+        cfg.liquid.recurrent_mode = "soft_gate_lowrank"
+        cfg.liquid.train_w_raw = False
+        cfg.liquid.noise_scale = 0.0
+        cfg.liquid.temp_init = 1.0
+        cfg.liquid.target_density_init = 0.3
+        model = build_model(cfg, self.device)
+        model.liquid.sample_mask()
+        original_w = model.liquid.get_effective_weight().detach().clone()
+        original_score = model.liquid.get_theta().detach().clone()
+
+        with torch.no_grad():
+            ok, reason = _scale_recurrent_weight(model, 0.75)
+
+        self.assertTrue(ok, reason)
+        self.assertIsNone(reason)
+        self.assertAlmostEqual(float(model.liquid.recurrent_weight_scale.item()), 0.75)
+        self.assertTrue(torch.allclose(model.liquid.get_theta(), original_score))
+        self.assertTrue(torch.allclose(model.liquid.get_effective_weight(), original_w * 0.75))
 
     def test_calibration_scales_learned_sparse_input_projection_parameter(self):
         cfg = _make_config()

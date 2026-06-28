@@ -453,6 +453,34 @@ def _scale_recurrent_weight(model, scale: float) -> tuple[bool, str | None]:
     liquid = getattr(model, "liquid", None)
     if liquid is None:
         return False, "recurrent_scale skipped: model has no liquid layer"
+    mode = str(getattr(liquid, "mode", "")).lower()
+    if mode in {
+        "smooth_lowrank_conductance",
+        "soft_gate_lowrank",
+        "soft_gate_edgewise",
+    }:
+        recurrent_weight_scale = getattr(liquid, "recurrent_weight_scale", None)
+        if not torch.is_tensor(recurrent_weight_scale):
+            return (
+                False,
+                "recurrent_scale skipped: recurrent_weight_scale is unavailable",
+            )
+        recurrent_weight_scale.mul_(float(scale))
+        return True, None
+    if mode == "edgewise_soft_conductance":
+        theta = getattr(liquid, "theta", None)
+        if not torch.is_tensor(theta):
+            return False, "recurrent_scale skipped: edgewise theta is unavailable"
+        current_mag = F.softplus(theta.detach())
+        target_raw = _inverse_softplus(current_mag * float(scale))
+        theta.copy_(target_raw.to(device=theta.device, dtype=theta.dtype))
+        return True, None
+    if mode == "learned_lowrank_frozen_w" and getattr(liquid, "frozen_w_mode", "") == "constant_g":
+        constant_g = getattr(liquid, "frozen_w_constant_g", None)
+        if not torch.is_tensor(constant_g):
+            return False, "recurrent_scale skipped: frozen constant_g is unavailable"
+        constant_g.mul_(float(scale))
+        return True, None
     if not hasattr(liquid, "w_raw") or not torch.is_tensor(liquid.w_raw):
         return False, "recurrent_scale skipped: liquid has no w_raw tensor"
     if not hasattr(liquid, "w_raw_max"):
@@ -510,6 +538,26 @@ def _supports_recurrent_scale(model) -> tuple[bool, str | None]:
     liquid = getattr(model, "liquid", None)
     if liquid is None:
         return False, "recurrent_scale skipped: model has no liquid layer"
+    mode = str(getattr(liquid, "mode", "")).lower()
+    if mode in {
+        "smooth_lowrank_conductance",
+        "soft_gate_lowrank",
+        "soft_gate_edgewise",
+    }:
+        if torch.is_tensor(getattr(liquid, "recurrent_weight_scale", None)):
+            return True, None
+        return (
+            False,
+            "recurrent_scale skipped: recurrent_weight_scale is unavailable",
+        )
+    if mode == "edgewise_soft_conductance":
+        if torch.is_tensor(getattr(liquid, "theta", None)):
+            return True, None
+        return False, "recurrent_scale skipped: edgewise theta is unavailable"
+    if mode == "learned_lowrank_frozen_w" and getattr(liquid, "frozen_w_mode", "") == "constant_g":
+        if torch.is_tensor(getattr(liquid, "frozen_w_constant_g", None)):
+            return True, None
+        return False, "recurrent_scale skipped: frozen constant_g is unavailable"
     if not hasattr(liquid, "w_raw") or not torch.is_tensor(liquid.w_raw):
         return False, "recurrent_scale skipped: liquid has no w_raw tensor"
     if not hasattr(liquid, "w_raw_max"):

@@ -64,7 +64,7 @@ INTERVAL_TOPOLOGY_METRICS = (
     "max_in_degree",
     "max_out_degree",
 )
-TRACE_ONLY_METRICS = ("rec_input_abs_ratio", "membrane_mean", "membrane_max")
+TRACE_ONLY_METRICS: tuple[str, ...] = ()
 
 
 def safe_float(value: Any) -> float | None:
@@ -159,7 +159,8 @@ def entropy(probabilities: Any) -> float | None:
     p = p[torch.isfinite(p)]
     if p.numel() == 0:
         return None
-    p = p.clamp(EPS, 1.0 - EPS)
+    eps = max(EPS, float(torch.finfo(p.dtype).eps))
+    p = p.clamp(eps, 1.0 - eps)
     ent = -(p * torch.log(p) + (1.0 - p) * torch.log(1.0 - p))
     return safe_float(ent.mean())
 
@@ -247,7 +248,7 @@ def _largest_drop_epoch(rows: list[dict[str, Any]], key: str) -> int | None:
 
 def _infer_probability_source(raw: torch.Tensor, recurrent_mode: str) -> str:
     mode = str(recurrent_mode).lower()
-    if mode in {"learned", "learned_lowrank", "grad_r"}:
+    if mode in {"learned", "learned_lowrank", "learned_lowrank_frozen_w", "grad_r"}:
         return "logits_sigmoid"
     finite = raw.detach().float().reshape(-1)
     finite = finite[torch.isfinite(finite)]
@@ -264,8 +265,38 @@ def deterministic_edge_probabilities(
     if liquid is None or not hasattr(liquid, "get_theta"):
         return None, None, "unavailable"
     mode = str(getattr(liquid, "mode", "")).lower()
-    if mode in {"random_sparse", "fixed", "none", "no_recurrence"}:
+    self_mask = getattr(liquid, "self_conn_mask", None)
+    if self_mask is None:
+        valid_mask = None
+    else:
+        valid_mask = self_mask.detach().bool().cpu()
+    if mode in {"random_sparse", "fixed"}:
+        fixed_mask = getattr(liquid, "fixed_mask", None)
+        if fixed_mask is None:
+            return None, None, f"unsupported_mode:{mode or 'unknown'}"
+        probs = fixed_mask.detach().float().cpu().clamp(0.0, 1.0)
+        if valid_mask is None:
+            valid_mask = torch.ones_like(probs, dtype=torch.bool)
+        return probs, valid_mask, f"fixed_mask:{mode}"
+    if mode in {
+        "none",
+        "no_recurrence",
+        "softplus_w_only",
+        "edgewise_soft_conductance",
+        "smooth_lowrank_conductance",
+    }:
         return None, None, f"unsupported_mode:{mode or 'unknown'}"
+    if mode in {"soft_gate_lowrank", "soft_gate_edgewise"}:
+        if not hasattr(liquid, "_soft_gate_gate"):
+            return None, None, f"unsupported_mode:{mode or 'unknown'}"
+        with torch.no_grad():
+            probs = liquid._soft_gate_gate().detach().float().cpu().clamp(0.0, 1.0)
+        density_mask = getattr(liquid, "density_mask", None)
+        if density_mask is not None:
+            valid_mask = density_mask.detach().bool().cpu()
+        elif valid_mask is None:
+            valid_mask = torch.ones_like(probs, dtype=torch.bool)
+        return probs, valid_mask, "soft_gate"
     with torch.no_grad():
         if mode == "grad_r" and hasattr(liquid, "theta"):
             raw = liquid.theta.detach().float().cpu()
@@ -279,11 +310,8 @@ def deterministic_edge_probabilities(
         probs = raw.clamp(0.0, 1.0)
     else:
         probs = torch.sigmoid(raw)
-    self_mask = getattr(liquid, "self_conn_mask", None)
-    if self_mask is None:
+    if valid_mask is None:
         valid_mask = torch.ones_like(probs, dtype=torch.bool)
-    else:
-        valid_mask = self_mask.detach().bool().cpu()
     return probs, valid_mask, source
 
 
@@ -398,6 +426,19 @@ def collect_epoch_diagnostics(
         "adaptation_max": safe_float(
             raw_metrics.get("adaptation_max", raw_metrics.get("max_adaptation"))
         ),
+        "membrane_mean": safe_float(raw_metrics.get("membrane_mean")),
+        "membrane_max": safe_float(raw_metrics.get("membrane_max")),
+        "input_current_abs_mean": safe_float(
+            raw_metrics.get("input_current_abs_mean")
+        ),
+        "input_current_abs_max": safe_float(raw_metrics.get("input_current_abs_max")),
+        "recurrent_current_abs_mean": safe_float(
+            raw_metrics.get("recurrent_current_abs_mean")
+        ),
+        "recurrent_current_abs_max": safe_float(
+            raw_metrics.get("recurrent_current_abs_max")
+        ),
+        "rec_input_abs_ratio": safe_float(raw_metrics.get("rec_input_abs_ratio")),
         "theta_grad_norm_pre_clip": safe_float(
             raw_metrics.get(
                 "theta_grad_norm_pre_clip",
@@ -414,22 +455,35 @@ def collect_epoch_diagnostics(
         "neuron_type": raw_metrics.get("neuron_type"),
         "readout_mode": raw_metrics.get("readout_mode"),
         "topology_metrics_logged": topology_due,
-        "topology_probability_source": None,
+        "topology_probability_source": raw_metrics.get("topology_probability_source"),
+        "theta_bias": safe_float(raw_metrics.get("theta_bias")),
+        "edge_prob_entropy": safe_float(
+            raw_metrics.get(
+                "edge_prob_entropy",
+                raw_metrics.get("topology_entropy"),
+            )
+        ),
+        "edge_prob_mean": safe_float(raw_metrics.get("edge_prob_mean")),
+        "edge_prob_std": safe_float(raw_metrics.get("edge_prob_std")),
+        "top_edge_prob_mean": safe_float(raw_metrics.get("top_edge_prob_mean")),
+        "in_degree_gini": safe_float(raw_metrics.get("in_degree_gini")),
+        "out_degree_gini": safe_float(raw_metrics.get("out_degree_gini")),
+        "max_in_degree": safe_float(raw_metrics.get("max_in_degree")),
+        "max_out_degree": safe_float(raw_metrics.get("max_out_degree")),
         "interval_skipped_metrics": [],
         "unsupported_without_extra_forward_trace_metrics": list(TRACE_ONLY_METRICS),
     }
     row.update(_activity_fractions(model, diag_cfg))
 
-    row["rec_input_abs_ratio"] = None
-    row["membrane_mean"] = None
-    row["membrane_max"] = None
-
-    if topology_due:
+    topology_missing = any(row.get(key) is None for key in INTERVAL_TOPOLOGY_METRICS)
+    if topology_missing and topology_due:
         row.update(collect_topology_metrics(model))
+    elif topology_missing:
+        row["interval_skipped_metrics"] = [
+            key for key in INTERVAL_TOPOLOGY_METRICS if row.get(key) is None
+        ]
     else:
-        for key in INTERVAL_TOPOLOGY_METRICS:
-            row[key] = None
-        row["interval_skipped_metrics"] = list(INTERVAL_TOPOLOGY_METRICS)
+        row["topology_metrics_logged"] = True
 
     return {key: row.get(key) for key in REQUIRED_EPOCH_METRICS} | {
         "recurrent_mode": row.get("recurrent_mode"),
@@ -442,6 +496,10 @@ def collect_epoch_diagnostics(
             "unsupported_without_extra_forward_trace_metrics", []
         ),
         "test_at_best_val_expected": row.get("test_at_best_val_expected"),
+        "input_current_abs_mean": row.get("input_current_abs_mean"),
+        "input_current_abs_max": row.get("input_current_abs_max"),
+        "recurrent_current_abs_mean": row.get("recurrent_current_abs_mean"),
+        "recurrent_current_abs_max": row.get("recurrent_current_abs_max"),
     }
 
 

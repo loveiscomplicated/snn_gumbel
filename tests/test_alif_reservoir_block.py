@@ -201,12 +201,15 @@ class ALIFReservoirBlockTest(unittest.TestCase):
     def test_model_uses_plain_wrapper_without_state_dict_duplication(self):
         cfg = _small_alif_config()
         model = build_model(cfg, torch.device("cpu"))
+        state_keys = list(model.state_dict())
 
         self.assertIsInstance(model.alif_reservoir, ALIFReservoirBlock)
         self.assertNotIn("alif_reservoir", dict(model.named_modules()))
         self.assertFalse(
-            any(key.startswith("alif_reservoir.") for key in model.state_dict())
+            any(key.startswith("alif_reservoir.") for key in state_keys)
         )
+        self.assertFalse(any(".alif_reservoir." in key for key in state_keys))
+        self.assertEqual(len(state_keys), len(set(state_keys)))
         self.assertIn("liquid.w_raw", model.state_dict())
 
     def test_model_traces_diagnostics_and_readout_contract(self):
@@ -254,11 +257,56 @@ class ALIFReservoirBlockTest(unittest.TestCase):
             "adaptation_max",
             "membrane_mean",
             "membrane_max",
+            "input_current_abs_mean",
+            "input_current_abs_max",
             "recurrent_current_abs_mean",
             "recurrent_current_abs_max",
+            "rec_input_abs_ratio",
         ):
             self.assertIn(key, diagnostics)
             self.assertTrue(math.isfinite(float(diagnostics[key])), key)
+
+    def test_return_contract_preserves_old_traces_behavior(self):
+        cfg = _small_alif_config()
+        model = build_model(cfg, torch.device("cpu"))
+        x = (torch.rand(cfg.batch_size, cfg.T, cfg.n_input) < 0.4).float()
+
+        trace_result = model(x, return_traces=True)
+        self.assertIsInstance(trace_result, tuple)
+        self.assertEqual(len(trace_result), 2)
+        logits, traces = trace_result
+        self.assertEqual(tuple(logits.shape), (cfg.batch_size, cfg.n_output))
+        self.assertEqual(
+            set(traces),
+            {
+                "spikes",
+                "membrane",
+                "input_current",
+                "recurrent_current",
+                "adaptation",
+                "theta_eff",
+            },
+        )
+
+        diagnostics_result = model(x, return_diagnostics=True)
+        self.assertIsInstance(diagnostics_result, tuple)
+        self.assertEqual(len(diagnostics_result), 2)
+        logits, diagnostics = diagnostics_result
+        self.assertEqual(tuple(logits.shape), (cfg.batch_size, cfg.n_output))
+        for value in diagnostics.values():
+            self.assertTrue(math.isfinite(float(value)))
+
+        combined_result = model(
+            x,
+            return_traces=True,
+            return_diagnostics=True,
+        )
+        self.assertIsInstance(combined_result, tuple)
+        self.assertEqual(len(combined_result), 3)
+        logits, traces, diagnostics = combined_result
+        self.assertEqual(tuple(logits.shape), (cfg.batch_size, cfg.n_output))
+        self.assertIn("membrane", traces)
+        self.assertIn("recurrent_current_abs_mean", diagnostics)
 
     def test_reference_config_loads_and_instantiates_model(self):
         cfg = load_config(
