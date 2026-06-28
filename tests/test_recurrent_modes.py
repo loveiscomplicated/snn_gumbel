@@ -184,6 +184,59 @@ class RecurrentModeFormulaTest(unittest.TestCase):
         self.assertGreater(float(liquid.dst_embed.grad.abs().sum().item()), 0.0)
         self.assertGreater(float(liquid.theta_bias.grad.abs().sum().item()), 0.0)
 
+    def test_grad_r_uses_deterministic_edgewise_ste(self):
+        liquid = LiquidLayer(
+            3,
+            mode="grad_r",
+            theta_init_std=0.0,
+            w_raw_init_mean=-2.0,
+            w_raw_init_std=0.0,
+            train_w_raw=False,
+            self_connection=False,
+        )
+        with torch.no_grad():
+            liquid.theta.copy_(
+                torch.tensor(
+                    [
+                        [-1.0, 2.0, -0.5],
+                        [0.25, -1.0, 0.75],
+                        [-0.25, 0.5, -1.0],
+                    ]
+                )
+            )
+
+        theta = liquid.get_theta()
+        expected_hard = (theta > 0).float()
+        expected_ste = (
+            expected_hard - torch.sigmoid(theta).detach() + torch.sigmoid(theta)
+        )
+
+        liquid.train()
+        liquid.sample_epoch_mask(
+            tau=0.01,
+            epoch_noise=torch.full_like(theta, 1000.0),
+        )
+        sampled = liquid.sample_mask()
+
+        self.assertTrue(torch.allclose(sampled, expected_ste))
+        self.assertTrue(torch.allclose(sampled.detach(), expected_hard))
+
+        loss = liquid.get_effective_weight().abs().sum()
+        loss.backward()
+
+        self.assertIsNotNone(liquid.theta.grad)
+        self.assertGreater(float(liquid.theta.grad.abs().sum().item()), 0.0)
+
+    def test_grad_r_regularizers_apply_to_edgewise_theta(self):
+        cfg = _small_cfg("grad_r", train_w_raw=False)
+        model = build_model(cfg, torch.device("cpu"))
+
+        loss = model.sparsity_loss() + model.commitment_loss()
+        loss.backward()
+
+        self.assertIsNotNone(model.liquid.theta.grad)
+        self.assertGreater(float(model.liquid.theta.grad.abs().sum().item()), 0.0)
+
     def test_soft_gate_schedule_anneals_after_warmup(self):
         cfg = Config()
         cfg.liquid.theta_warmup_epochs = 10

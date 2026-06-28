@@ -42,6 +42,7 @@ HARD_TOPOLOGY_MODES = {
     "learned_lowrank",
     "learned_lowrank_grad_r",
     "learned_lowrank_frozen_w",
+    "grad_r",
 }
 SOFT_GATE_MODES = {"soft_gate_lowrank", "soft_gate_edgewise"}
 SOFT_CONDUCTANCE_MODES = {
@@ -378,7 +379,7 @@ class LiquidLayer(nn.Module):
         return self.alif_beta_buffer.clamp(min=0.0)
 
     def get_theta(self) -> torch.Tensor:
-        if self.mode == "learned":
+        if self.mode in {"learned", "grad_r"}:
             return self.theta
         if self.mode in LOWRANK_MODES:
             return self.src_embed @ self.dst_embed.T + self.theta_bias
@@ -696,7 +697,7 @@ class LiquidLayer(nn.Module):
             other batches this epoch, but a fresh computation graph each call.
         Phase 1 / eval: deterministic hard mask, no gradient.
         """
-        if self.mode == "learned_lowrank_grad_r":
+        if self.mode in {"learned_lowrank_grad_r", "grad_r"}:
             theta = self.get_theta()
             if self.training and any(
                 param.requires_grad for param in self.topology_parameters()

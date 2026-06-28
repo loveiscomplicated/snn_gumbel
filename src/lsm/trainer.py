@@ -927,11 +927,11 @@ def train(cfg: Config) -> tuple:
             model.liquid.set_topology_requires_grad(requires_grad)
 
     # Phase 1 warmup is for hard topology modes. Only Gumbel modes receive
-    # epoch-level noise; deterministic Grad-R lowrank uses the same warmup
+    # epoch-level noise; deterministic Grad-R variants use the same warmup
     # policy without tau/noise sampling.
     warmup = cfg.liquid.theta_warmup_epochs
     gumbel_topology_modes = {"learned", "learned_lowrank", "learned_lowrank_frozen_w"}
-    hard_topology_modes = gumbel_topology_modes | {"learned_lowrank_grad_r"}
+    hard_topology_modes = gumbel_topology_modes | {"learned_lowrank_grad_r", "grad_r"}
     soft_gate_modes = {"soft_gate_lowrank", "soft_gate_edgewise"}
     lowrank_param_modes = {
         "learned_lowrank",
