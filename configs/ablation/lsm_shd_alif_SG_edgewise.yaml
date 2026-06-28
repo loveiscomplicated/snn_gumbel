@@ -15,6 +15,8 @@ liquid:
   target_anneal_epochs: 40
   density_penalty_lambda: 1.0
   mag_from_separate_param: false
+  fdi_candidate_recurrent_scales: [0.02, 0.05, 0.1, 0.2]
+  fdi_strict_mode: true
 
   topology_adaptive_freeze: false
   theta_freeze_epoch: 0
