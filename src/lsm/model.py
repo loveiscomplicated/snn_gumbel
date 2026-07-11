@@ -749,7 +749,7 @@ class LiquidLayer(nn.Module):
         """Compute the effective recurrent matrix.
 
         Existing learned_lowrank baseline:
-            W_eff = current_mask * self_conn_mask * dale_sign * softplus(clamp(w_raw)).
+            W_eff = scale * current_mask * self_conn_mask * dale_sign * softplus(clamp(w_raw)).
         New soft-conductance ablations replace only the conductance generator while
         keeping Dale sign and self-connection masking fixed.
         """
@@ -780,12 +780,19 @@ class LiquidLayer(nn.Module):
             self.sample_mask()
         if self.mode == "learned_lowrank_frozen_w" and self.frozen_w_mode == "constant_g":
             return (
-                self.current_mask
+                self.recurrent_weight_scale
+                * self.current_mask
                 * self.self_conn_mask
                 * self.dale_sign
                 * self.frozen_w_constant_g
             )
-        return self.current_mask * self.self_conn_mask * self.dale_sign * self._w_raw_conductance()
+        return (
+            self.recurrent_weight_scale
+            * self.current_mask
+            * self.self_conn_mask
+            * self.dale_sign
+            * self._w_raw_conductance()
+        )
 
     def forward(self, spike: torch.Tensor) -> torch.Tensor:
         """

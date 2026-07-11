@@ -107,7 +107,7 @@ class LiquidConfig:
     w_raw_max: float = (
         -3.0
     )  # w_raw 상한 clamp (softplus(-3.0)≈0.049, spectral radius < 1 for N≤500)
-    recurrent_weight_scale: float = 1.0  # smooth conductance recurrent gain scale
+    recurrent_weight_scale: float = 1.0  # global recurrent W_eff gain scale
     match_initial_w_eff_scale: bool = False  # smooth lowrank 초기 W_eff norm matching
     frozen_w_mode: str = "initialized_w"  # initialized_w | constant_g
     frozen_w_constant_g: float | None = None  # constant_g mode conductance; None=derive
