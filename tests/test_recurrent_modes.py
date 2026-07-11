@@ -305,6 +305,35 @@ class RecurrentModeFormulaTest(unittest.TestCase):
         self.assertTrue(liquid.theta.requires_grad)
         self.assertTrue(torch.allclose(liquid.get_effective_weight(), expected))
 
+    def test_grad_r_recurrent_weight_scale_multiplies_final_weight_only(self):
+        liquid = LiquidLayer(
+            4,
+            mode="grad_r",
+            theta_init_mean=1.0,
+            theta_init_std=0.0,
+            w_raw_init_mean=-2.25,
+            w_raw_init_std=0.0,
+            train_w_raw=False,
+            self_connection=False,
+            recurrent_weight_scale=3.0,
+        )
+        liquid.sample_mask()
+        theta_before = liquid.theta.detach().clone()
+        mask_before = liquid.current_mask.detach().clone()
+
+        expected = (
+            liquid.recurrent_weight_scale
+            * liquid.current_mask
+            * liquid.self_conn_mask
+            * liquid.dale_sign
+            * F.softplus(torch.clamp(liquid.w_raw, max=liquid.w_raw_max))
+        )
+
+        self.assertFalse(liquid.w_raw.requires_grad)
+        self.assertTrue(torch.allclose(liquid.get_effective_weight(), expected))
+        self.assertTrue(torch.allclose(liquid.theta, theta_before))
+        self.assertTrue(torch.allclose(liquid.current_mask, mask_before))
+
     def test_softplus_w_only_is_dense_valid_weight(self):
         liquid = LiquidLayer(
             4,
